@@ -40,13 +40,9 @@ def main():
 
     # create a DataFrame from the csv file
     df = pd.read_csv(args["input"])
-    # print(df.head())
-    # print(df.info())
 
-    color = str()
-
-    # print(df.head())
     # Rename columns to make them easier to work with
+    color = str()
     for col in df.columns:
         if "Tan" in col:
             color = "Tan"
@@ -98,7 +94,6 @@ def main():
 
     shifts = pd.DataFrame(shifttimes)
     shifts = shifts.set_index("Shift")
-    # print(shifts)
 
     # Create shifts column to determine what measurements belong to which shift
     df["Shift"] = ""
@@ -120,7 +115,6 @@ def main():
     wtgt = 1.0  # Target weight for the product
     for ind in df.index:
         num = int(df["1st_Part_Number"][ind])
-        # df["1st_Part_Number"][ind] = num
         if num == 664436:
             df.loc[ind,"Product"] = "Elite 36"
             wtgt = 33.2
@@ -404,7 +398,6 @@ def main():
 
     if args["showcharts"] is not None:
         print("\nCharts not displayed.\n")
-        # plt.close('all')
     else:
         plt.show()
 
