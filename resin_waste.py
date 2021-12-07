@@ -17,6 +17,14 @@ import datetime as dt
 import seaborn as sns
 import matplotlib.ticker as mtick
 
+def perdelta(start, end, delta):
+    """Given a start datetime, end datetime, and delta time, generate the
+    new datetime for putting in a list.
+    """
+    curr = start
+    while curr < end:
+        yield curr
+        curr += delta
 
 # This works for taking exact file location as a command line argument
 def main():
@@ -53,6 +61,16 @@ def main():
         col = col.replace("Tan_","")
         col = col.replace("Gray_","")
         df = df.rename(columns={old:col})
+
+    # Set percent pigment and percent catalyst values based on color
+    if color == "Tan":
+        pct_pig = 0.0186
+        pct_cat = 0.018
+    elif color == "Gray":
+        pct_pig = 0.0265
+        pct_cat = 0.018
+    else:
+        print("ERROR: Color not recognized")
 
     # Separate date and time and convert to datetime.date and datetime.time
     df["Date"] = ""
@@ -102,26 +120,27 @@ def main():
     wtgt = 1.0  # Target weight for the product
     for ind in df.index:
         num = int(df["1st_Part_Number"][ind])
+        # df["1st_Part_Number"][ind] = num
         if num == 664436:
-            df.loc[ind,"Product"] = "Rockwell 36"
+            df.loc[ind,"Product"] = "Elite 36"
             wtgt = 33.2
         elif num == 664448:
-            df.loc[ind,"Product"] = "Rockwell 48"
+            df.loc[ind,"Product"] = "Elite 48"
             wtgt = 38.7
         elif num == 664460:
-            df.loc[ind,"Product"] = "Rockwell 60"
+            df.loc[ind,"Product"] = "Elite 60"
             wtgt = 44.2
         elif num == 664472:
-            df.loc[ind,"Product"] = "Rockwell 72"
+            df.loc[ind,"Product"] = "Elite 72"
             wtgt = 51.9
         elif num == 664484:
-            df.loc[ind,"Product"] = "Rockwell 84"
+            df.loc[ind,"Product"] = "Elite 84"
             wtgt = 60.2
         elif num == 664496:
-            df.loc[ind,"Product"] = "Rockwell 96"
+            df.loc[ind,"Product"] = "Elite 96"
             wtgt = 70.7
-        elif num == 6644102:    # Not sure if this is the right part number
-            df.loc[ind,"Product"] = "Rockwell 102"
+        elif num == 6644102:
+            df.loc[ind,"Product"] = "Elite 102"
             wtgt = 80.9
         elif num == 422324:
             df.loc[ind,"Product"] = "Cascade 24"
@@ -138,11 +157,26 @@ def main():
         else:
             print("ERROR: PRODUCT NUMBER NOT RECOGNIZED")
 
+        wtgt = wtgt*(1 - pct_pig - pct_cat)
         df.loc[ind,"Excess_Resin_Percentage"] = 100.0*(df.loc[ind,"Excess_Resin_Weight"]/wtgt)
 
 
     # Sort DataFrame by Product so charts come out nicely
     df = df.sort_values(by="Product")
+
+    # Ordered list of strings based on what products are in the data
+    products = pd.DataFrame({"PartNumber": [664436, 664448, 664460, 664472,
+                                            664484, 664496, 6644102, 422324,
+                                            422336, 422348, 1111],
+                    "Product": ["Elite 36", "Elite 48", "Elite 60", "Elite 72",
+                                "Elite 84", "Elite 96", "Elite 102", "Cascade 24",
+                                "Cascade 36", "Cascade 48", "Additional Resin"]})
+    products = products.sort_values(by="PartNumber")
+    hue_order = []
+    for ind in products.index:
+        current_product = products.loc[ind,"Product"]
+        if df["Product"].str.contains(current_product).any():
+            hue_order.append(current_product)
 
     #################### PLOTS ####################
     ### BOXPLOTS ###
@@ -184,20 +218,20 @@ def main():
     pct_by_prdct_stats = df_pct.groupby(["Product"])["Excess_Resin_Percentage"].describe()
     print(pct_by_prdct_stats)
 
-    # Excess resin by Rockwell line only
+    # Excess resin by Elite line only
     plt.figure(3)
     sns.set_theme(style="whitegrid")
     ax3 = sns.boxplot(x="Product", y="Excess_Resin_Weight", data=df,
-                      order=["Rockwell 36", "Rockwell 48",
-                            "Rockwell 60", "Rockwell 72",
-                            "Rockwell 84", "Rockwell 96",
+                      order=["Elite 36", "Elite 48",
+                            "Elite 60", "Elite 72",
+                            "Elite 84", "Elite 96",
                             "Additional Resin"])
     ax3 = sns.swarmplot(x="Product", y="Excess_Resin_Weight", data=df,
-                        order=["Rockwell 36", "Rockwell 48",
-                              "Rockwell 60", "Rockwell 72",
-                              "Rockwell 84", "Rockwell 96",
+                        order=["Elite 36", "Elite 48",
+                              "Elite 60", "Elite 72",
+                              "Elite 84", "Elite 96",
                               "Additional Resin"],color=".25")
-    titlestring = color + " Excess Resin, Rockwell Only: {} to {}".format(min(df.Date),max(df.Date))
+    titlestring = color + " Excess Resin, Elite Only: {} to {}".format(min(df.Date),max(df.Date))
     yaxisstring = "Excess Resin Weight (lbs)"
     ax3.set(title=titlestring)
     ax3.set(ylabel=yaxisstring)
@@ -222,7 +256,8 @@ def main():
     plt.figure(5)
     sns.set_theme(style="whitegrid")
     ax5 = sns.boxplot(x="Shift", y="Excess_Resin_Weight", data=df,
-                      order=["Day", "Swing", "Night"],hue="Product")
+                      order=["Day", "Swing", "Night"],hue="Product",
+                      hue_order=hue_order)
     titlestring = color + " Excess Resin by Shift and Product: {} to {}".format(min(df.Date),max(df.Date))
     yaxisstring = "Excess Resin Weight (lbs)"
     ax5.set(title=titlestring)
@@ -238,9 +273,11 @@ def main():
     plt.figure(6)
     sns.set_theme(style="whitegrid")
     data = wt_by_shift_prdct_stats.reset_index()
+    print("\nStats for Average Excess Resin Use by Shift")
     print(data)
     ax6 = sns.barplot(x="Shift", y="mean", data=data,
-                    order=["Day", "Swing", "Night"],hue="Product")
+                    order=["Day", "Swing", "Night"],hue="Product",
+                    hue_order=hue_order)
     titlestring = color + " Average Excess Resin: {} to {}".format(min(df.Date),max(df.Date))
     yaxisstring = "Average Excess Resin per Part(lbs)"
     ax6.set(title=titlestring)
@@ -278,11 +315,70 @@ def main():
 
 
 
-    # Time series plots
-    # df = df.sort_values(by="Datetime") # Resort data by time
-    # plt.figure(4)
-    # ax5 = sns.relplot(x="Datetime", y="Excess_Resin_Weight", kind="line", data=df)
-    # ax5.set(xticklabels=[]) # Figure out how to set this so the ticks only happen at the start of new days or shifts
+    ### TIME SERIES PLOTS ###
+    # # Excess resin weight over time (not scaled by target weight)
+    # df = df.sort_values(by="Datetime", ascending=False) # Resort data by time
+    # plt.figure(8)
+    # sns.set_theme(style="whitegrid")
+    # # ax8 = sns.relplot(x="Datetime", y="Excess_Resin_Weight", kind="line", data=df)
+    # ax8 = plt.plot(df["Datetime"],df["Excess_Resin_Weight"])
+    #
+    # # Calculations to make xticks easier to read
+    # mindate = df["Date"][len(df)-1]
+    # maxdate = df["Date"][0]
+    # mintime = df["Time"][len(df)-1]
+    # maxtime = df["Time"][0]
+    # mindatetime = dt.datetime.combine(mindate, mintime)
+    # maxdatetime = dt.datetime.combine(maxdate, maxtime)
+    #
+    # xticklabels = []
+    # for ind in df.index:
+    #     if ind == 0:
+    #         xticklabels.append(df)
+    #     if df.loc[ind,"Shift"] == "Day"
+
+
+
+
+
+
+
+
+
+    #
+    #
+    # # Calculate the shift of the mintime
+    # if mintime >= daystart and mintime < dayend:
+    #     xtick_starttime = daystart
+    # elif mintime >= swingstart and mintime < swingend:
+    #     xtick_starttime = swingstart
+    # else:
+    #     xtick_starttime = nightstart
+    #
+    # xtick_start = dt.datetime.combine(mindate, xtick_starttime)
+    # # print(xtick_start)
+    #
+    # # Calculate the shift of the maxtime
+    # if maxtime >= daystart and maxtime < dayend:
+    #     xtick_endtime = dayend
+    # elif maxtime >= swingstart and maxtime < swingend:
+    #     xtick_endtime = swingend
+    # else:
+    #     xtick_endtime = nightend
+    #
+    # xtick_end = dt.datetime.combine(maxdate, xtick_endtime)
+    # # print(xtick_end)
+    #
+    # for result in perdelta(xtick_start, xtick_end, dt.timedelta(hours=8)):
+    #     xticks.append(result)
+    #     print(result)
+    #
+    # # print("\n",xticks)
+    #
+    #
+    #
+    #
+    # ax8.set(xticklabels=xticklabels) # Figure out how to set this so the ticks only happen at the start of new days or shifts
 
 
     # Another way to look at the time series data could be to combine all
@@ -306,14 +402,12 @@ def main():
         # Close the Pandas Excel writer and output the Excel file
         writer.save()
 
-    if args["showcharts"] is False:
-        print("Charts not displayed.")
-    elif args["showcharts"] is None:
-        plt.show()
-    elif args["showcharts"] is True:
-        plt.show()
+    if args["showcharts"] is not None:
+        print("\nCharts not displayed.\n")
+        # plt.close('all')
     else:
-        print("Charts not displayed.")
+        plt.show()
+
 
 
 if __name__ == "__main__":
