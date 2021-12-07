@@ -157,7 +157,7 @@ def main():
         else:
             print("ERROR: PRODUCT NUMBER NOT RECOGNIZED")
 
-        wtgt = wtgt*(1 - pct_pig - pct_cat)
+        wtgt = wtgt*(1 - pct_pig - pct_cat)     # Adjust nominal weight to only include resin weight
         df.loc[ind,"Excess_Resin_Percentage"] = 100.0*(df.loc[ind,"Excess_Resin_Weight"]/wtgt)
 
 
