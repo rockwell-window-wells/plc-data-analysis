@@ -219,12 +219,12 @@ def main():
                       order=["Elite 36", "Elite 48",
                             "Elite 60", "Elite 72",
                             "Elite 84", "Elite 96",
-                            "Additional Resin"])
+                            "Elite 102", "Additional Resin"])
     ax3 = sns.swarmplot(x="Product", y="Excess_Resin_Weight", data=df,
                         order=["Elite 36", "Elite 48",
                               "Elite 60", "Elite 72",
                               "Elite 84", "Elite 96",
-                              "Additional Resin"],color=".25")
+                              "Elite 102", "Additional Resin"],color=".25")
     titlestring = color + " Excess Resin, Elite Only: {} to {}".format(min(df.Date),max(df.Date))
     yaxisstring = "Excess Resin Weight (lbs)"
     ax3.set(title=titlestring)
@@ -273,7 +273,7 @@ def main():
                     order=["Day", "Swing", "Night"],hue="Product",
                     hue_order=hue_order)
     titlestring = color + " Average Excess Resin: {} to {}".format(min(df.Date),max(df.Date))
-    yaxisstring = "Average Excess Resin per Part(lbs)"
+    yaxisstring = "Average Excess Resin per Part (lbs)"
     ax6.set(title=titlestring)
     ax6.set(ylabel=yaxisstring)
     ax6.legend(bbox_to_anchor=(1.0,1.0))
