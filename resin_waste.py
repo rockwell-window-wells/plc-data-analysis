@@ -178,7 +178,8 @@ def main():
     plt.figure(1)
     sns.set_theme(style="whitegrid")
     ax1 = sns.boxplot(x="Product", y="Excess_Resin_Weight", data=df,)
-    ax1 = sns.swarmplot(x="Product", y="Excess_Resin_Weight", data=df,color=".25")
+    # ax1 = sns.swarmplot(x="Product", y="Excess_Resin_Weight", data=df,color=".25")
+    ax1 = sns.stripplot(x="Product", y="Excess_Resin_Weight", data=df, color=".25", jitter=0.25)
     titlestring = color + " Excess Resin, All Products: {} to {}".format(min(df.Date),max(df.Date))
     yaxisstring = "Excess Resin Weight (lbs)"
     ax1.set(title=titlestring)
@@ -194,7 +195,8 @@ def main():
     plt.figure(2)
     sns.set_theme(style="whitegrid")
     ax2 = sns.boxplot(x="Product", y="Excess_Resin_Percentage", data=df)
-    ax2 = sns.swarmplot(x="Product", y="Excess_Resin_Percentage", data=df, color=".25")
+    # ax2 = sns.swarmplot(x="Product", y="Excess_Resin_Percentage", data=df, color=".25")
+    ax2 = sns.stripplot(x="Product", y="Excess_Resin_Percentage", data=df, color=".25", jitter=0.25)
     titlestring = color + " Excess Resin, All Products: {} to {}".format(min(df.Date),max(df.Date))
     yaxisstring = "Excess Resin (%)"
     ax2.set(title=titlestring)
@@ -220,11 +222,16 @@ def main():
                             "Elite 60", "Elite 72",
                             "Elite 84", "Elite 96",
                             "Elite 102", "Additional Resin"])
-    ax3 = sns.swarmplot(x="Product", y="Excess_Resin_Weight", data=df,
+    # ax3 = sns.swarmplot(x="Product", y="Excess_Resin_Weight", data=df,
+    #                     order=["Elite 36", "Elite 48",
+    #                           "Elite 60", "Elite 72",
+    #                           "Elite 84", "Elite 96",
+    #                           "Elite 102", "Additional Resin"],color=".25")
+    ax3 = sns.stripplot(x="Product", y="Excess_Resin_Weight", data=df,
                         order=["Elite 36", "Elite 48",
                               "Elite 60", "Elite 72",
                               "Elite 84", "Elite 96",
-                              "Elite 102", "Additional Resin"],color=".25")
+                              "Elite 102", "Additional Resin"],color=".25",jitter=0.25)
     titlestring = color + " Excess Resin, Elite Only: {} to {}".format(min(df.Date),max(df.Date))
     yaxisstring = "Excess Resin Weight (lbs)"
     ax3.set(title=titlestring)
@@ -235,8 +242,10 @@ def main():
     sns.set_theme(style="whitegrid")
     ax4 = sns.boxplot(x="Shift", y="Excess_Resin_Weight", data=df,
                       order=["Day", "Swing", "Night"])
-    ax4 = sns.swarmplot(x="Shift", y="Excess_Resin_Weight", data=df,
-                      order=["Day", "Swing", "Night"], color=".25")
+    # ax4 = sns.swarmplot(x="Shift", y="Excess_Resin_Weight", data=df,
+    #                   order=["Day", "Swing", "Night"], color=".25")
+    ax4 = sns.stripplot(x="Shift", y="Excess_Resin_Weight", data=df,
+                      order=["Day", "Swing", "Night"], color=".25", jitter=0.15)
     titlestring = color + " Excess Resin by Shift: {} to {}".format(min(df.Date),max(df.Date))
     yaxisstring = "Excess Resin Weight (lbs)"
     ax4.set(title=titlestring)
