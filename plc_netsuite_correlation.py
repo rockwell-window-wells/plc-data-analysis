@@ -101,6 +101,25 @@ netsuite_byday_bypart = pd.DataFrame(data=netsuite_day_data, columns=all_unique_
 netsuite_byday_bypart = netsuite_byday_bypart.reindex(idx, fill_value=0)
 netsuite_byday_bypart.index = netsuite_byday_bypart.index.date
 
+# Get list of dates to use for plotting (only use every nth date)
+datetimes = pd.DataFrame(data=netsuite_byday_bypart.index)
+dates = pd.to_datetime(datetimes[0]).dt.date
+unique_dates = dates.unique()
+unique_dates = pd.DataFrame(data=unique_dates)
+nth = 5
+nth_dates = unique_dates.iloc[::nth, :]
+nth_dates = list(nth_dates[0])
+nth_dates_noyear = []
+j = 0
+for i, date in enumerate(nth_dates):
+    # print("i = {}".format(i))
+    # print("j = {}".format(j))
+    month = date.month
+    day = date.day
+    daystr = str(month) + "/" + str(day)
+    nth_dates_noyear.append(daystr)
+    j += 1
+
 
 # Plot the data for each part to see if the difference between the PLC and 
 # Netsuite data lag each other relatively constantly.
@@ -118,16 +137,17 @@ for i,ax_row in enumerate(ax_array):
         
         subplot_title = "{}: r = {}".format(netsuite_byday_bypart.columns[plotcount], np.around(overall_pearson_r,2))
         axes.set_title(subplot_title)
-        axes.set_xlabel("Date")
+        # axes.set_xlabel("Date")
         axes.set_ylabel("Count")
-        axes.set_xticklabels([])
-        axes.plot(plc_byday_bypart.index.values, plc_byday_bypart.iloc[:, plotcount], label="PLC")
-        axes.plot(netsuite_byday_bypart.index.values, netsuite_byday_bypart.iloc[:, plotcount], label="NetSuite", color="r")
+        axes.set_xticks(nth_dates)
+        axes.set_xticklabels(nth_dates_noyear, rotation=45)
+        axes.plot(plc_byday_bypart.index.values, plc_byday_bypart.iloc[:, plotcount])
+        axes.plot(netsuite_byday_bypart.index.values, netsuite_byday_bypart.iloc[:, plotcount], alpha=0.75, color="r")
         
         # axes.legend()
         plotcount += 1
 
 startdate = plc_byday_bypart.index.min()
 enddate = plc_byday_bypart.index.max()        
-fig.suptitle("Compare PLC and Netsuite Part Counts, {} to {} (PLC=Blue, NetSuite=Red)".format(startdate, enddate))
+fig.suptitle("Daily Comparison of PLC and Netsuite Part Counts, {} to {} (PLC=Blue, NetSuite=Red)".format(startdate, enddate))
 plt.tight_layout()

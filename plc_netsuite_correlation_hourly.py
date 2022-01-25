@@ -150,7 +150,7 @@ for i,ax_row in enumerate(ax_array):
         
         subplot_title = "{}".format(netsuite_byhour_bypart.columns[plotcount])
         axes.set_title(subplot_title)
-        axes.set_xlabel("Date")
+        # axes.set_xlabel("Date")
         axes.set_ylabel("Count")
         axes.set_xticks(nth_dates)
         axes.set_xticklabels(nth_dates_noyear, rotation=45)
@@ -162,5 +162,5 @@ for i,ax_row in enumerate(ax_array):
 
 # startdate = plc_byhour_bypart.index.min()
 # enddate = plc_byhour_bypart.index.max()        
-fig.suptitle("Compare PLC and Netsuite Part Counts, {} to {} (PLC=Blue, NetSuite=Red)".format(start_date, end_date))
+fig.suptitle("Hourly Comparison of PLC and Netsuite Part Counts, {} to {} (PLC=Blue, NetSuite=Red)".format(start_date, end_date))
 plt.tight_layout()
