@@ -316,8 +316,6 @@ def main():
     ax7.set(ylabel=yaxisstring)
 
 
-
-
     ### TIME SERIES PLOTS ###
     # # Excess resin weight over time (not scaled by target weight)
     # df = df.sort_values(by="Datetime", ascending=False) # Resort data by time
