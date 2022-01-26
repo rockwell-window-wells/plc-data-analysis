@@ -138,7 +138,7 @@ for i, date in enumerate(nth_dates):
 # Netsuite data lag each other relatively constantly.
 columns = 4
 rows = 5
-fig, ax_array = plt.subplots(rows, columns, figsize=(16,8))
+fig, ax_array = plt.subplots(rows, columns, figsize=(16,10))
 plotcount = 0
 for i,ax_row in enumerate(ax_array):
     for j,axes in enumerate(ax_row):
@@ -164,3 +164,12 @@ for i,ax_row in enumerate(ax_array):
 # enddate = plc_byhour_bypart.index.max()        
 fig.suptitle("Hourly Comparison of PLC and Netsuite Part Counts, {} to {} (PLC=Blue, NetSuite=Red)".format(start_date, end_date))
 plt.tight_layout()
+
+fig2 = plt.figure(figsize=(12,8))
+plt.ylabel("Count")
+# .set_xticks(nth_dates)
+# ax2.set_xticklabels(nth_dates_noyear, rotation=45)
+plt.title("Hourly Comparison of PLC and Netsuite Part Counts: WRG664460")
+plt.plot(plc_byhour_bypart.index.values, plc_byhour_bypart.iloc[:,5], label="PLC")
+plt.plot(netsuite_byhour_bypart.index.values, netsuite_byhour_bypart.iloc[:, 5], alpha=0.75, color="r", label="Netsuite")
+plt.legend()
