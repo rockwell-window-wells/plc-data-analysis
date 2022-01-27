@@ -7,6 +7,7 @@ Date created: 1/26/2022
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 def get_closest_operator(cycle_idx, operator_inds):
     """
@@ -239,23 +240,47 @@ df_collapse["time"] = pd.to_datetime(df_collapse["time"])
 
 ### Get statistics on each operator in the data ###
 # Get lists of unique operator numbers for each category
-unique_lead = [int(x) for x in df_collapse["Lead"].unique()]
+unique_leads = [int(x) for x in df_collapse["Lead"].unique()]
 unique_assistant1 = [int(x) for x in df_collapse["Assistant 1"].unique()]
 unique_assistant2 = [int(x) for x in df_collapse["Assistant 2"].unique()]
 unique_assistant3 = [int(x) for x in df_collapse["Assistant 3"].unique()]
-unique_assistants = [unique_assistant1, unique_assistant2, unique_assistant3]
+unique_assistants = unique_assistant1 + unique_assistant2 + unique_assistant3
+unique_assistants = list(np.unique(unique_assistants))
+unique_assistants.remove(0)
+
+
+operator_strings = []
+for operator in unique_leads:
+    operator_strings.append("Lead {}".format(operator))
+for operator in unique_assistants:
+    operator_strings.append("Assistant {}".format(operator))
+    
+all_cycle_times = pd.DataFrame()
 
 # Go through each unique operator number and gather their data
-for operator in unique_lead:
+for operator in unique_leads:
     df_lead = df_collapse.loc[df_collapse["Lead"] == operator]
     mean_cycle = df_lead["Cycle Time"].mean()
     std_cycle = df_lead["Cycle Time"].std()
     print("Lead {}:\n\tAvg: {}\n\tStd Dev: {}".format(operator, mean_cycle, std_cycle))
-    # print("Lead {} avg cycle time: {}".format(operator, mean_cycle))
     
-for i, list_assistants in enumerate(unique_assistants):
-    for operator in list_assistants:
-        df_assistant = df_collapse.loc[df_collapse["Assistant {}".format(i+1)] == operator]
-        mean_cycle = df_assistant["Cycle Time"].mean()
-        std_cycle = df_assistant["Cycle Time"].std()
-        print("Assistant {}:\n\tAvg: {}\n\tStd Dev: {}".format(operator, mean_cycle, std_cycle))
+    # Append the current lead's cycle time data as a column to all_cycle_times
+    col_name = "Lead {}".format(operator)
+    all_cycle_times[col_name] = df_lead["Cycle Time"]
+    
+    
+for operator in unique_assistants:
+    df_assistant = df_collapse.loc[(df_collapse["Assistant 1"] == operator) |
+                                   (df_collapse["Assistant 2"] == operator) | 
+                                   (df_collapse["Assistant 3"] == operator)]
+    mean_cycle = df_assistant["Cycle Time"].mean()
+    std_cycle = df_assistant["Cycle Time"].std()
+    print("Assistant {}:\n\tAvg: {}\n\tStd Dev: {}".format(operator, mean_cycle, std_cycle))
+    
+    # Append the current lead's cycle time data as a column to all_cycle_times
+    col_name = "Assistant {}".format(operator)
+    all_cycle_times[col_name] = df_assistant["Cycle Time"]
+
+boxplot = all_cycle_times.boxplot(column = list(all_cycle_times.columns))
+
+# Combine lead and assistant
