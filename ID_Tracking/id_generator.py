@@ -20,6 +20,10 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     W = template.size[0]
     H = template.size[1]
 
+    redrgb = (255, 133, 133)
+    bluergb = (161, 205, 255)
+    whitergb = (255, 255, 255)
+
     # Change the template from white to slightly gray for visibility
     template = template.convert('RGBA')
     data = np.array(template)
@@ -27,12 +31,12 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     white_areas = (red == 255) & (blue == 255) & (green == 255)
     # Red for supervisor
     if prefix == "10":
-        data[..., :-1][white_areas.T] = (255, 92, 92)
+        data[..., :-1][white_areas.T] = redrgb
     # Blue for assistant
     elif prefix == "11":
-        data[..., :-1][white_areas.T] = (92, 168, 255)
+        data[..., :-1][white_areas.T] = bluergb
     else:
-        data[..., :-1][white_areas.T] = (250, 250, 250) # Slight gray. Could change to white later.
+        data[..., :-1][white_areas.T] = whitergb
     template = Image.fromarray(data)
     template = template.convert('RGB')
 
@@ -44,12 +48,12 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     white_areas = (red == 255) & (blue == 255) & (green == 255)
     # Red for supervisor
     if prefix == "10":
-        data[..., :-1][white_areas.T] = (255, 92, 92)
+        data[..., :-1][white_areas.T] = redrgb
     # Blue for assistant
     elif prefix == "11":
-        data[..., :-1][white_areas.T] = (92, 168, 255)
+        data[..., :-1][white_areas.T] = bluergb
     else:
-        data[..., :-1][white_areas.T] = (250, 250, 250)
+        data[..., :-1][white_areas.T] = whitergb
     qr = Image.fromarray(data)
     qr = qr.convert('RGB')
 
