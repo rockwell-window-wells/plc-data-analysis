@@ -18,10 +18,13 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     # Load template file (portrait CR80 with white background)
     template = Image.open(templatefile)
     W = template.size[0]
+    # print("template width W is: {}".format(W))
     H = template.size[1]
+    # print("template height H is: {}".format(H))
+    bleed = 38
 
-    redrgb = (255, 133, 133)
-    bluergb = (161, 205, 255)
+    redrgb = (255, 64, 64)
+    bluergb = (97, 171, 255)
     whitergb = (255, 255, 255)
 
     # Change the template from white to slightly gray for visibility
@@ -33,7 +36,7 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     if prefix == "10":
         data[..., :-1][white_areas.T] = redrgb
     # Blue for assistant
-    elif prefix == "11":
+    elif  prefix == "11":
         data[..., :-1][white_areas.T] = bluergb
     else:
         data[..., :-1][white_areas.T] = whitergb
@@ -41,55 +44,72 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     template = template.convert('RGB')
 
     qr = Image.open(qrcodepath)
-    # Change the QR code background from white to slightly gray to match card
-    qr = qr.convert('RGBA')
-    data = np.array(qr)
-    red, green, blue, alpha = data.T
-    white_areas = (red == 255) & (blue == 255) & (green == 255)
-    # Red for supervisor
-    if prefix == "10":
-        data[..., :-1][white_areas.T] = redrgb
-    # Blue for assistant
-    elif prefix == "11":
-        data[..., :-1][white_areas.T] = bluergb
-    else:
-        data[..., :-1][white_areas.T] = whitergb
-    qr = Image.fromarray(data)
-    qr = qr.convert('RGB')
+    # # Change the QR code background from white to slightly gray to match card
+    # qr = qr.convert('RGBA')
+    # data = np.array(qr)
+    # red, green, blue, alpha = data.T
+    # white_areas = (red == 255) & (blue == 255) & (green == 255)
+    # # Red for supervisor
+    # if prefix == "10":
+    #     data[..., :-1][white_areas.T] = redrgb
+    # # Blue for assistant
+    # elif prefix == "11":
+    #     data[..., :-1][white_areas.T] = bluergb
+    # else:
+    #     data[..., :-1][white_areas.T] = whitergb
+    # qr = Image.fromarray(data)
+    # qr = qr.convert('RGB')
 
     # Place QR code on the bottom of portrait card, resized to fit
-    qr = qr.resize((W, W))
     qrwidth = qr.size[0]
     qrheight = qr.size[1]
-    left = 0
-    right = W
-    bottom = H
-    top = H - qrheight
+    # Determine the largest qr code that will fit in the bottom of the card
+    qrfactor = 1
+    if qrfactor*qrwidth > (W - 2*bleed):
+        raise ValueError("QR code is too large for the chosen template")
+    while qrfactor*qrwidth <= (W - 2*bleed):
+        qrfactor += 1
+        if qrfactor*qrwidth <= (W - 2*bleed):
+            continue
+        else:
+            qrfactor -= 1
+            break
+
+    qr = qr.resize((qrfactor*qrwidth, qrfactor*qrheight))
+    qrwidth = qr.size[0]
+    qrheight = qr.size[1]
+    border = (W - qrwidth)//2 - bleed
+    left = bleed + border
+    right = bleed + border + qrwidth
+    bottom = H - border - bleed
+    top = H - border - bleed - qrheight
     template.paste(qr, (left, top, right, bottom))
 
     fontsize = 75
     font = ImageFont.truetype("./fonts/Roboto-Black.ttf", size=fontsize)
     draw = ImageDraw.Draw(template)
+    if prefix == "10":
+        draw.rectangle((bleed, bleed, W-bleed, H-bleed))
     if employee_name is not None:
         # print(employee_name)
         msg = employee_name
         w, h = draw.textsize(msg, font=font)
         while True:
-            if w < (W-10):
+            if w < (W - 2*bleed -10):
                 break
             else:
                 fontsize -= 5
                 font = ImageFont.truetype("./fonts/Roboto-Black.ttf", size=fontsize)
                 w, h = draw.textsize(msg, font=font)
-        draw.text(((W-w)/2, (H-qrheight)/6), employee_name, font=font, fill='black')
+        draw.text(((W-w)/2, (H-W)/6 + bleed), employee_name, font=font, fill='black')
     fontsize = 75
     font = ImageFont.truetype("./fonts/Roboto-Black.ttf", size=fontsize)
     msg = itemtype
     w, h = draw.textsize(msg, font=font)
-    draw.text(((W-w)/2, (H-qrheight)/2), itemtype, font=font, fill='black')
+    draw.text(((W-w)/2, (H-W)/2 + bleed), itemtype, font=font, fill='black')
     msg = str(idnum)
     w, h = draw.textsize(msg, font=font)
-    draw.text(((W-w)/2, 5*(H-qrheight)/6), str(idnum), font=font, fill='black')
+    draw.text(((W-w)/2, 5*(H-W)/6 + bleed), str(idnum), font=font, fill='black')
     return template
 
 
@@ -140,7 +160,7 @@ def print_IDcard_5digit(idnum, IDfilepath, QRfolder, IDcardfolder):
         generate_qrcode(str(idnum), QRfolder)
 
     # Print the ID card and export it to the IDcardfolder with
-    templatefile = "./templates/Portrait_white_CR80_card.png"
+    templatefile = "./templates/Portrait_white_ID.png"
     card = generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name)
     IDcardfilename = str(idnum) + itemtype + ".png"
     IDcardpath = IDcardfolder + '/' + IDcardfilename
