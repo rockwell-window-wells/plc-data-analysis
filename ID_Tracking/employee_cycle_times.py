@@ -47,7 +47,7 @@ def get_closest_operator(cycle_idx, operator_inds):
         
 
 # Load the data from .csv (make this general after testing is complete)
-df_raw = pd.read_csv("cycle_time_test_data.csv")
+df_raw = pd.read_csv("cycle_time_test_data1.csv")
 
 # Drop the columns not relevant to cycle times
 df_raw = df_raw.drop(["Leak Time", "Leak Count", "Parts Count",
@@ -237,16 +237,22 @@ collapse_data = {"time": datetimes, "Layup Time": layup_times,
 df_collapse = pd.DataFrame.from_dict(collapse_data)
 df_collapse["time"] = pd.to_datetime(df_collapse["time"])
 
+startdate = df_collapse["time"].iloc[0].date()
+enddate = df_collapse["time"].iloc[-1].date()
+
 
 ### Get statistics on each operator in the data ###
 # Get lists of unique operator numbers for each category
 unique_leads = [int(x) for x in df_collapse["Lead"].unique()]
+if 0 in unique_leads:
+    unique_leads.remove(0)
 unique_assistant1 = [int(x) for x in df_collapse["Assistant 1"].unique()]
 unique_assistant2 = [int(x) for x in df_collapse["Assistant 2"].unique()]
 unique_assistant3 = [int(x) for x in df_collapse["Assistant 3"].unique()]
 unique_assistants = unique_assistant1 + unique_assistant2 + unique_assistant3
 unique_assistants = list(np.unique(unique_assistants))
-unique_assistants.remove(0)
+if 0 in unique_assistants:
+    unique_assistants.remove(0)
 
 
 operator_strings = []
@@ -266,8 +272,14 @@ for operator in unique_leads:
     
     # Append the current lead's cycle time data as a column to all_cycle_times
     col_name = "Lead {}".format(operator)
-    all_cycle_times[col_name] = df_lead["Cycle Time"]
+    all_cycle_times = pd.concat([all_cycle_times, df_lead["Cycle Time"].rename(col_name)], axis=1)
     
+    leadcompare = pd.DataFrame()
+    leadcompare = pd.concat([leadcompare, df_lead["Cycle Time"].rename(col_name)], axis=1)
+    leadcompare = pd.concat([leadcompare, df_collapse["Cycle Time"].rename("All Cycle Times")], axis=1)
+    leadcompare.boxplot(column = list(leadcompare.columns))
+    plt.title("Lead {} cycle times: {} to {}".format(operator, startdate, enddate))
+    plt.show()
     
 for operator in unique_assistants:
     df_assistant = df_collapse.loc[(df_collapse["Assistant 1"] == operator) |
@@ -279,8 +291,20 @@ for operator in unique_assistants:
     
     # Append the current lead's cycle time data as a column to all_cycle_times
     col_name = "Assistant {}".format(operator)
-    all_cycle_times[col_name] = df_assistant["Cycle Time"]
+    all_cycle_times = pd.concat([all_cycle_times, df_assistant["Cycle Time"].rename(col_name)], axis=1)
+    
+    assistantcompare = pd.DataFrame()
+    assistantcompare = pd.concat([assistantcompare, df_assistant["Cycle Time"].rename(col_name)], axis=1)
+    assistantcompare = pd.concat([assistantcompare, df_collapse["Cycle Time"].rename("All Cycle Times")], axis=1)
+    assistantcompare.boxplot(column = list(assistantcompare.columns))
+    plt.title("Assistant {} cycle times: {} to {}".format(operator, startdate, enddate))
+    plt.show()
+    
+    # Eventually it will be necessary to combine these all_cycle_times
+    # DataFrames to capture an operator's cycle times across all molds and
+    # roles. It would also be helpful to generate a total average and boxplot
+    # for each individual operator, regardless of role.
 
-boxplot = all_cycle_times.boxplot(column = list(all_cycle_times.columns))
+all_cycle_times.boxplot(column = list(all_cycle_times.columns), rot=45)
+plt.title("All operator cycle times: {} to {}".format(startdate, enddate))
 
-# Combine lead and assistant
