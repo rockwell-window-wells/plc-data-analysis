@@ -270,46 +270,38 @@ def get_operator_stats_single_mold(df_collapse):
     all_cycle_times = pd.DataFrame()
 
     # Go through each unique operator number and gather their data
-    for operator in unique_leads:
+    unique_operators = unique_leads + unique_assistants
+    unique_operators = list(np.unique(unique_operators))
+    
+    for operator in unique_operators:
+        df_operator = df_collapse.loc[(df_collapse["Lead"] == operator) |
+                                      (df_collapse["Assistant 1"] == operator) |
+                                      (df_collapse["Assistant 2"] == operator) |
+                                      (df_collapse["Assistant 3"] == operator)]
+        
         df_lead = df_collapse.loc[df_collapse["Lead"] == operator]
-        mean_cycle = df_lead["Cycle Time"].mean()
-        std_cycle = df_lead["Cycle Time"].std()
-        print("Lead {}:\n\tAvg: {}\n\tStd Dev: {}".format(operator, mean_cycle, std_cycle))
-
-        # Append the current lead's cycle time data as a column to all_cycle_times
-        col_name = "Lead {}".format(operator)
-        all_cycle_times = pd.concat([all_cycle_times, df_lead["Cycle Time"].rename(col_name)], axis=1)
-
-        leadcompare = pd.DataFrame()
-        leadcompare = pd.concat([leadcompare, df_lead["Cycle Time"].rename(col_name)], axis=1)
-        leadcompare = pd.concat([leadcompare, df_collapse["Cycle Time"].rename("All Cycle Times")], axis=1)
-        leadcompare.boxplot(column = list(leadcompare.columns))
-        plt.title("Lead {} cycle times: {} to {}".format(operator, startdate, enddate))
-        plt.show()
-
-    for operator in unique_assistants:
         df_assistant = df_collapse.loc[(df_collapse["Assistant 1"] == operator) |
                                        (df_collapse["Assistant 2"] == operator) |
                                        (df_collapse["Assistant 3"] == operator)]
-        mean_cycle = df_assistant["Cycle Time"].mean()
-        std_cycle = df_assistant["Cycle Time"].std()
-        print("Assistant {}:\n\tAvg: {}\n\tStd Dev: {}".format(operator, mean_cycle, std_cycle))
-
-        # Append the current lead's cycle time data as a column to all_cycle_times
-        col_name = "Assistant {}".format(operator)
-        all_cycle_times = pd.concat([all_cycle_times, df_assistant["Cycle Time"].rename(col_name)], axis=1)
-
-        assistantcompare = pd.DataFrame()
-        assistantcompare = pd.concat([assistantcompare, df_assistant["Cycle Time"].rename(col_name)], axis=1)
-        assistantcompare = pd.concat([assistantcompare, df_collapse["Cycle Time"].rename("All Cycle Times")], axis=1)
-        assistantcompare.boxplot(column = list(assistantcompare.columns))
-        plt.title("Assistant {} cycle times: {} to {}".format(operator, startdate, enddate))
+        
+        # Append the cycle time data as a column to all_cycle_times
+        lead_col = "Lead {}".format(operator)
+        assistant_col = "Assistant {}".format(operator)
+        operator_col = "All Operator {}".format(operator)
+        all_cycle_times = pd.concat([all_cycle_times, df_lead["Cycle Time"].rename(lead_col)], axis=1)
+        all_cycle_times = pd.concat([all_cycle_times, df_assistant["Cycle Time"].rename(assistant_col)], axis=1)
+        
+        # Compare the current operator against all cycle times
+        operator_compare = pd.DataFrame()
+        operator_compare = pd.concat([operator_compare, df_lead["Cycle Time"].rename(lead_col)], axis=1)
+        operator_compare = pd.concat([operator_compare, df_assistant["Cycle Time"].rename(assistant_col)], axis=1)
+        operator_compare = pd.concat([operator_compare, df_operator["Cycle Time"].rename(operator_col)], axis=1)
+        operator_compare = pd.concat([operator_compare, df_collapse["Cycle Time"].rename("All Cycle Times")], axis=1)
+        
+        operator_compare.boxplot(column = list(operator_compare.columns), rot=45)
+        plt.title("Operator {} Cycle Times: {} to {}".format(operator, startdate, enddate))
+        plt.ylabel("Cycle Time (minutes)")
         plt.show()
-
-        # Eventually it will be necessary to combine these all_cycle_times
-        # DataFrames to capture an operator's cycle times across all molds and
-        # roles. It would also be helpful to generate a total average and boxplot
-        # for each individual operator, regardless of role.
 
     all_cycle_times.boxplot(column = list(all_cycle_times.columns), rot=45)
     plt.title("All operator cycle times: {} to {}".format(startdate, enddate))
