@@ -43,15 +43,14 @@ def get_closest_operator(cycle_idx, operator_inds):
 
     return operator_idx
 
+
 def clean_single_mold_data(single_mold_data):
     """
     Take in StrideLinx data download for a given period, and produce a dataframe
-    of
+    of times and associated cycle times and operators.
     """
-
-
     # Load the data from .csv (make this general after testing is complete)
-    df_raw = pd.read_csv("cycle_time_test_data1.csv")
+    df_raw = pd.read_csv(single_mold_data, parse_dates=["time"])
 
     # Drop the columns not relevant to cycle times
     df_raw = df_raw.drop(["Leak Time", "Leak Count", "Parts Count",
@@ -239,11 +238,12 @@ def clean_single_mold_data(single_mold_data):
                      "Assistant 1": assistant1s, "Assistant 2": assistant2s,
                      "Assistant 3": assistant3s}
     df_collapse = pd.DataFrame.from_dict(collapse_data)
-    df_collapse["time"] = pd.to_datetime(df_collapse["time"])
+    # df_collapse["time"] = pd.to_datetime(df_collapse["time"])
 
     return df_collapse
 
-def get_operator_stats(df_collapse):
+
+def get_operator_stats_single_mold(df_collapse):
     startdate = df_collapse["time"].iloc[0].date()
     enddate = df_collapse["time"].iloc[-1].date()
 
@@ -317,7 +317,8 @@ def get_operator_stats(df_collapse):
 
 def analyze_single_mold(single_mold_data):
     df = clean_single_mold_data(single_mold_data)
-    get_operator_stats(df)
+    get_operator_stats_single_mold(df)
+
 
 def analyze_all_molds(mold_data_files):
     """
@@ -333,3 +334,11 @@ def analyze_all_molds(mold_data_files):
 
     allmolds = pd.concat(frames)
     allmolds = allmolds.reset_index(drop=True)
+
+    # df = clean_single_mold_data(allmolds)
+    get_operator_stats_single_mold(allmolds)
+
+
+if __name__ == "__main__":
+    file_list = ["cycle_time_test_data.csv", "cycle_time_test_data1.csv"]
+    analyze_all_molds(file_list)
