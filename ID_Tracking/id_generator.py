@@ -21,7 +21,7 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     # print("template width W is: {}".format(W))
     H = template.size[1]
     # print("template height H is: {}".format(H))
-    bleed = 38
+    bleed = 50
 
     redrgb = (255, 64, 64)
     bluergb = (97, 171, 255)
