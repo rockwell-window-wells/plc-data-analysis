@@ -86,7 +86,7 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     template.paste(qr, (left, top, right, bottom))
 
     fontsize = 75
-    font = ImageFont.truetype("./fonts/Roboto-Black.ttf", size=fontsize)
+    font = ImageFont.truetype("./assets/Roboto-Black.ttf", size=fontsize)
     draw = ImageDraw.Draw(template)
     if prefix == "10":
         draw.rectangle((bleed, bleed, W-bleed, H-bleed))
@@ -99,11 +99,11 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
                 break
             else:
                 fontsize -= 5
-                font = ImageFont.truetype("./fonts/Roboto-Black.ttf", size=fontsize)
+                font = ImageFont.truetype("./assets/Roboto-Black.ttf", size=fontsize)
                 w, h = draw.textsize(msg, font=font)
         draw.text(((W-w)/2, (H-W)/6 + bleed), employee_name, font=font, fill='black')
     fontsize = 75
-    font = ImageFont.truetype("./fonts/Roboto-Black.ttf", size=fontsize)
+    font = ImageFont.truetype("./assets/Roboto-Black.ttf", size=fontsize)
     msg = itemtype
     w, h = draw.textsize(msg, font=font)
     draw.text(((W-w)/2, (H-W)/2 + bleed), itemtype, font=font, fill='black')
@@ -160,7 +160,7 @@ def print_IDcard_5digit(idnum, IDfilepath, QRfolder, IDcardfolder):
         generate_qrcode(str(idnum), QRfolder)
 
     # Print the ID card and export it to the IDcardfolder with
-    templatefile = "./templates/Portrait_white_ID.png"
+    templatefile = "./assets/Portrait_white_ID.png"
     card = generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name)
     IDcardfilename = str(idnum) + itemtype + ".png"
     IDcardpath = IDcardfolder + '/' + IDcardfilename
