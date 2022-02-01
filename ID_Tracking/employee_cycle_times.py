@@ -8,6 +8,7 @@ Date created: 1/26/2022
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 def get_closest_operator(cycle_idx, operator_inds):
     """
@@ -312,7 +313,7 @@ def analyze_single_mold(single_mold_data):
     get_operator_stats_single_mold(df)
 
 
-def analyze_all_molds(mold_data_files):
+def analyze_all_molds(mold_data_folder):
     """
     Take a list of CSV files containing mold data downloaded from StrideLinx.
     Combine the data into one large dataframe of cycle times and their
@@ -320,6 +321,11 @@ def analyze_all_molds(mold_data_files):
     for each individual operator number that includes their lead, assistant,
     and overall stats compared to all cycle times for the same period.
     """
+    mold_data_files = []
+    for root, dirs, files in os.walk(os.path.abspath(mold_data_folder)):
+        for file in files:
+            mold_data_files.append(os.path.join(root, file))
+    
     frames = []
     for datafile in mold_data_files:
         frames.append(clean_single_mold_data(datafile))
@@ -327,10 +333,10 @@ def analyze_all_molds(mold_data_files):
     allmolds = pd.concat(frames)
     allmolds = allmolds.reset_index(drop=True)
 
-    # df = clean_single_mold_data(allmolds)
     get_operator_stats_single_mold(allmolds)
 
 
 if __name__ == "__main__":
-    file_list = ["cycle_time_test_data.csv", "cycle_time_test_data1.csv"]
-    analyze_all_molds(file_list)
+    datafolder = os.getcwd()
+    datafolder = datafolder + "\\testdata"
+    analyze_all_molds(datafolder)
