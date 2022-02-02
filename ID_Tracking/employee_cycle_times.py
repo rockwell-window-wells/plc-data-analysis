@@ -51,11 +51,12 @@ import os
 
 #     def page_body(self, datestart, dateend, plot, opnum, opname, leadavg, assistavg, overavg, allavg):
 #         datetext = "Evaluation Period:\t{} to {}".format(str(datestart), str(dateend))
-#         employeetext = "Employee:\t{} ({})".format(opname, opnum)
-#         leadavgtext = "Lead Average:\t{} minutes".format(leadavg)
-#         assistavgtext = "Assistant Average:\t{} minutes".format(assistavg)
-#         overavgtext = "Operator {} Average:\t{} minutes".format(opnum, overavg)
-#         allavgtext = "Average of All Cycle Times:\t{} minutes".format(allavg)
+#         nametext = "Operator Name:\t{}".format(opname)
+#         numtext = "Operator Number:\t{}".format(opnum)
+#         leadavgtext =   "Lead Average:\t{} min".format(leadavg)
+#         assistavgtext = "Assistant Average:\t{} min".format(assistavg)
+#         overavgtext =   "All Operator Average:\t{} min".format(overavg)
+#         allavgtext =    "Team Average:\t{} min".format(allavg)
 #         self.set_margins(25, 25, 25)
 
 #         self.image(plot, 15, 25, self.WIDTH - 30)
@@ -63,7 +64,8 @@ import os
 #         self.set_font('Arial', 'B', 12)
 #         self.cell(40, 6, "Stats:", 0, 1, 'L')
 #         self.set_font('Arial', '', 11)
-#         self.cell(40, 6, employeetext, 0, 1, 'L')
+#         self.cell(40, 6, nametext, 0, 1, 'L')
+#         self.cell(40, 6, numtext, 0, 1, 'L')
 #         self.cell(40, 6, datetext, 0, 1, 'L')
 #         self.cell(40, 6, leadavgtext, 0, 1, 'L')
 #         self.cell(40, 6, assistavgtext, 0, 1, 'L')
@@ -71,10 +73,24 @@ import os
 #         self.cell(40, 6, allavgtext, 0, 1, 'L')
 
 
-#     def print_page(self, plot, employee):
+#     def print_page(self, datestart, dateend, plot, opnum, opname, leadavg, assistavg, overavg, allavg):
 #         # Generates the report
 #         self.add_page()
-#         self.page_body(date, datestart, dateend, plot, opnum, opname, leadavg, assistavg, overavg, allavg)
+#         self.page_body(datestart, dateend, plot, opnum, opname, leadavg, assistavg, overavg, allavg)
+
+# def generate_operator_PDF(datestart, dateend, plot, opnum, opname, leadavg, assistavg, overavg, allavg, filename, exportpath):
+#     pdf = OperatorStatsPDF()
+#     pdf.print_page(datestart, dateend, plot, opnum, opname, leadavg, assistavg, overavg, allavg)
+#     exportfilepath = exportpath + '/' + filename
+#     # Check if the exported PDF file already exists in the export folder
+#     if os.path.exists(exportfilepath):
+#         # Change exportfilepath by appending a number to the end of the PDF file name
+#         filename = os.path.splitext(filename)[0]
+#         i = 1
+#         while os.path.exists(exportpath + '/' + filename + "({}).pdf".format(i)):
+#             i += 1
+#         exportfilepath = exportpath + '/' + filename + "({}).pdf".format(i)
+#     pdf.output(exportfilepath, 'F')
 
 def get_closest_operator(cycle_idx, operator_inds):
     """
@@ -240,22 +256,24 @@ def clean_single_mold_data(single_mold_data):
     # of logged times matches the count of cycle times. Determine the position of
     # the nan value by looking at the relative position of the times in df_cleaned.
     # Resin times:
-    if cycle_inds[0] < resin_inds[0]:
-        cycle_times.insert(0, np.nan)
-    if cycle_inds[-1] < resin_inds[-1]:
-        cycle_times.append(np.nan)
+    if ncycle != nresin:
+        if cycle_inds[0] < resin_inds[0]:
+            cycle_times.insert(0, np.nan)
+        if cycle_inds[-1] < resin_inds[-1]:
+            cycle_times.append(np.nan)
     ncycle = len(cycle_times)
     nresin = len(resin_times)
     if nresin != ncycle:
         raise Exception("Resin and cycle time vectors aren't matching lengths")
 
     # Close times:
-    if cycle_inds[0] < close_inds[0]:
-        if close_times[0] != np.nan:
-            close_times.insert(0, np.nan)
-    if cycle_inds[-1] < close_inds[-1]:
-        if close_times[-1] != np.nan:
-            close_times.append(np.nan)
+    if ncycle != nclose:
+        if cycle_inds[0] < close_inds[0]:
+            if close_times[0] != np.nan:
+                close_times.insert(0, np.nan)
+        if cycle_inds[-1] < close_inds[-1]:
+            if close_times[-1] != np.nan:
+                close_times.append(np.nan)
     ncycle = len(cycle_times)
     nresin = len(resin_times)
     nclose = len(close_times)
@@ -265,12 +283,13 @@ def clean_single_mold_data(single_mold_data):
         raise Exception("Close time vector isn't matching cycle time vector")
 
     # Layup times:
-    if cycle_inds[0] < layup_inds[0]:
-        if layup_times[0] != np.nan:
-            layup_times.insert(0, np.nan)
-    if cycle_inds[-1] < layup_inds[-1]:
-        if layup_times[-1] != np.nan:
-            layup_times.append(np.nan)
+    if ncycle != nlayup:
+        if cycle_inds[0] < layup_inds[0]:
+            if layup_times[0] != np.nan:
+                layup_times.insert(0, np.nan)
+        if cycle_inds[-1] < layup_inds[-1]:
+            if layup_times[-1] != np.nan:
+                layup_times.append(np.nan)
     ncycle = len(cycle_times)
     nresin = len(resin_times)
     nlayup = len(layup_times)
@@ -377,11 +396,34 @@ def get_operator_stats(df_collapse):
         plt.ylabel("Cycle Time (minutes)")
         plotname = directory + "\\Operator_{}_plot.png".format(operator)
         plt.savefig(plotname, dpi=300)
-        plt.show()
+        plt.close()
+        # leadavg = np.around(operator_compare[lead_col].mean(),1)
+        # assistavg = np.around(operator_compare[assistant_col].mean(),1)
+        # overavg = np.around(operator_compare[operator_col].mean(),1)
+        # allavg = np.around(operator_compare["Team"].mean(),1)
+        # filename = "Operator_{}_Stats.pdf".format(operator)
+        # exportpath = os.getcwd()
+        # opname = lookup_operator_name(operator, "ID_data.xlsx")
+        # generate_operator_PDF(startdate, enddate, plotname, operator, opname, leadavg, assistavg, overavg, allavg, filename, exportpath)
+
 
     all_cycle_times.boxplot(column = list(all_cycle_times.columns), rot=45)
     plt.title("All operator cycle times: {} to {}".format(startdate, enddate))
 
+def lookup_operator_name(opnum, IDfilepath):
+    df = pd.read_excel(IDfilepath, None)
+    df_lead = df["Personnel-Lead"]
+    len_opnum = len(str(opnum))
+    if len_opnum < 3:
+        opnum_str = str(opnum).zfill(3)
+    else:
+        opnum_str = str(opnum)
+
+    leadnum = "10" + opnum_str
+    leadnum = int(leadnum)
+    namerow = df_lead.loc[df_lead["ID"] == leadnum]
+    opname = namerow.iloc[0][3]
+    return opname
 
 def analyze_single_mold(single_mold_data):
     df = clean_single_mold_data(single_mold_data)
