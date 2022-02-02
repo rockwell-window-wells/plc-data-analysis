@@ -103,7 +103,7 @@ def get_closest_operator(cycle_idx, operator_inds):
     ----------
     cycle_idx : integer
         DESCRIPTION.
-    operator_inds : array
+    operator_inds : numpy array
         DESCRIPTION.
 
     Returns
@@ -125,6 +125,32 @@ def get_closest_operator(cycle_idx, operator_inds):
         operator_idx = cycle_idx - mindiff
 
     return operator_idx
+
+def align_inds_times(input_inds, input_times, ref_inds, longest_inds, longest_len):
+    while len(input_inds) < longest_len:
+        for i in range(len(input_inds)):
+            diff = ref_inds[i] - input_inds[i]
+            if diff < 0:
+                input_inds.insert(i, i)
+                input_times.insert(i, np.nan)
+                break
+        if len(input_inds) < longest_len:
+            input_inds.append(longest_inds[len(input_inds)])
+            input_times.append(np.nan)
+
+def align_cycles_inds_times(input_inds, input_times, ref_inds, longest_inds, longest_len, datetimes):
+    while len(input_inds) < longest_len:
+        for i in range(len(input_inds)):
+            diff = input_inds[i] - ref_inds[i]
+            if diff < 0:
+                input_inds.insert(i, i)
+                input_times.insert(i, np.nan)
+                datetimes.insert(i, datetimes[i])
+                break
+        if len(input_inds) < longest_len:
+            input_inds.append(longest_inds[len(input_inds)])
+            input_times.append(np.nan)
+            datetimes.append(datetimes[-1])
 
 
 def clean_single_mold_data(single_mold_data):
@@ -245,60 +271,96 @@ def clean_single_mold_data(single_mold_data):
     layup_times = []
     for i, layup_ind in enumerate(layup_inds):
         layup_times.append(df_cleaned["Layup Time"].iloc[layup_ind])
-
-    # Check lengths of the various time vectors
-    ncycle = len(cycle_times)
-    nresin = len(resin_times)
-    nclose = len(close_times)
-    nlayup = len(layup_times)
-
-    # Add a nan to the beginning or end of each list, depending on if the number
-    # of logged times matches the count of cycle times. Determine the position of
-    # the nan value by looking at the relative position of the times in df_cleaned.
-    # Resin times:
-    if ncycle != nresin:
-        if cycle_inds[0] < resin_inds[0]:
-            cycle_times.insert(0, np.nan)
-        if cycle_inds[-1] < resin_inds[-1]:
-            cycle_times.append(np.nan)
-    ncycle = len(cycle_times)
-    nresin = len(resin_times)
-    if nresin != ncycle:
-        raise Exception("Resin and cycle time vectors aren't matching lengths")
-
-    # Close times:
-    if ncycle != nclose:
-        if cycle_inds[0] < close_inds[0]:
-            if close_times[0] != np.nan:
-                close_times.insert(0, np.nan)
-        if cycle_inds[-1] < close_inds[-1]:
-            if close_times[-1] != np.nan:
-                close_times.append(np.nan)
-    ncycle = len(cycle_times)
-    nresin = len(resin_times)
-    nclose = len(close_times)
-    if nclose != nresin:
-        raise Exception("Close time vector isn't matching resin time vector")
-    if nclose != ncycle:
-        raise Exception("Close time vector isn't matching cycle time vector")
-
-    # Layup times:
-    if ncycle != nlayup:
-        if cycle_inds[0] < layup_inds[0]:
-            if layup_times[0] != np.nan:
-                layup_times.insert(0, np.nan)
-        if cycle_inds[-1] < layup_inds[-1]:
-            if layup_times[-1] != np.nan:
-                layup_times.append(np.nan)
-    ncycle = len(cycle_times)
-    nresin = len(resin_times)
-    nlayup = len(layup_times)
-    if nlayup != nclose:
-        raise Exception("Layup time vector isn't matching close time vector")
-    if nlayup != nresin:
-        raise Exception("Layup time vector isn't matching resin time vector")
-    if nlayup != ncycle:
-        raise Exception("Layup time vector isn't matching cycle time vector")
+    
+    
+    indlens = [len(cycle_inds),len(resin_inds),len(close_inds),len(layup_inds)]
+    if not all(x == indlens[0] for x in indlens):
+        longest_len = max(indlens)
+        longest_inds = None
+        for i, inds in enumerate([layup_inds, close_inds, resin_inds, cycle_inds]):
+            if len(inds) == longest_len:
+                longest_inds = inds
+                
+        align_inds_times(layup_inds, layup_times, close_inds, longest_inds, longest_len)
+        align_inds_times(close_inds, close_times, resin_inds, longest_inds, longest_len)
+        align_inds_times(resin_inds, resin_times, cycle_inds, longest_inds, longest_len)
+        align_cycles_inds_times(cycle_inds, cycle_times, resin_inds, longest_inds, longest_len, datetimes)
+        
+        
+        
+        
+    # # Check lengths of the various time vectors
+    # ncycle = len(cycle_times)
+    # nresin = len(resin_times)
+    # nclose = len(close_times)
+    # nlayup = len(layup_times)
+    
+    # veclens = [ncycle, nresin, nclose, nlayup]
+    # if not all(x == veclens[0] for x in veclens):
+    #     print("The time vectors are not all the same length")
+    #     nlongest = max([ncycle, nresin, nclose, nlayup])
+    #     long_inds = None
+    #     if nlongest == ncycle:
+    #         long_inds = cycle_inds
+    #     elif nlongest == nresin:
+    #         long_inds = resin_inds
+    #     elif nlongest == nclose:
+    #         long_inds = close_inds
+    #     else:
+    #         long_inds = layup_inds
+    
+    #     # Add a nan to the beginning or end of each list, depending on if the number
+    #     # of logged times matches the count of cycle times. Determine the position of
+    #     # the nan value by looking at the relative position of the times in df_cleaned.
+    #     # Resin times:
+    #     while ncycle != nlongest:
+    #         if cycle_inds[0] < long_inds[0]:
+    #             cycle_times.insert(0, np.nan)
+                
+                
+            
+    #     #     if cycle_inds[0] < resin_inds[0]:
+    #     #         cycle_times.insert(0, np.nan)
+    #     #     if cycle_inds[-1] < resin_inds[-1]:
+    #     #         cycle_times.append(np.nan)
+    #     # ncycle = len(cycle_times)
+    #     # nresin = len(resin_times)
+    #     # if nresin != ncycle:
+    #     #     raise Exception("Resin and cycle time vectors aren't matching lengths")
+    
+    #     # Close times:
+    #     if ncycle != nclose:
+    #         if cycle_inds[0] < close_inds[0]:
+    #             if close_times[0] != np.nan:
+    #                 close_times.insert(0, np.nan)
+    #         if cycle_inds[-1] < close_inds[-1]:
+    #             if close_times[-1] != np.nan:
+    #                 close_times.append(np.nan)
+    #     ncycle = len(cycle_times)
+    #     nresin = len(resin_times)
+    #     nclose = len(close_times)
+    #     if nclose != nresin:
+    #         raise Exception("Close time vector isn't matching resin time vector")
+    #     if nclose != ncycle:
+    #         raise Exception("Close time vector isn't matching cycle time vector")
+    
+    #     # Layup times:
+    #     if ncycle != nlayup:
+    #         if cycle_inds[0] < layup_inds[0]:
+    #             if layup_times[0] != np.nan:
+    #                 layup_times.insert(0, np.nan)
+    #         if cycle_inds[-1] < layup_inds[-1]:
+    #             if layup_times[-1] != np.nan:
+    #                 layup_times.append(np.nan)
+    #     ncycle = len(cycle_times)
+    #     nresin = len(resin_times)
+    #     nlayup = len(layup_times)
+    #     if nlayup != nclose:
+    #         raise Exception("Layup time vector isn't matching close time vector")
+    #     if nlayup != nresin:
+    #         raise Exception("Layup time vector isn't matching resin time vector")
+    #     if nlayup != ncycle:
+    #         raise Exception("Layup time vector isn't matching cycle time vector")
 
     # For each cycle time, determine the lead and assistant numbers
     leads = []
