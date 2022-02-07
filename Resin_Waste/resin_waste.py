@@ -177,7 +177,7 @@ def main():
     # Excess resin weight by product, all products
     plt.figure(1)
     sns.set_theme(style="whitegrid")
-    ax1 = sns.boxplot(x="Product", y="Excess_Resin_Weight", data=df,)
+    ax1 = sns.boxplot(x="Product", y="Excess_Resin_Weight", data=df)
     # ax1 = sns.swarmplot(x="Product", y="Excess_Resin_Weight", data=df,color=".25")
     ax1 = sns.stripplot(x="Product", y="Excess_Resin_Weight", data=df, color=".25", jitter=0.25)
     titlestring = color + " Excess Resin, All Products: {} to {}".format(min(df.Date),max(df.Date))
