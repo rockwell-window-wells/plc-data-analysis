@@ -51,27 +51,36 @@ class OperatorStatsPDF(FPDF):
         self.cell(0, 5, 'Page ' + str(self.page_no()), 0, 0, 'C')
 
     def page_body(self, datestart, dateend, plot, opnum, opname, cycles_logged, averages):
-        datetext = "Evaluation Period:\t{} to {}".format(str(datestart), str(dateend))
-        leadcyclestext = "Lead Cycles:\t{}".format(cycles_logged[0])
-        assistcyclestext = "Assistant Cycles:\t{}".format(cycles_logged[1])
-        opcyclestext = "Operator Cycles:\t{}".format(cycles_logged[2])
-        teamcyclestext = "Team Cycles:\t{}".format(cycles_logged[3])
-        nametext = "Operator Name:\t{}".format(opname)
-        numtext = "Operator Number:\t{}".format(opnum)
+        datetext = "Evaluation Period:"
+        dateval = "{} to {}".format(str(datestart), str(dateend))
+        leadcyclestext = "Lead Cycles:"
+        leadcyclesval = str(cycles_logged[0])
+        assistcyclestext = "Assistant Cycles:"
+        assistcyclesval = str(cycles_logged[1])
+        opcyclestext = "Operator Cycles:"
+        opcyclesval = str(cycles_logged[2])
+        teamcyclestext = "Team Cycles:"
+        teamcyclesval = str(cycles_logged[3])
+        nametext = "Operator Name:"
+        numtext = "Operator Number:"
         leadavg = averages[0]
         assistavg = averages[1]
         opavg = averages[2]
         teamavg = averages[3]
+        leadavgtext = "Lead Average:"
+        assistavgtext = "Assistant Average:"
         if np.isnan(leadavg):
-            leadavgtext = "Lead Average:\tN/A"
+            leadavgval = "N/A"
         else:
-            leadavgtext =   "Lead Average:\t{} min".format(leadavg)
+            leadavgval =   "{} min".format(leadavg)
         if np.isnan(assistavg):
-            assistavgtext = "Assistant Average:\tN/A"
+            assistavgval = "N/A"
         else:
-            assistavgtext = "Assistant Average:\t{} min".format(assistavg)
-        opavgtext =   "All Operator Average:\t{} min".format(opavg)
-        teamavgtext =    "Team Average:\t{} min".format(teamavg)
+            assistavgval = "{} min".format(assistavg)
+        opavgtext =   "All Operator Average:"
+        opavgval = "{} min".format(opavg)
+        teamavgtext = "Team Average:"
+        teamavgval = "{} min".format(teamavg)
         
         # Get the maximum text width and calculate the cell size accordingly
         texts = [datetext, leadcyclestext, assistcyclestext, opcyclestext,
@@ -81,28 +90,41 @@ class OperatorStatsPDF(FPDF):
         for txt in texts:
             if self.get_string_width(txt) > maxtxtwidth:
                 maxtxtwidth = self.get_string_width(txt)
-                
+        cellwidth = round(maxtxtwidth/5)*5
+        if cellwidth < maxtxtwidth:
+            cellwidth += 5
         
         self.set_margins(25, 25, 25)
 
         self.image(plot, 15, 25, self.WIDTH - 30)
-        self.cell(0,self.HEIGHT-150, "", 0, 1, 'L')
+        self.cell(0,self.HEIGHT-175, "", 0, 1, 'L')
         self.set_font('Arial', 'B', 12)
-        self.cell(40, 6, "Stats:", 1, 1, 'L')
+        self.cell(40, 6, "Stats:", 0, 1, 'L')
         self.set_font('Arial', '', 11)
-        self.cell(40, 6, nametext, 0, 1, 'L')
-        self.cell(40, 6, numtext, 0, 1, 'L')
-        self.cell(40, 6, datetext, 0, 1, 'L')
+        self.cell(cellwidth, 6, nametext, 0, 0, 'L')
+        self.cell(self.get_string_width(opname), 6, opname, 0, 1, 'L')
+        self.cell(cellwidth, 6, numtext, 0, 0, 'L')
+        self.cell(self.get_string_width(str(opnum)), 6, str(opnum), 0, 1, 'L')
+        self.cell(cellwidth, 6, datetext, 0, 0, 'L')
+        self.cell(self.get_string_width(dateval), 6, dateval, 0, 1, 'L')
         self.cell(40, 3, "", 0, 1, 'L')
-        self.cell(40, 6, leadcyclestext, 0, 1, 'L')
-        self.cell(40, 6, assistcyclestext, 0, 1, 'L')
-        self.cell(40, 6, opcyclestext, 0, 1, 'L')
-        self.cell(40, 6, teamcyclestext, 0, 1, 'L')
+        self.cell(cellwidth, 6, leadcyclestext, 0, 0, 'L')
+        self.cell(self.get_string_width(leadcyclesval), 6, leadcyclesval, 0, 1, 'L')
+        self.cell(cellwidth, 6, assistcyclestext, 0, 0, 'L')
+        self.cell(self.get_string_width(assistcyclesval), 6, assistcyclesval, 0, 1, 'L')
+        self.cell(cellwidth, 6, opcyclestext, 0, 0, 'L')
+        self.cell(self.get_string_width(opcyclesval), 6, opcyclesval, 0, 1, 'L')
+        self.cell(cellwidth, 6, teamcyclestext, 0, 0, 'L')
+        self.cell(self.get_string_width(teamcyclesval), 6, teamcyclesval, 0, 1, 'L')
         self.cell(40, 3, "", 0, 1, 'L')
-        self.cell(40, 6, leadavgtext, 0, 1, 'L')
-        self.cell(40, 6, assistavgtext, 0, 1, 'L')
-        self.cell(40, 6, opavgtext, 0, 1, 'L')
-        self.cell(40, 6, teamavgtext, 0, 1, 'L')
+        self.cell(cellwidth, 6, leadavgtext, 0, 0, 'L')
+        self.cell(self.get_string_width(leadavgval), 6, leadavgval, 0, 1, 'L')
+        self.cell(cellwidth, 6, assistavgtext, 0, 0, 'L')
+        self.cell(self.get_string_width(assistavgval), 6, assistavgval, 0, 1, 'L')
+        self.cell(cellwidth, 6, opavgtext, 0, 0, 'L')
+        self.cell(self.get_string_width(opavgval), 6, opavgval, 0, 1, 'L')
+        self.cell(cellwidth, 6, teamavgtext, 0, 0, 'L')
+        self.cell(self.get_string_width(teamavgval), 6, teamavgval, 0, 1, 'L')
 
 
     def print_page(self, datestart, dateend, plot, opnum, opname, cycles_logged, averages):
