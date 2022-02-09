@@ -519,12 +519,36 @@ def analyze_all_molds(mold_data_folder):
     all_resin = all_resin.reset_index(drop=True)
     all_cycle = pd.concat(cycle_frames)
     all_cycle = all_cycle.reset_index(drop=True)
+    
+    # Add a column to each time type DataFrame to scale the data by the number
+    # of operators (not sure if this method is sound yet or not)
+    all_layup = normalize_data_by_num_operators(all_layup, "Layup Time", "Normalized Layup Time")
+    all_close = normalize_data_by_num_operators(all_close, "Close Time", "Normalized Close Time")
+    all_resin = normalize_data_by_num_operators(all_resin, "Resin Time", "Normalized Resin Time")
+    all_cycle = normalize_data_by_num_operators(all_cycle, "Cycle Time", "Normalized Cycle Time")
 
     get_operator_stats(all_layup, "Layup Time")
     get_operator_stats(all_close, "Close Time")
     get_operator_stats(all_resin, "Resin Time")
     get_operator_stats(all_cycle, "Cycle Time")
 
+
+def normalize_data_by_num_operators(df, input_col:str, output_col:str):
+    df_normalized = df
+    normalized_list = []
+    opcount = 0
+    for i in range(len(df_normalized)):
+        oplist = df.iloc[i,2:6]
+        opcount = oplist.astype(bool).sum()
+        if opcount == 0:
+            normalized_list.append(np.NaN)
+            # df_normalized[output_col].iloc[i] = np.NaN
+        else:
+            normalized_list.append(df[input_col].iloc[i]*opcount)
+            # df_normalized[output_col].iloc[i] = df[input_col].iloc[i]/opcount
+    df_normalized[output_col] = normalized_list
+    
+    return df_normalized
 
 if __name__ == "__main__":
     datafolder = os.getcwd()
