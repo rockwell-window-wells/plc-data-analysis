@@ -520,6 +520,11 @@ def analyze_all_molds(mold_data_folder):
     all_cycle = pd.concat(cycle_frames)
     all_cycle = all_cycle.reset_index(drop=True)
     
+    numops_layup = compare_num_ops(all_layup, "Layup Time")
+    numops_close = compare_num_ops(all_close, "Close Time")
+    numops_resin = compare_num_ops(all_resin, "Resin Time")
+    numops_cycle = compare_num_ops(all_cycle, "Cycle Time")
+    
     # Add a column to each time type DataFrame to scale the data by the number
     # of operators (not sure if this method is sound yet or not)
     all_layup = normalize_data_by_num_operators(all_layup, "Layup Time", "Normalized Layup Time")
@@ -549,6 +554,57 @@ def normalize_data_by_num_operators(df, input_col:str, output_col:str):
     df_normalized[output_col] = normalized_list
     
     return df_normalized
+
+def compare_num_ops(df, timestring:str):
+    """
+    Output a dataframe that has three columns: time, measured time of interest
+    (Layup Time, Close Time, Resin Time, or Cycle Time), and the number of
+    operators on the mold for that measured time. Output box plots for the
+    data.
+
+    Parameters
+    ----------
+    df : Pandas DataFrame
+        DESCRIPTION.
+        
+    
+
+    Returns
+    -------
+    df_num_ops: Pandas DataFrame
+        3 columns: time, measured time of interest, and number of operators
+
+    """
+    df_num_ops = df
+    opcounts = []
+    opcount = 0
+    for i in range(len(df_num_ops)):
+        oplist = df_num_ops.iloc[i,2:6]
+        opcount = oplist.astype(bool).sum()
+        opcounts.append(opcount)
+        
+    # Add the list of opcounts as a column to df_num_ops
+    df_num_ops["N Operators"] = opcounts
+    
+    # Drop unnecessary columns
+    df_num_ops = df_num_ops.drop(columns=["Lead", "Assistant 1", "Assistant 2", "Assistant 3"])
+    
+    
+    directory = os.getcwd()
+    sns.set_theme(style="whitegrid")
+    customPalette = sns.light_palette("lightblue", 5)
+    flierprops = dict(marker='o', markerfacecolor='None', markersize=4)
+    sns.boxplot(x="N Operators", y=timestring, data=df_num_ops, flierprops=flierprops, palette=customPalette)
+    plt.title("Comparison of Operators on Mold: {}".format(timestring))
+    # plt.ylabel("{} (minutes)".format(timestring))
+    # plt.xlabel("")
+    plotname = directory + "\\Operator_Number_Comparison_{}.png".format(timestring.replace(" ","_"))
+    plt.savefig(plotname, dpi=300)
+    plt.close()
+    
+    
+    return df_num_ops
+    
 
 if __name__ == "__main__":
     datafolder = os.getcwd()
