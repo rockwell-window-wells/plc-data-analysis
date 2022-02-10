@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import os
 from fpdf import FPDF
 import seaborn as sns
+from sklearn.linear_model import LinearRegression
 
 class OperatorStatsPDF(FPDF):
     def __init__(self):
@@ -525,21 +526,42 @@ def analyze_all_molds(mold_data_folder):
     numops_resin = compare_num_ops(all_resin, "Resin Time")
     numops_cycle = compare_num_ops(all_cycle, "Cycle Time")
     
+    # Calculate the regression parameters of each data category, then calculate
+    # the adjusted values of cycle times, layup times, etc. to adjust for 
+    # the number of people working on the mold.
+    
     # Add a column to each time type DataFrame to scale the data by the number
     # of operators (not sure if this method is sound yet or not)
-    all_layup = normalize_data_by_num_operators(all_layup, "Layup Time", "Normalized Layup Time")
-    all_close = normalize_data_by_num_operators(all_close, "Close Time", "Normalized Close Time")
-    all_resin = normalize_data_by_num_operators(all_resin, "Resin Time", "Normalized Resin Time")
-    all_cycle = normalize_data_by_num_operators(all_cycle, "Cycle Time", "Normalized Cycle Time")
+    all_layup = adjust_data_by_num_operators(all_layup, numops_layup, "Layup Time", "Adjusted Layup Time")
+    all_close = adjust_data_by_num_operators(all_close, numops_close, "Close Time", "Adjusted Close Time")
+    all_resin = adjust_data_by_num_operators(all_resin, numops_resin, "Resin Time", "Adjusted Resin Time")
+    all_cycle = adjust_data_by_num_operators(all_cycle, numops_cycle, "Cycle Time", "Adjusted Cycle Time")
 
     get_operator_stats(all_layup, "Layup Time")
     get_operator_stats(all_close, "Close Time")
     get_operator_stats(all_resin, "Resin Time")
     get_operator_stats(all_cycle, "Cycle Time")
+    
+    return all_layup, all_close, all_resin, all_cycle
 
 
-def normalize_data_by_num_operators(df, input_col:str, output_col:str):
+def adjust_data_by_num_operators(df, numops_df, input_col:str, output_col:str):
     df_normalized = df
+    # Get rid of rows where there no operators clocked in to avoid throwing off
+    # the linear regression model
+    numops_df = numops_df[numops_df["N Operators"] != 0]
+    x = np.array(numops_df["N Operators"]).reshape((-1, 1))
+    y = np.array(numops_df[input_col])
+    model = LinearRegression()
+    model.fit(x, y)
+    r_sq = model.score(x, y)
+    print("R squared: {}".format(r_sq))
+    b = model.intercept_
+    a = float(model.coef_)
+    
+    singleop_df = numops_df[numops_df["N Operators"] == 1]
+    single_median = singleop_df[input_col].median()
+    
     normalized_list = []
     opcount = 0
     for i in range(len(df_normalized)):
@@ -547,10 +569,16 @@ def normalize_data_by_num_operators(df, input_col:str, output_col:str):
         opcount = oplist.astype(bool).sum()
         if opcount == 0:
             normalized_list.append(np.NaN)
-            # df_normalized[output_col].iloc[i] = np.NaN
         else:
-            normalized_list.append(df[input_col].iloc[i]*opcount)
-            # df_normalized[output_col].iloc[i] = df[input_col].iloc[i]/opcount
+            # Adjust each cycle time by the amount in the linear regression to
+            # make measurements level with the median of the single-operator
+            # measurements
+            t_meas = df[input_col].iloc[i]
+            t_adjust = t_meas - a*opcount - (b - single_median)
+            
+            normalized_list.append(t_adjust)
+            
+            # normalized_list.append(df[input_col].iloc[i]*opcount)
     df_normalized[output_col] = normalized_list
     
     return df_normalized
@@ -589,13 +617,42 @@ def compare_num_ops(df, timestring:str):
     # Drop unnecessary columns
     df_num_ops = df_num_ops.drop(columns=["Lead", "Assistant 1", "Assistant 2", "Assistant 3"])
     
+    # # SORT BY NUM OPS HERE
+    # df_num_ops = df_num_ops.sort_values("N Operators")
+    # df_num_ops = df_num_ops.reset_index(drop=True)
     
     directory = os.getcwd()
     sns.set_theme(style="whitegrid")
     customPalette = sns.light_palette("lightblue", 5)
     flierprops = dict(marker='o', markerfacecolor='None', markersize=4)
-    sns.boxplot(x="N Operators", y=timestring, data=df_num_ops, flierprops=flierprops, palette=customPalette)
+    ax = sns.boxplot(x="N Operators", y=timestring, data=df_num_ops, flierprops=flierprops, palette=customPalette)
     plt.title("Comparison of Operators on Mold: {}".format(timestring))
+    
+    # Annotate each boxplot with the number of samples
+    # Calculate number of obs per group & median to position labels
+    medians = df_num_ops.groupby(["N Operators"])[timestring].median().values
+    counts = df_num_ops["N Operators"].value_counts()
+    nobs = []
+    for i in range(5):
+        try:
+            nobs.append(counts[i])
+        except KeyError:
+            continue
+    nobs = [str(x) for x in nobs]
+    nobs = ["n: " + i for i in nobs]
+     
+    # Add it to the plot
+    pos = range(len(nobs))
+    for tick,label in zip(pos,ax.get_xticklabels()):
+        ax.text(pos[tick],
+                medians[tick] + 0.03,
+                nobs[tick],
+                horizontalalignment='center',
+                size='x-small',
+                color='k',
+                weight='semibold')
+    
+    
     # plt.ylabel("{} (minutes)".format(timestring))
     # plt.xlabel("")
     plotname = directory + "\\Operator_Number_Comparison_{}.png".format(timestring.replace(" ","_"))
@@ -609,4 +666,4 @@ def compare_num_ops(df, timestring:str):
 if __name__ == "__main__":
     datafolder = os.getcwd()
     datafolder = datafolder + "\\testdata"
-    analyze_all_molds(datafolder)
+    all_layup, all_close, all_resin, all_cycle = analyze_all_molds(datafolder)
