@@ -21,27 +21,11 @@ class OperatorStatsPDF(FPDF):
 
     def header(self):
         # Custom logo and positioning
-        # Create an `assets` folder and put any wide and short image inside
-        # Name the image `logo.png`
-
-        # # Check the name of the current folder. Navigate to the place where the logo is accessible.
-        # if os.path.basename(os.getcwd()) == "dist":
-        #     path_parent = os.path.dirname(os.getcwd())
-        #     print("Changing directories to {}".format(path_parent))
-        #     os.chdir(path_parent)
-        # elif os.path.basename(os.getcwd()) == "AirQualityApp":
-        #     print("Currently in AirQualityApp directory")
-        # else:
-        #     print("NO IDEA WHERE THIS APP IS RUNNING FROM")
-
         self.image('assets/RockwellFullLogo.png', 10, 8, 33)
         self.set_font('Arial', 'B', 11)
         self.cell(self.WIDTH - 80)
         self.cell(60, 1, 'Mold Operator Stats', 0, 0, 'R')
         self.ln(20)
-
-        # # Go back to the dist folder
-        # os.chdir("dist")
 
     def footer(self):
         # Page numbers in the footer
@@ -301,9 +285,24 @@ def clean_single_mold_data(single_mold_data):
     assistant3_inds = np.array(assistant3_inds)
 
     # Grab each datetime that corresponds to a logged cycle time
-    datetimes = []
+    cycle_datetimes = []
     for i, cycle_ind in enumerate(cycle_inds):
-        datetimes.append(df_cleaned["time"].iloc[cycle_ind])
+        cycle_datetimes.append(df_cleaned["time"].iloc[cycle_ind])
+        
+    # Grab each datetime that corresponds to a logged resin time
+    resin_datetimes = []
+    for i, resin_ind in enumerate(resin_inds):
+        resin_datetimes.append(df_cleaned["time"].iloc[resin_ind])
+        
+    # Grab each datetime that corresponds to a logged close time
+    close_datetimes = []
+    for i, close_ind in enumerate(close_inds):
+        close_datetimes.append(df_cleaned["time"].iloc[close_ind])
+        
+    # Grab each datetime that corresponds to a logged layup time
+    layup_datetimes = []
+    for i, layup_ind in enumerate(layup_inds):
+        layup_datetimes.append(df_cleaned["time"].iloc[layup_ind])
 
     # Grab each cycle time
     cycle_times = []
@@ -326,19 +325,19 @@ def clean_single_mold_data(single_mold_data):
     for i, layup_ind in enumerate(layup_inds):
         layup_times.append(df_cleaned["Layup Time"].iloc[layup_ind])
 
-    df_layup = align_operator_times(df_cleaned, datetimes, "Layup Time",
+    df_layup = align_operator_times(df_cleaned, layup_datetimes, "Layup Time",
                                     layup_inds, layup_times, lead_inds,
                                     assistant1_inds, assistant2_inds,
                                     assistant3_inds)
-    df_close = align_operator_times(df_cleaned, datetimes, "Close Time",
+    df_close = align_operator_times(df_cleaned, close_datetimes, "Close Time",
                                     close_inds, close_times, lead_inds,
                                     assistant1_inds, assistant2_inds,
                                     assistant3_inds)
-    df_resin = align_operator_times(df_cleaned, datetimes, "Resin Time",
+    df_resin = align_operator_times(df_cleaned, resin_datetimes, "Resin Time",
                                     resin_inds, resin_times, lead_inds,
                                     assistant1_inds, assistant2_inds,
                                     assistant3_inds)
-    df_cycle = align_operator_times(df_cleaned, datetimes, "Cycle Time",
+    df_cycle = align_operator_times(df_cleaned, cycle_datetimes, "Cycle Time",
                                     cycle_inds, cycle_times, lead_inds,
                                     assistant1_inds, assistant2_inds,
                                     assistant3_inds)
@@ -532,6 +531,43 @@ def analyze_all_molds(mold_data_folder):
     all_cycle = pd.concat(cycle_frames)
     all_cycle = all_cycle.reset_index(drop=True)
     
+    
+    # It might be necessary at this point to remove faulty duplicates. These
+    # can be identified by finding consecutive rows where all columns are equal
+    # except for time.
+    # # Reorder each DataFrame by the datetime value in time column, then reindex
+    # all_layup = all_layup.sort_values(by="time")
+    # all_layup = all_layup.reset_index(drop=True)
+    # all_close = all_close.sort_values(by="time")
+    # all_close = all_close.reset_index(drop=True)
+    # all_resin = all_resin.sort_values(by="time")
+    # all_resin = all_resin.reset_index(drop=True)
+    # all_cycle = all_cycle.sort_values(by="time")
+    # all_cycle = all_cycle.reset_index(drop=True)
+    
+    # Remove faulty duplicates
+    all_layup = clean_duplicate_times(all_layup)
+    all_close = clean_duplicate_times(all_close)
+    all_resin = clean_duplicate_times(all_resin)
+    all_cycle = clean_duplicate_times(all_cycle)
+    
+    # dupinds_layup = []
+    # dupinds_close = []
+    # dupinds_resin = []
+    # dupinds_cycle = []
+    # for i in range(len(all_layup)):
+    #     if i == 0:
+    #         continue
+    #     else:
+    #         prev = all_layup.iloc[i-1,1:6]
+    #         curr = all_layup.iloc[i,1:6]
+    #         if prev.equals(curr):
+    #             dupinds_layup.append(i)
+                
+    # all_layup = all_layup.drop(dupinds_layup)
+    # all_layup = all_layup.reset_index(drop=True)
+    
+    
     numops_layup = compare_num_ops(all_layup, "Layup Time")
     numops_close = compare_num_ops(all_close, "Close Time")
     numops_resin = compare_num_ops(all_resin, "Resin Time")
@@ -555,6 +591,43 @@ def analyze_all_molds(mold_data_folder):
     
     return all_layup, all_close, all_resin, all_cycle
 
+def clean_duplicate_times(df):
+    dupinds = []
+    # First pass to remove obvious duplicates
+    for i in range(len(df)):
+        if i == 0:
+            continue
+        else:
+            prev = df.iloc[i-1,1:6]
+            curr = df.iloc[i,1:6]
+            if curr.equals(prev):
+                dupinds.append(i)
+                continue
+            
+            # Remove duplicates where the consecutive stage times are the same
+            # and the time column doesn't show a realistic time difference.
+            # This assumes that the consecutive times are on the same mold.
+            # It is theoretically possible that the times came from different
+            # molds, so this section may need to be removed.
+            prevtime = df["time"][i-1]
+            currtime = df["time"][i]
+            difftime = currtime - prevtime
+            difftime = difftime.total_seconds()
+            
+            prevstagetime = prev.iloc[0]
+            currstagetime = curr.iloc[0]
+            stagetimesec = 60*curr.iloc[0]
+            
+            if prevstagetime == currstagetime and stagetimesec > difftime:
+                dupinds.append(i)
+                continue
+            
+                
+                
+    df = df.drop(dupinds)
+    df = df.reset_index(drop=True)
+    
+    return df
 
 def adjust_data_by_num_operators(df, numops_df, input_col:str, output_col:str):
     df_normalized = df
