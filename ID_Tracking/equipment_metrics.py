@@ -15,9 +15,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
-# from fpdf import FPDF
 import seaborn as sns
-# from sklearn.linear_model import LinearRegression
 
 def get_closest_ID(cycle_idx, bag_inds):
     """
@@ -255,24 +253,10 @@ def align_bag_times(df_cleaned, datetimes, timestring, time_inds, measured_times
         bagdays.append(df_cleaned["Bag Days"].iloc[bagday_idx])
         bagcount_idx = get_closest_ID(ind, bagcount_inds)
         bagcounts.append(df_cleaned["Bag Count"].iloc[bagcount_idx])
-        
-        # lead_idx = get_closest_ID(ind, lead_inds)
-        # leads.append(df_cleaned["Lead"].iloc[lead_idx])
-        # assistant1_idx = get_closest_operator(ind, assistant1_inds)
-        # assistant1s.append(df_cleaned["Assistant 1"].iloc[assistant1_idx])
-        # assistant2_idx = get_closest_operator(ind, assistant2_inds)
-        # assistant2s.append(df_cleaned["Assistant 2"].iloc[assistant2_idx])
-        # assistant3_idx = get_closest_operator(ind, assistant3_inds)
-        # assistant3s.append(df_cleaned["Assistant 3"].iloc[assistant3_idx])
     
     bagids = [int(x) for x in bagids]
     bagdays = [int(x) for x in bagdays]
     bagcounts = [int(x) for x in bagcounts]
-    
-    # leads = [int(x) for x in leads]
-    # assistant1s = [int(x) for x in assistant1s]
-    # assistant2s = [int(x) for x in assistant2s]
-    # assistant3s = [int(x) for x in assistant3s]
 
     # Check if datetimes is longer than the rest of the data. If so, add NaN to
     # the end of all other vectors
@@ -282,7 +266,6 @@ def align_bag_times(df_cleaned, datetimes, timestring, time_inds, measured_times
     while len(datetimes) < len(measured_times):
         datetimes.insert(-1, datetimes[-1])
 
-
     # Combine data
     aligned_data = {"time": datetimes, timestring: measured_times,
                     "Bag ID": bagids, "Bag Days": bagdays,
@@ -290,117 +273,6 @@ def align_bag_times(df_cleaned, datetimes, timestring, time_inds, measured_times
     df_aligned = pd.DataFrame.from_dict(aligned_data)
 
     return df_aligned
-
-
-# def get_bag_stats(df):
-#     startdate = df["time"].iloc[0].date()
-#     enddate = df["time"].iloc[-1].date()
-
-#     ### Get statistics on each operator in the data ###
-#     # Get lists of unique operator numbers for each category
-#     unique_bags = [int(x) for x in df["Bag ID"].unique()]
-#     if 0 in unique_bags:
-#         unique_bags.remove(0)
-    
-    
-#     # unique_assistant1 = [int(x) for x in df["Assistant 1"].unique()]
-#     # unique_assistant2 = [int(x) for x in df["Assistant 2"].unique()]
-#     # unique_assistant3 = [int(x) for x in df["Assistant 3"].unique()]
-#     # unique_assistants = unique_assistant1 + unique_assistant2 + unique_assistant3
-#     # unique_assistants = list(np.unique(unique_assistants))
-#     # if 0 in unique_assistants:
-#     #     unique_assistants.remove(0)
-
-
-#     bag_strings = []
-#     for bag in unique_bags:
-#         bag_strings.append("Bag {}".format(bag))
-#     # for operator in unique_assistants:
-#     #     operator_strings.append("Assistant {}".format(operator))
-
-#     all_times = pd.DataFrame()
-
-#     # Go through each unique operator number and gather their data
-#     # unique_operators = unique_leads + unique_assistants
-#     unique_bags = list(np.unique(unique_bags))
-
-#     directory = os.getcwd()
-
-#     for bag in unique_bags:
-#         df_bag = df.loc[(df["Bag ID"] == bag)]
-
-#         # df_lead = df.loc[df["Lead"] == operator]
-#         # df_assistant = df.loc[(df["Assistant 1"] == operator) |
-#         #                         (df["Assistant 2"] == operator) |
-#         #                         (df["Assistant 3"] == operator)]
-
-#         # Append the cycle time data as a column to all_times
-#         lead_col = "Lead {}".format(operator)
-#         assistant_col = "Assistant {}".format(operator)
-#         operator_col = "All Operator {}".format(operator)
-#         all_times = pd.concat([all_times, df_lead[timestring].rename(lead_col)], axis=1)
-#         all_times = pd.concat([all_times, df_assistant[timestring].rename(assistant_col)], axis=1)
-
-#         # Compare the current operator against all cycle times
-#         lead_col = "Lead"
-#         assistant_col = "Assistant"
-#         operator_col = "All Operator {}".format(operator)
-#         operator_compare = pd.DataFrame()
-#         operator_compare = pd.concat([operator_compare, df_lead[timestring].rename(lead_col)], axis=1)
-#         operator_compare = pd.concat([operator_compare, df_assistant[timestring].rename(assistant_col)], axis=1)
-#         operator_compare = pd.concat([operator_compare, df_operator[timestring].rename(operator_col)], axis=1)
-#         operator_compare = pd.concat([operator_compare, df[timestring].rename("Team")], axis=1)
-
-#         sns.set_theme(style="whitegrid")
-#         customPalette = sns.light_palette("lightblue", 4)
-#         flierprops = dict(marker='o', markerfacecolor='None', markersize=4)
-#         sns.boxplot(x="variable", y="value", data=pd.melt(operator_compare), flierprops=flierprops, palette=customPalette)
-#         plt.title("Operator {} {}s: {} to {}".format(operator, timestring, startdate, enddate))
-#         plt.ylabel("{} (minutes)".format(timestring))
-#         plt.xlabel("")
-#         plotname = directory + "\\Operator_{}_{}.png".format(operator, timestring.replace(" ","_"))
-#         plt.savefig(plotname, dpi=300)
-#         plt.close()
-#         if timestring == "Cycle Time":
-#             cycles_logged = []
-#             cycles_logged.append(operator_compare[lead_col].count())
-#             cycles_logged.append(operator_compare[assistant_col].count())
-#             cycles_logged.append(operator_compare[operator_col].count())
-#             cycles_logged.append(operator_compare["Team"].count())
-#             # opcycles = operator_compare[operator_col].count()
-#             # allcycles = operator_compare["Team"].count()
-#             leadavg = np.around(operator_compare[lead_col].mean(),1)
-#             assistavg = np.around(operator_compare[assistant_col].mean(),1)
-#             opavg = np.around(operator_compare[operator_col].mean(),1)
-#             teamavg = np.around(operator_compare["Team"].mean(),1)
-#             averages = [leadavg, assistavg, opavg, teamavg]
-#             filename = "Operator_{}_{}_Stats_{}_to_{}.pdf".format(operator, timestring.replace(" ","_"), startdate, enddate)
-#             exportpath = os.getcwd()
-#             opname = lookup_operator_name(operator, "ID_data.xlsx")
-#             generate_operator_PDF(startdate, enddate, plotname, operator, opname, cycles_logged, averages, filename, exportpath)
-
-
-# def lookup_operator_name(opnum, IDfilepath):
-#     df = pd.read_excel(IDfilepath, None)
-#     df_lead = df["Personnel-Lead"]
-#     len_opnum = len(str(opnum))
-#     if len_opnum < 3:
-#         opnum_str = str(opnum).zfill(3)
-#     else:
-#         opnum_str = str(opnum)
-
-#     leadnum = "10" + opnum_str
-#     leadnum = int(leadnum)
-#     namerow = df_lead.loc[df_lead["ID"] == leadnum]
-#     opname = namerow.iloc[0][3]
-#     return opname
-
-# def analyze_single_mold(single_mold_data):
-#     df_layup, df_close, df_resin, df_cycle = clean_single_mold_data(single_mold_data)
-#     get_operator_stats(df_layup)
-#     get_operator_stats(df_close)
-#     get_operator_stats(df_resin)
-#     get_operator_stats(df_cycle)
 
 
 def analyze_all_molds(mold_data_folder):
@@ -471,128 +343,7 @@ def analyze_all_molds(mold_data_folder):
     plt.savefig(plotname, dpi=300)
     plt.close()
     
-    
-    
-    
     return all_layup, all_close, all_resin, all_cycle
-
-
-# def adjust_data_by_num_operators(df, numops_df, input_col:str, output_col:str):
-#     df_normalized = df
-#     # Get rid of rows where there no operators clocked in to avoid throwing off
-#     # the linear regression model
-#     numops_df = numops_df[numops_df["N Operators"] != 0]
-#     x = np.array(numops_df["N Operators"]).reshape((-1, 1))
-#     y = np.array(numops_df[input_col])
-#     model = LinearRegression()
-#     model.fit(x, y)
-#     r_sq = model.score(x, y)
-#     print("R squared: {}".format(r_sq))
-#     b = model.intercept_
-#     a = float(model.coef_)
-    
-#     singleop_df = numops_df[numops_df["N Operators"] == 1]
-#     single_median = singleop_df[input_col].median()
-    
-#     normalized_list = []
-#     opcount = 0
-#     for i in range(len(df_normalized)):
-#         oplist = df.iloc[i,2:6]
-#         opcount = oplist.astype(bool).sum()
-#         if opcount == 0:
-#             normalized_list.append(np.NaN)
-#         else:
-#             # Adjust each cycle time by the amount in the linear regression to
-#             # make measurements level with the median of the single-operator
-#             # measurements
-#             t_meas = df[input_col].iloc[i]
-#             t_adjust = t_meas - a*opcount + a # NOTE: THIS IS A LINEAR SHIFT, AND DOES NOT ADJUST THE VARIANCE OF THE DATA. MORE METHODS MIGHT BE NEEDED TO TAKE VARIANCE INTO ACCOUNT.
-            
-#             normalized_list.append(t_adjust)
-            
-#             # normalized_list.append(df[input_col].iloc[i]*opcount)
-#     df_normalized[output_col] = normalized_list
-    
-#     return df_normalized
-
-# def compare_num_ops(df, timestring:str):
-#     """
-#     Output a dataframe that has three columns: time, measured time of interest
-#     (Layup Time, Close Time, Resin Time, or Cycle Time), and the number of
-#     operators on the mold for that measured time. Output box plots for the
-#     data.
-
-#     Parameters
-#     ----------
-#     df : Pandas DataFrame
-#         DESCRIPTION.
-        
-    
-
-#     Returns
-#     -------
-#     df_num_ops: Pandas DataFrame
-#         3 columns: time, measured time of interest, and number of operators
-
-#     """
-#     df_num_ops = df
-#     opcounts = []
-#     opcount = 0
-#     for i in range(len(df_num_ops)):
-#         oplist = df_num_ops.iloc[i,2:6]
-#         opcount = oplist.astype(bool).sum()
-#         opcounts.append(opcount)
-        
-#     # Add the list of opcounts as a column to df_num_ops
-#     df_num_ops["N Operators"] = opcounts
-    
-#     # Drop unnecessary columns
-#     df_num_ops = df_num_ops.drop(columns=["Lead", "Assistant 1", "Assistant 2", "Assistant 3"])
-    
-#     # # SORT BY NUM OPS HERE
-#     # df_num_ops = df_num_ops.sort_values("N Operators")
-#     # df_num_ops = df_num_ops.reset_index(drop=True)
-    
-#     directory = os.getcwd()
-#     sns.set_theme(style="whitegrid")
-#     customPalette = sns.light_palette("lightblue", 5)
-#     flierprops = dict(marker='o', markerfacecolor='None', markersize=4)
-#     ax = sns.boxplot(x="N Operators", y=timestring, data=df_num_ops, flierprops=flierprops, palette=customPalette)
-#     plt.title("Comparison of Operators on Mold: {}".format(timestring))
-    
-#     # Annotate each boxplot with the number of samples
-#     # Calculate number of obs per group & median to position labels
-#     medians = df_num_ops.groupby(["N Operators"])[timestring].median().values
-#     counts = df_num_ops["N Operators"].value_counts()
-#     nobs = []
-#     for i in range(5):
-#         try:
-#             nobs.append(counts[i])
-#         except KeyError:
-#             continue
-#     nobs = [str(x) for x in nobs]
-#     nobs = ["n: " + i for i in nobs]
-     
-#     # Add it to the plot
-#     pos = range(len(nobs))
-#     for tick,label in zip(pos,ax.get_xticklabels()):
-#         ax.text(pos[tick],
-#                 medians[tick] + 0.03,
-#                 nobs[tick],
-#                 horizontalalignment='center',
-#                 size='x-small',
-#                 color='k',
-#                 weight='semibold')
-    
-    
-#     # plt.ylabel("{} (minutes)".format(timestring))
-#     # plt.xlabel("")
-#     plotname = directory + "\\Operator_Number_Comparison_{}.png".format(timestring.replace(" ","_"))
-#     plt.savefig(plotname, dpi=300)
-#     plt.close()
-    
-    
-#     return df_num_ops
     
 
 if __name__ == "__main__":
@@ -604,7 +355,3 @@ if __name__ == "__main__":
     datafolder = os.getcwd()
     datafolder = datafolder + "\\testdata\\"
     all_layup, all_close, all_resin, all_cycle = analyze_all_molds(datafolder)
-    
-    # datafolder = os.getcwd()
-    # datafolder = datafolder + "\\testdata"
-    # all_layup, all_close, all_resin, all_cycle = analyze_all_molds(datafolder)
