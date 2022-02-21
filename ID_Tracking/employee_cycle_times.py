@@ -12,7 +12,15 @@ import os
 from fpdf import FPDF
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
+import datetime as dt
+# import requests
 
+import data_request as dr
+
+# import api_config_vars as config
+
+
+##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
     def __init__(self):
         super().__init__()
@@ -130,6 +138,8 @@ def generate_operator_PDF(datestart, dateend, plot, opnum, opname, cycles_logged
         exportfilepath = exportpath + '/' + filename + "({}).pdf".format(i)
     pdf.output(exportfilepath, 'F')
 
+
+##### Index Alignment Methods #####
 def get_closest_operator(cycle_idx, operator_inds):
     """
     Take an index of the cycle time and an array of indices for a given
@@ -497,6 +507,28 @@ def analyze_single_mold(single_mold_data):
     get_operator_stats(df_resin)
     get_operator_stats(df_cycle)
 
+def analyze_all_molds_api(dtstart, dtend):
+    """Use API access methods to generate stat reports for given datetime range.
+    """
+    all_layup, all_close, all_resin, all_cycle = dr.load_operator_data(dtstart, dtend)
+    
+    # Remove faulty duplicates
+    all_layup = clean_duplicate_times(all_layup)
+    all_close = clean_duplicate_times(all_close)
+    all_resin = clean_duplicate_times(all_resin)
+    all_cycle = clean_duplicate_times(all_cycle)
+    
+    numops_layup = compare_num_ops(all_layup, "Layup Time")
+    numops_close = compare_num_ops(all_close, "Close Time")
+    numops_resin = compare_num_ops(all_resin, "Resin Time")
+    numops_cycle = compare_num_ops(all_cycle, "Cycle Time")
+
+    get_operator_stats(all_layup, "Layup Time")
+    get_operator_stats(all_close, "Close Time")
+    get_operator_stats(all_resin, "Resin Time")
+    get_operator_stats(all_cycle, "Cycle Time")
+    
+    return all_layup, all_close, all_resin, all_cycle
 
 def analyze_all_molds(mold_data_folder):
     """
@@ -572,17 +604,6 @@ def analyze_all_molds(mold_data_folder):
     numops_close = compare_num_ops(all_close, "Close Time")
     numops_resin = compare_num_ops(all_resin, "Resin Time")
     numops_cycle = compare_num_ops(all_cycle, "Cycle Time")
-    
-    # Calculate the regression parameters of each data category, then calculate
-    # the adjusted values of cycle times, layup times, etc. to adjust for 
-    # the number of people working on the mold.
-    
-    # # Add a column to each time type DataFrame to scale the data by the number
-    # # of operators (not sure if this method is sound yet or not)
-    # all_layup = adjust_data_by_num_operators(all_layup, numops_layup, "Layup Time", "Adjusted Layup Time")
-    # all_close = adjust_data_by_num_operators(all_close, numops_close, "Close Time", "Adjusted Close Time")
-    # all_resin = adjust_data_by_num_operators(all_resin, numops_resin, "Resin Time", "Adjusted Resin Time")
-    # all_cycle = adjust_data_by_num_operators(all_cycle, numops_cycle, "Cycle Time", "Adjusted Cycle Time")
 
     get_operator_stats(all_layup, "Layup Time")
     get_operator_stats(all_close, "Close Time")
@@ -748,6 +769,15 @@ def compare_num_ops(df, timestring:str):
     
 
 if __name__ == "__main__":
-    datafolder = os.getcwd()
-    datafolder = datafolder + "\\testdata"
-    all_layup, all_close, all_resin, all_cycle = analyze_all_molds(datafolder)
+    # datafolder = os.getcwd()
+    # datafolder = datafolder + "\\testdata"
+    # all_layup, all_close, all_resin, all_cycle = analyze_all_molds(datafolder)
+    
+    dtstart = dt.datetime(2022,2,14,0,0,0)
+    dtend = dt.datetime(2022,2,21,23,59,59)
+    
+    # startstr = dtstart.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # endstr = dtend.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # startstr = "2022-02-14T00:00:00Z"
+    # endstr = "2022-02-21T23:59:59Z"
+    all_layup, all_close, all_resin, all_cycle = analyze_all_molds_api(dtstart, dtend)
