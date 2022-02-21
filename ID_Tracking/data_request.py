@@ -65,6 +65,10 @@ def load_operator_data_single_mold(dtstart, dtend, moldcolor):
 def load_operator_data(dtstart, dtend):
     """Load the data for all molds and export as a single DataFrame.
     """
+    # Convert dtstart and dtend from datetimes to formatted strings
+    dtstart = dtstart.strftime("%Y-%m-%dT%H:%M:%SZ")
+    dtend = dtend.strftime("%Y-%m-%dT%H:%M:%SZ")
+    
     # operator_frames = []
     layup_frames = []
     close_frames = []
