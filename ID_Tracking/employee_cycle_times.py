@@ -396,7 +396,7 @@ def align_operator_times(df_cleaned, datetimes, timestring, time_inds, measured_
     return df_aligned
 
 
-def get_operator_stats(df, timestring):
+def get_all_operator_stats(df, timestring):
     startdate = df["time"].iloc[0].date()
     enddate = df["time"].iloc[-1].date()
 
@@ -485,6 +485,95 @@ def get_operator_stats(df, timestring):
             generate_operator_PDF(startdate, enddate, plotname, operator, opname, cycles_logged, averages, filename, exportpath)
 
 
+def get_single_operator_stats(df, opnum, timestring):
+    startdate = df["time"].iloc[0].date()
+    enddate = df["time"].iloc[-1].date()
+
+    # ### Get statistics on each operator in the data ###
+    # # Get lists of unique operator numbers for each category
+    # unique_leads = [int(x) for x in df["Lead"].unique()]
+    # if 0 in unique_leads:
+    #     unique_leads.remove(0)
+    # unique_assistant1 = [int(x) for x in df["Assistant 1"].unique()]
+    # unique_assistant2 = [int(x) for x in df["Assistant 2"].unique()]
+    # unique_assistant3 = [int(x) for x in df["Assistant 3"].unique()]
+    # unique_assistants = unique_assistant1 + unique_assistant2 + unique_assistant3
+    # unique_assistants = list(np.unique(unique_assistants))
+    # if 0 in unique_assistants:
+    #     unique_assistants.remove(0)
+
+    leadstr = "Lead {}".format(opnum)
+    assiststr = "Assistant {}".format(opnum)
+    operator_strings = [leadstr, assiststr]
+    # for operator in unique_leads:
+    #     operator_strings.append("Lead {}".format(operator))
+    # for operator in unique_assistants:
+    #     operator_strings.append("Assistant {}".format(operator))
+
+    all_times = pd.DataFrame()
+
+    # # Go through each unique operator number and gather their data
+    # unique_operators = unique_leads + unique_assistants
+    # unique_operators = list(np.unique(unique_operators))
+
+    directory = os.getcwd()
+
+    df_operator = df.loc[(df["Lead"] == opnum) |
+                        (df["Assistant 1"] == opnum) |
+                        (df["Assistant 2"] == opnum) |
+                        (df["Assistant 3"] == opnum)]
+
+    df_lead = df.loc[df["Lead"] == opnum]
+    df_assistant = df.loc[(df["Assistant 1"] == opnum) |
+                            (df["Assistant 2"] == opnum) |
+                            (df["Assistant 3"] == opnum)]
+
+    # Append the cycle time data as a column to all_times
+    lead_col = "Lead {}".format(opnum)
+    assistant_col = "Assistant {}".format(opnum)
+    operator_col = "All Operator {}".format(opnum)
+    all_times = pd.concat([all_times, df_lead[timestring].rename(lead_col)], axis=1)
+    all_times = pd.concat([all_times, df_assistant[timestring].rename(assistant_col)], axis=1)
+
+    # Compare the current operator against all cycle times
+    lead_col = "Lead"
+    assistant_col = "Assistant"
+    operator_col = "All Operator {}".format(opnum)
+    operator_compare = pd.DataFrame()
+    operator_compare = pd.concat([operator_compare, df_lead[timestring].rename(lead_col)], axis=1)
+    operator_compare = pd.concat([operator_compare, df_assistant[timestring].rename(assistant_col)], axis=1)
+    operator_compare = pd.concat([operator_compare, df_operator[timestring].rename(operator_col)], axis=1)
+    operator_compare = pd.concat([operator_compare, df[timestring].rename("Team")], axis=1)
+
+    sns.set_theme(style="whitegrid")
+    customPalette = sns.light_palette("lightblue", 4)
+    flierprops = dict(marker='o', markerfacecolor='None', markersize=4)
+    sns.boxplot(x="variable", y="value", data=pd.melt(operator_compare), flierprops=flierprops, palette=customPalette)
+    plt.title("Operator {} {}s: {} to {}".format(opnum, timestring, startdate, enddate))
+    plt.ylabel("{} (minutes)".format(timestring))
+    plt.xlabel("")
+    plotname = directory + "\\Operator_{}_{}.png".format(opnum, timestring.replace(" ","_"))
+    plt.savefig(plotname, dpi=300)
+    plt.close()
+    if timestring == "Cycle Time":
+        cycles_logged = []
+        cycles_logged.append(operator_compare[lead_col].count())
+        cycles_logged.append(operator_compare[assistant_col].count())
+        cycles_logged.append(operator_compare[operator_col].count())
+        cycles_logged.append(operator_compare["Team"].count())
+        # opcycles = operator_compare[operator_col].count()
+        # allcycles = operator_compare["Team"].count()
+        leadavg = np.around(operator_compare[lead_col].mean(),1)
+        assistavg = np.around(operator_compare[assistant_col].mean(),1)
+        opavg = np.around(operator_compare[operator_col].mean(),1)
+        teamavg = np.around(operator_compare["Team"].mean(),1)
+        averages = [leadavg, assistavg, opavg, teamavg]
+        filename = "Operator_{}_{}_Stats_{}_to_{}.pdf".format(opnum, timestring.replace(" ","_"), startdate, enddate)
+        exportpath = os.getcwd()
+        opname = lookup_operator_name(opnum, "ID_data.xlsx")
+        generate_operator_PDF(startdate, enddate, plotname, opnum, opname, cycles_logged, averages, filename, exportpath)
+
+
 def lookup_operator_name(opnum, IDfilepath):
     df = pd.read_excel(IDfilepath, None)
     df_lead = df["Personnel-Lead"]
@@ -502,10 +591,10 @@ def lookup_operator_name(opnum, IDfilepath):
 
 def analyze_single_mold(single_mold_data):
     df_layup, df_close, df_resin, df_cycle = clean_single_mold_data(single_mold_data)
-    get_operator_stats(df_layup)
-    get_operator_stats(df_close)
-    get_operator_stats(df_resin)
-    get_operator_stats(df_cycle)
+    get_all_operator_stats(df_layup)
+    get_all_operator_stats(df_close)
+    get_all_operator_stats(df_resin)
+    get_all_operator_stats(df_cycle)
 
 def analyze_all_molds_api(dtstart, dtend):
     """Use API access methods to generate stat reports for given datetime range.
@@ -523,10 +612,10 @@ def analyze_all_molds_api(dtstart, dtend):
     numops_resin = compare_num_ops(all_resin, "Resin Time")
     numops_cycle = compare_num_ops(all_cycle, "Cycle Time")
 
-    get_operator_stats(all_layup, "Layup Time")
-    get_operator_stats(all_close, "Close Time")
-    get_operator_stats(all_resin, "Resin Time")
-    get_operator_stats(all_cycle, "Cycle Time")
+    get_single_operator_stats(all_layup, "Layup Time")
+    get_single_operator_stats(all_close, "Close Time")
+    get_single_operator_stats(all_resin, "Resin Time")
+    get_single_operator_stats(all_cycle, "Cycle Time")
     
     return all_layup, all_close, all_resin, all_cycle
 
@@ -605,10 +694,10 @@ def analyze_all_molds(mold_data_folder):
     numops_resin = compare_num_ops(all_resin, "Resin Time")
     numops_cycle = compare_num_ops(all_cycle, "Cycle Time")
 
-    get_operator_stats(all_layup, "Layup Time")
-    get_operator_stats(all_close, "Close Time")
-    get_operator_stats(all_resin, "Resin Time")
-    get_operator_stats(all_cycle, "Cycle Time")
+    get_all_operator_stats(all_layup, "Layup Time")
+    get_all_operator_stats(all_close, "Close Time")
+    get_all_operator_stats(all_resin, "Resin Time")
+    get_all_operator_stats(all_cycle, "Cycle Time")
     
     return all_layup, all_close, all_resin, all_cycle
 
@@ -768,16 +857,69 @@ def compare_num_ops(df, timestring:str):
     return df_num_ops
     
 
-if __name__ == "__main__":
-    # datafolder = os.getcwd()
-    # datafolder = datafolder + "\\testdata"
-    # all_layup, all_close, all_resin, all_cycle = analyze_all_molds(datafolder)
+def get_specific_operator_report(opnum, dtstart, dtend):
+    """Get cycle stats report for only one operator, by their number.
+
+    Parameters
+    ----------
+    opnum : TYPE
+        DESCRIPTION.
+    dtstart : TYPE
+        DESCRIPTION.
+    dtend : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
+    all_layup, all_close, all_resin, all_cycle = dr.load_operator_data(dtstart, dtend)
     
+    # Remove faulty duplicates
+    all_layup = clean_duplicate_times(all_layup)
+    all_close = clean_duplicate_times(all_close)
+    all_resin = clean_duplicate_times(all_resin)
+    all_cycle = clean_duplicate_times(all_cycle)
+    
+    # Remove any row in the all_* dataframes that doesn't contain opnum
+    all_layup = all_layup.loc[(all_layup["Lead"] == opnum) |
+                              (all_layup["Assistant 1"] == opnum) |
+                              (all_layup["Assistant 2"] == opnum) |
+                              (all_layup["Assistant 3"] == opnum)]
+    all_close = all_close.loc[(all_close["Lead"] == opnum) |
+                              (all_close["Assistant 1"] == opnum) |
+                              (all_close["Assistant 2"] == opnum) |
+                              (all_close["Assistant 3"] == opnum)]
+    all_resin = all_resin.loc[(all_resin["Lead"] == opnum) |
+                              (all_resin["Assistant 1"] == opnum) |
+                              (all_resin["Assistant 2"] == opnum) |
+                              (all_resin["Assistant 3"] == opnum)]
+    all_cycle = all_cycle.loc[(all_cycle["Lead"] == opnum) |
+                              (all_cycle["Assistant 1"] == opnum) |
+                              (all_cycle["Assistant 2"] == opnum) |
+                              (all_cycle["Assistant 3"] == opnum)]
+    
+    # numops_layup = compare_num_ops(all_layup, "Layup Time")
+    # numops_close = compare_num_ops(all_close, "Close Time")
+    # numops_resin = compare_num_ops(all_resin, "Resin Time")
+    # numops_cycle = compare_num_ops(all_cycle, "Cycle Time")
+
+    get_single_operator_stats(all_layup, opnum, "Layup Time")
+    get_single_operator_stats(all_close, opnum, "Close Time")
+    get_single_operator_stats(all_resin, opnum, "Resin Time")
+    get_single_operator_stats(all_cycle, opnum, "Cycle Time")
+    
+    return all_layup, all_close, all_resin, all_cycle
+    
+    
+    
+
+if __name__ == "__main__":
     dtstart = dt.datetime(2022,2,14,0,0,0)
     dtend = dt.datetime(2022,2,21,23,59,59)
     
-    # startstr = dtstart.strftime("%Y-%m-%dT%H:%M:%SZ")
-    # endstr = dtend.strftime("%Y-%m-%dT%H:%M:%SZ")
-    # startstr = "2022-02-14T00:00:00Z"
-    # endstr = "2022-02-21T23:59:59Z"
-    all_layup, all_close, all_resin, all_cycle = analyze_all_molds_api(dtstart, dtend)
+    opnum = 593
+    all_layup, all_close, all_resin, all_cycle = get_specific_operator_report(opnum, dtstart, dtend)
+    
+    # all_layup, all_close, all_resin, all_cycle = analyze_all_molds_api(dtstart, dtend)
