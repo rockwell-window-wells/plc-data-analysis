@@ -68,18 +68,23 @@ class OperatorContent(MDBoxLayout):
     pass
 
 class OperatorEvaluationScreen(MDScreen):
-    start_time_dialog = None       # Holding variable for time dialog
+    start_time_dialog = None        # Holding variable for time dialog
+    end_time_dialog = None
     startdate = None
-    t_start = dt.time(0,0,0)      # Analysis start time
+    enddate = None
+    t_start = dt.time(0,0,0)        # Default start time
+    t_end = dt.time(23,59,59)       # Default end time
     select_operator_dialog = None
     operator_number = None
+    evaluation_info_dialog = None
+    boxplot_info_dialog = None
 
     # Snackbar for showing status messages (better than allocating space to labels)
     def snackbar_show(self, snackbartext):
         self.snackbar = Snackbar(text = snackbartext)
         self.snackbar.open()
 
-
+    ### Functions related to Select Operator button ###
     def show_select_operator_dialog(self, *args):
         theme_cls = ThemeManager()
         theme_cls.theme_style = "Light"
@@ -95,13 +100,11 @@ class OperatorEvaluationScreen(MDScreen):
                     MDFlatButton(
                         text="OK",
                         font_style="Button",
-                        text_color = app.theme_cls.primary_color,
                         on_release=self.set_operator_number
                     ),
                     MDFlatButton(
                         text="CANCEL",
                         font_style="Button",
-                        text_color = app.theme_cls.primary_color,
                         on_release=self.close_select_operator_dialog
                     ),
                 ],
@@ -117,11 +120,7 @@ class OperatorEvaluationScreen(MDScreen):
         self.select_operator_dialog.dismiss(force=True)
         self.select_operator_dialog = None
 
-
-
-
-
-    ### Functions for choosing analysis times ###
+    ### Functions for choosing start date and time ###
     def show_start_time_dialog(self, *args):
         theme_cls = ThemeManager()
         theme_cls.theme_style = "Light"
@@ -147,21 +146,19 @@ class OperatorEvaluationScreen(MDScreen):
                         text="Set",
                         font_style="Button",
                         md_bg_color=theme_cls.accent_color,
-                        # on_release=self.set_start_time_dialog
+                        on_release=self.set_start_time_dialog
                     ),
                     MDFlatButton(
                         text="Clear",
                         font_style="Button",
                         theme_text_color="Custom",
-                        text_color=theme_cls.primary_color,
-                        # on_release=self.clear_start_time_dialog
+                        on_release=self.clear_start_time_dialog
                     ),
                     MDFlatButton(
                         text="Cancel",
                         font_style="Button",
                         theme_text_color="Custom",
-                        text_color=theme_cls.primary_color,
-                        # on_release=self.cancel_start_time_dialog
+                        on_release=self.cancel_start_time_dialog
                     ),
                 ],
             )
@@ -191,47 +188,202 @@ class OperatorEvaluationScreen(MDScreen):
 
     def set_start_time_dialog(self, *args):
         self.start_time_dialog.dismiss(force=True)
-        if not self.t_start or not self.t_end:
+        if self.t_start is None or self.startdate is None:
 
 
-            if app.english is True:
-                statustext = "MISSING TIME RANGE. Please choose time range before running analysis."
-            else:
-                statustext = "FALTA RANGO DE TIEMPO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
+        #     if app.english is True:
+        #         statustext = "MISSING TIME RANGE. Please choose time range before running analysis."
+        #     else:
+        #         statustext = "FALTA RANGO DE TIEMPO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
+        # else:
+        #     if app.english is True:
+        #         statustext = "TIME RANGE SET: {} to {}".format(self.t_start, self.t_end)
+        #     else:
+        #         statustext = "SE HA FIJADO EL RANGO DE TIEMPO: {} a {}".format(self.t_start, self.t_end)
+        # if self.date and (self.t_start >= self.t_end):
+        #     if app.english is True:
+        #         statustext = "ERROR: Start time is later than end time."
+        #     else:
+        #         statustext = "ERROR: La hora de inicio es posterior a la hora de finalizaci\u00F3n."
+            statustext = "Missing start time or date."
         else:
-            if app.english is True:
-                statustext = "TIME RANGE SET: {} to {}".format(self.t_start, self.t_end)
-            else:
-                statustext = "SE HA FIJADO EL RANGO DE TIEMPO: {} a {}".format(self.t_start, self.t_end)
-        if self.date and (self.t_start >= self.t_end):
-            if app.english is True:
-                statustext = "ERROR: Start time is later than end time."
-            else:
-                statustext = "ERROR: La hora de inicio es posterior a la hora de finalizaci\u00F3n."
-
+            statustext = "Good to go"
         self.snackbar_show(statustext)
         self.time_range_dialog = None
 
-    def clear_time_dialog(self, *args):
+    def clear_start_time_dialog(self, *args):
         self.t_start = None
-        self.t_end = None
-        if app.english is True:
-            statustext = "TIME RANGE CLEARED. Please choose time range before running analysis."
-        else:
-            statustext = "RANGO DE TIEMPO BORRADO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
+        self.startdate = None
+        # if app.english is True:
+        #     statustext = "TIME RANGE CLEARED. Please choose time range before running analysis."
+        # else:
+        #     statustext = "RANGO DE TIEMPO BORRADO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
+        statustext = "STARTING DATE AND TIME CLEARED. Please select a new date and time before generating report."
         self.snackbar_show(statustext)
-        self.time_range_dialog = None
+        self.start_time_dialog = None
 
-    def cancel_time_dialog(self, *args):
+    def cancel_start_time_dialog(self, *args):
         self.time_range_dialog.dismiss(force=True)
-        if not self.t_start or not self.t_end:
-            if app.english is True:
-                statustext = "MISSING TIME RANGE. Please choose time range before running analysis."
-            else:
-                statustext = "FALTA RANGO DE TIEMPO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
+        if not self.t_start or not self.startdate:
+            # if app.english is True:
+            #     statustext = "MISSING TIME RANGE. Please choose time range before running analysis."
+            # else:
+            #     statustext = "FALTA RANGO DE TIEMPO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
+            statustext = "Missing start time or date."
             self.snackbar_show(statustext)
         self.time_range_dialog = None
 
+    ### Functions for choosing end date and time ###
+    def show_end_time_dialog(self, *args):
+        theme_cls = ThemeManager()
+        theme_cls.theme_style = "Light"
+        theme_cls.primary_palette = "Teal"
+        theme_cls.primary_hue = "400"
+        print("Default End time: {}, {}".format(self.t_end, type(self.t_end)))
+
+        if not self.end_time_dialog:
+            self.end_time_dialog = MDDialog(
+                title="Choose End Date & Time",
+                buttons=[
+                    MDRaisedButton(
+                        text="End Date",
+                        font_style="Button",
+                        on_release=self.show_end_date_picker
+                    ),
+                    MDRaisedButton(
+                        text="End Time",
+                        font_style="Button",
+                        on_release=self.show_end_time_picker
+                    ),
+                    MDRaisedButton(
+                        text="Set",
+                        font_style="Button",
+                        md_bg_color=theme_cls.accent_color,
+                        on_release=self.set_end_time_dialog
+                    ),
+                    MDFlatButton(
+                        text="Clear",
+                        font_style="Button",
+                        theme_text_color="Custom",
+                        text_color=theme_cls.primary_color,
+                        on_release=self.clear_end_time_dialog
+                    ),
+                    MDFlatButton(
+                        text="Cancel",
+                        font_style="Button",
+                        theme_text_color="Custom",
+                        text_color=theme_cls.primary_color,
+                        on_release=self.cancel_end_time_dialog
+                    ),
+                ],
+            )
+        self.end_time_dialog.open()
+
+    def show_end_time_picker(self, *args):
+        end_time_dialog = MDTimePicker()
+        if self.t_end:
+            end_time_dialog.set_time(self.t_end)
+        end_time_dialog.bind(on_save=self.on_end_time_save)
+        end_time_dialog.open()
+
+    def on_end_time_save(self, instance, time):
+        self.t_end = time
+        print(self.t_end)
+
+    def show_end_date_picker(self, *args):
+        end_date_dialog = MDDatePicker()
+        end_date_dialog.bind(on_save=self.on_end_date_save)
+        end_date_dialog.open()
+
+    def on_end_date_save(self, instance, value, date_range):
+        self.enddate = value
+        print("Ending date is {}, {}".format(self.enddate, type(self.enddate)))
+        # self.dates = None
+        # print("self.date = {}\nself.dates = {}".format(self.date, self.dates))
+
+    def set_end_time_dialog(self, *args):
+        self.end_time_dialog.dismiss(force=True)
+        if not self.t_end:
+            statustext = "MISSING END TIME"
+        else:
+            statustext = "GOOD TO GO"
+
+        #     if app.english is True:
+        #         statustext = "MISSING TIME RANGE. Please choose time range before running analysis."
+        #     else:
+        #         statustext = "FALTA RANGO DE TIEMPO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
+        # else:
+        #     if app.english is True:
+        #         statustext = "TIME RANGE SET: {} to {}".format(self.t_end, self.t_end)
+        #     else:
+        #         statustext = "SE HA FIJADO EL RANGO DE TIEMPO: {} a {}".format(self.t_end, self.t_end)
+        # if self.date and (self.t_end >= self.t_end):
+        #     if app.english is True:
+        #         statustext = "ERROR: end time is later than end time."
+        #     else:
+        #         statustext = "ERROR: La hora de inicio es posterior a la hora de finalizaci\u00F3n."
+
+        self.snackbar_show(statustext)
+        self.time_range_dialog = None
+
+    def clear_end_time_dialog(self, *args):
+        self.t_end = None
+        self.enddate = None
+        # if app.english is True:
+        #     statustext = "TIME RANGE CLEARED. Please choose time range before running analysis."
+        # else:
+        #     statustext = "RANGO DE TIEMPO BORRADO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
+        statustext = "ENDING DATE AND TIME CLEARED. Please select a new date and time before generating report."
+        self.snackbar_show(statustext)
+        self.end_time_dialog = None
+
+    def cancel_end_time_dialog(self, *args):
+        self.time_range_dialog.dismiss(force=True)
+        if not self.t_end or not self.enddate:
+            # if app.english is True:
+            #     statustext = "MISSING TIME RANGE. Please choose time range before running analysis."
+            # else:
+            #     statustext = "FALTA RANGO DE TIEMPO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
+            statustext = "MISSING ENDING DATE OR TIME."
+            self.snackbar_show(statustext)
+        self.time_range_dialog = None
+
+
+    ### Functions for showing the operator evaluation info dialog ###
+    def show_evaluation_info_dialog(self, *args):
+        theme_cls = ThemeManager()
+        theme_cls.theme_style = "Light"
+        theme_cls.primary_palette = "Teal"
+        theme_cls.primary_hue = "400"
+
+        infotext =  """Operator reports are displayed with four box plots. The first three illustrate the cycle times for the chosen operator as a lead, as an assistant, and with all their times combined. The fourth column contains a plot of all cycle times logged at Rockwell during the period of interest.
+
+Compare the median lines for each plot to see what an operator averages most of the time. A median line below the team's median indicates that the operator averages faster cycle times than the team.
+
+The other main feature to look for is how compact or stretched the box plot is. A box plot that is very compact means the operator is very consistent at hitting their cycle times, while a tall or stretched box plot indicates an operator that is variable or inconsistent.
+
+Outlier cases, if they exist, are shown as small circles above or below the box plot. These are cases that should be noted, but can be considered not typical, and in some cases can be ignored. These might happen due to conditions outside the operator's control, such as a bag change. This is not always the case, however.
+
+Box plots are only valid with at least 5 data points. More sample points are better. For a proper evaluation, try to choose an evaluation period with at least 20 sample points. The number of samples in each box plot is displayed below the chart on the generated Operator Report.
+                    """
+
+        if not self.evaluation_info_dialog:
+            self.evaluation_info_dialog = MDDialog(
+                title="Interpreting Operator Reports",
+                text=infotext,
+                buttons=[
+                    MDFlatButton(
+                        text="DISMISS",
+                        font_style="Button",
+                        on_release=self.close_evaluation_info_dialog
+                    ),
+                ],
+            )
+        self.evaluation_info_dialog.open()
+
+    def close_evaluation_info_dialog(self, *args):
+        self.evaluation_info_dialog.dismiss(force=True)
+        self.evaluation_info_dialog = None
 
 class SettingsScreen(MDScreen):
 

@@ -101,7 +101,7 @@ KV = '''
             anchor_y: "center"
 
             MDGridLayout:
-                rows: 4
+                rows: 5
                 size_hint: (0.4, 0.4)
 
                 AnchorLayout:
@@ -143,8 +143,25 @@ KV = '''
                         # md_bg_color: app.theme_cls.accent_color
                         # pos_hint: {"top": 0.5, "right": 0.5}
                         elevation: 5
-                        # on_release:
-                            # root.calculate(root.annotatevalues.active, root.annotatelines.active, app.datafolder)
+                        on_release:
+                            root.show_end_time_dialog()
+
+                AnchorLayout:
+                    anchor_x: "center"
+                    anchor_y: "center"
+
+                    MDLabel:
+                        id: evaluationparameterlabel
+                        text: "This is where confirmation will be made before generating reports"
+                        halign: "center"
+                        # id: getreport
+                        # text: "Generate Report"
+                        # font_style: "Button"
+                        # md_bg_color: app.theme_cls.accent_color
+                        # # pos_hint: {"top": 0.5, "right": 0.5}
+                        # elevation: 5
+                        # # on_release:
+                        #     # root.calculate(root.annotatevalues.active, root.annotatelines.active, app.datafolder)
 
                 AnchorLayout:
                     anchor_x: "center"
@@ -164,7 +181,8 @@ KV = '''
         id: button
         icon: "information-variant"
         pos: 900, 600
-        # on_release: app.tap_target_start()
+        on_release:
+            root.show_evaluation_info_dialog()
 
 
 <EquipmentIDScreen>:
