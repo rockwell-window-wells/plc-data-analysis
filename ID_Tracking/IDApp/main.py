@@ -36,6 +36,8 @@ from os.path import exists
 
 import datetime as dt
 
+from libs.id_generator import get_all_employee_nums
+
 Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
 Window.size = (1000, 750)
 Window.minimum_width, Window.minimum_height = Window.size
@@ -65,6 +67,13 @@ class EquipmentIDScreen(MDScreen):
         self.snackbar.open()
 
 class OperatorContent(MDBoxLayout):
+    # def set_operator_list(self, singleoperator, dayshift, swingshift, graveyardshift, alloperators):
+    #     if singleoperator:
+    #         opnum_str = app.ids.operatorevaluationscreen.select_operator_dialog.content_cls.operatornumbertext.text
+    #         print("Operator: {}\nType: {}".format(opnum_str, type(opnum_str)))
+    #         # app.OPERATOR_LIST = []
+    #     else:
+    #         print("Not a single operator")
     pass
 
 class OperatorEvaluationScreen(MDScreen):
@@ -78,10 +87,6 @@ class OperatorEvaluationScreen(MDScreen):
     operator_number = None
     evaluation_info_dialog = None
     boxplot_info_dialog = None
-
-
-
-
 
     # Snackbar for showing status messages (better than allocating space to labels)
     def snackbar_show(self, snackbartext):
@@ -104,7 +109,8 @@ class OperatorEvaluationScreen(MDScreen):
                     MDFlatButton(
                         text="OK",
                         font_style="Button",
-                        on_release=self.set_operator_number
+                        # on_release=self.set_operator_number
+                        on_release=self.set_operator_list
                     ),
                     MDFlatButton(
                         text="CANCEL",
@@ -114,6 +120,43 @@ class OperatorEvaluationScreen(MDScreen):
                 ],
             )
         self.select_operator_dialog.open()
+
+    # def test_dialog_access(self, *args):
+    #     print(self.select_operator_dialog.content_cls.dayshiftcheck.active)
+
+    def set_operator_list(self, *args):
+        singleoperator = self.select_operator_dialog.content_cls.singleoperatorcheck.active
+        dayshift = self.select_operator_dialog.content_cls.dayshiftcheck.active
+        swingshift = self.select_operator_dialog.content_cls.swingshiftcheck.active
+        graveyardshift = self.select_operator_dialog.content_cls.graveyardshiftcheck.active
+        alloperators = self.select_operator_dialog.content_cls.alloperatorscheck.active
+
+        if singleoperator:
+            opnum_str = self.select_operator_dialog.content_cls.operatornumbertext.text
+            if len(opnum_str) > 0:
+                opnum = int(opnum_str)
+                app.OPERATOR_LIST = [opnum]
+                print("Operator: {}\nType: {}".format(app.OPERATOR_LIST, type(app.OPERATOR_LIST)))
+            else:
+                print("Empty number")
+        elif dayshift:
+            print("DAY SHIFT SELECTION FEATURE IS NOT YET COMPLETE")
+        elif swingshift:
+            print("SWING SHIFT SELECTION FEATURE IS NOT YET COMPLETE")
+        elif graveyardshift:
+            print("GRAVEYARD SHIFT SELECTION FEATURE IS NOT YET COMPLETE")
+        elif alloperators:
+            directory = 'C:\\Users\\Ryan.Larson.ROCKWELLINC\\github\\plc-data-analysis\\ID_Tracking\\'
+            filepath = directory + "ID_data.xlsx"
+            df = get_all_employee_nums(filepath)
+            allnums = list(df["ID"])
+            allnums = [int(num) for num in allnums]
+            print(allnums)
+            app.OPERATOR_LIST = allnums
+        else:
+            print("ERROR IN OPERATOR SELECTION")
+
+        self.close_select_operator_dialog()
 
     def set_operator_number(self, *args):
         self.operator_number = self.select_operator_dialog.content_cls.operatornumbertext.text
@@ -368,6 +411,7 @@ class DrawerList(ThemableBehavior, MDList):
 
 
 class IDApp(MDApp):
+    OPERATOR_LIST = []
 
     def build(self):
         # App settings

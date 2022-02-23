@@ -68,7 +68,13 @@ KV = '''
     size: dp(48), dp(48)
 
 <OperatorContent>:
+    id: operatorcontent
     operatornumbertext: operatornumbertext
+    singleoperatorcheck: singleoperatorcheck
+    dayshiftcheck: dayshiftcheck
+    swingshiftcheck: swingshiftcheck
+    graveyardshiftcheck: graveyardshiftcheck
+    alloperatorscheck: alloperatorscheck
     orientation: "vertical"
     spacing: 10
     padding: 10
@@ -81,6 +87,7 @@ KV = '''
         spacing: 10
 
         Check:
+            id: singleoperatorcheck
             active: True
             pos_hint: {'center_x': .5, 'center_y': .75}
 
@@ -93,10 +100,8 @@ KV = '''
         spacing: 10
 
         Check:
-            # size_hint: None, None
-            # size: "48dp", "48dp"
+            id: dayshiftcheck
             pos_hint: {'center_x': .5, 'center_y': .75}
-            # active: False
 
         MDLabel:
             text: "Day Shift"
@@ -107,10 +112,8 @@ KV = '''
         spacing: 10
 
         Check:
-            # size_hint: None, None
-            # size: "48dp", "48dp"
+            id: swingshiftcheck
             pos_hint: {'center_x': .5, 'center_y': .75}
-            # active: False
 
         MDLabel:
             text: "Swing Shift"
@@ -121,10 +124,8 @@ KV = '''
         spacing: 10
 
         Check:
-            # size_hint: None, None
-            # size: "48dp", "48dp"
+            id: graveyardshiftcheck
             pos_hint: {'center_x': .5, 'center_y': .75}
-            # active: False
 
         MDLabel:
             text: "Graveyard Shift"
@@ -135,10 +136,8 @@ KV = '''
         spacing: 10
 
         Check:
-            # size_hint: None, None
-            # size: "48dp", "48dp"
+            id: alloperatorscheck
             pos_hint: {'center_x': .5, 'center_y': .75}
-            # active: False
 
         MDLabel:
             text: "All Operators"
