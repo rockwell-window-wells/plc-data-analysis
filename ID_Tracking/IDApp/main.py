@@ -28,8 +28,6 @@ from kivymd.uix.dropdownitem import MDDropDownItem
 from kivy.config import Config
 from kivy.core.window import Window
 from libs.layout import KV
-# from libs.datamethods import refresh_data, prepare_data, plot_data
-# from libs.exportmethods import generatesinglePDF, generatemultiPDF
 import os, sys
 from kivy.resources import resource_add_path, resource_find
 from os.path import exists
@@ -80,7 +78,7 @@ class OperatorEvaluationScreen(MDScreen):
     start_time_dialog = None        # Holding variable for time dialog
     end_time_dialog = None
     startdate = None
-    enddate = None
+    enddate = dt.date.today()
     t_start = dt.time(0,0,0)        # Default start time
     t_end = dt.time(23,59,59)       # Default end time
     select_operator_dialog = None
@@ -241,6 +239,8 @@ class OperatorEvaluationScreen(MDScreen):
             statustext = "Good to go"
         self.snackbar_show(statustext)
         self.time_range_dialog = None
+        print(self.t_start)
+        print(self.startdate)
 
     def clear_start_time_dialog(self, *args):
         self.t_start = None
@@ -330,6 +330,8 @@ class OperatorEvaluationScreen(MDScreen):
             statustext = "GOOD TO GO"
         self.snackbar_show(statustext)
         self.time_range_dialog = None
+        print(self.t_end)
+        print(self.enddate)
 
     def clear_end_time_dialog(self, *args):
         self.t_end = None
