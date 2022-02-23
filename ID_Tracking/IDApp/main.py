@@ -97,7 +97,7 @@ class OperatorEvaluationScreen(MDScreen):
 
         if not self.select_operator_dialog:
             self.select_operator_dialog = MDDialog(
-                title="Select Operator Number",
+                title="Select Operator(s)",
                 type="custom",
                 content_cls=OperatorContent(),
                 buttons=[

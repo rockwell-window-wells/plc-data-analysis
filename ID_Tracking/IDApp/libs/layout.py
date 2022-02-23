@@ -62,6 +62,10 @@ KV = '''
         font_style: "H5"
         # pos_hint: {"top": 0.6, "x": 0.01}
 
+<Check@MDCheckbox>:
+    group: 'group'
+    size_hint: None, None
+    size: dp(48), dp(48)
 
 <OperatorContent>:
     operatornumbertext: operatornumbertext
@@ -69,7 +73,77 @@ KV = '''
     spacing: 10
     padding: 10
     size_hint_y: None
-    height: "80dp"
+    height: "240dp"
+
+    MDBoxLayout:
+        orientation: "horizontal"
+        padding: 10
+        spacing: 10
+
+        Check:
+            active: True
+            pos_hint: {'center_x': .5, 'center_y': .75}
+
+        MDLabel:
+            text: "Single Operator"
+
+    MDBoxLayout:
+        orientation: "horizontal"
+        padding: 10
+        spacing: 10
+
+        Check:
+            # size_hint: None, None
+            # size: "48dp", "48dp"
+            pos_hint: {'center_x': .5, 'center_y': .75}
+            # active: False
+
+        MDLabel:
+            text: "Day Shift"
+
+    MDBoxLayout:
+        orientation: "horizontal"
+        padding: 10
+        spacing: 10
+
+        Check:
+            # size_hint: None, None
+            # size: "48dp", "48dp"
+            pos_hint: {'center_x': .5, 'center_y': .75}
+            # active: False
+
+        MDLabel:
+            text: "Swing Shift"
+
+    MDBoxLayout:
+        orientation: "horizontal"
+        padding: 10
+        spacing: 10
+
+        Check:
+            # size_hint: None, None
+            # size: "48dp", "48dp"
+            pos_hint: {'center_x': .5, 'center_y': .75}
+            # active: False
+
+        MDLabel:
+            text: "Graveyard Shift"
+
+    MDBoxLayout:
+        orientation: "horizontal"
+        padding: 10
+        spacing: 10
+
+        Check:
+            # size_hint: None, None
+            # size: "48dp", "48dp"
+            pos_hint: {'center_x': .5, 'center_y': .75}
+            # active: False
+
+        MDLabel:
+            text: "All Operators"
+
+
 
     MDTextField:
         id: operatornumbertext
