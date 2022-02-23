@@ -62,18 +62,19 @@ KV = '''
         font_style: "H5"
         # pos_hint: {"top": 0.6, "x": 0.01}
 
+
 <OperatorContent>:
     operatornumbertext: operatornumbertext
     orientation: "vertical"
     spacing: 10
     padding: 10
-
     size_hint_y: None
     height: "80dp"
 
     MDTextField:
         id: operatornumbertext
         hint_text: "Enter Operator Number"
+
 
 <OperatorEvaluationScreen>:
     name: "operatorevaluationscreen"
