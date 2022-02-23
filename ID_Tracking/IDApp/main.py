@@ -354,9 +354,13 @@ class OperatorEvaluationScreen(MDScreen):
         theme_cls.primary_hue = "400"
 
         infotext =  """Operator reports are displayed with four box plots. The first three illustrate the cycle times for the chosen operator as a lead, as an assistant, and with all their times combined. The fourth column contains a plot of all cycle times logged at Rockwell during the period of interest.
+
 Compare the median lines for each plot to see what an operator averages most of the time. A median line below the team's median indicates that the operator averages faster cycle times than the team.
+
 The other main feature to look for is how compact or stretched the box plot is. A box plot that is very compact means the operator is very consistent at hitting their cycle times, while a tall or stretched box plot indicates an operator that is variable or inconsistent.
+
 Outlier cases, if they exist, are shown as small circles above or below the box plot. These are cases that should be noted, but can be considered not typical, and in some cases can be ignored. These might happen due to conditions outside the operator's control, such as a bag change. This is not always the case, however.
+
 Box plots are only valid with at least 5 data points. More sample points are better. For a proper evaluation, try to choose an evaluation period with at least 20 sample points. The number of samples in each box plot is displayed below the chart on the generated Operator Report.
                     """
 
