@@ -63,6 +63,7 @@ KV = '''
         # pos_hint: {"top": 0.6, "x": 0.01}
 
 <OperatorContent>:
+    operatornumbertext: operatornumbertext
     orientation: "vertical"
     spacing: 10
     padding: 10

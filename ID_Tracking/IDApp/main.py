@@ -79,6 +79,10 @@ class OperatorEvaluationScreen(MDScreen):
     evaluation_info_dialog = None
     boxplot_info_dialog = None
 
+
+
+
+
     # Snackbar for showing status messages (better than allocating space to labels)
     def snackbar_show(self, snackbartext):
         self.snackbar = Snackbar(text = snackbartext)
@@ -111,9 +115,9 @@ class OperatorEvaluationScreen(MDScreen):
             )
         self.select_operator_dialog.open()
 
-    def set_operator_number(self, opnum):
-
-        self.operator_number = opnum
+    def set_operator_number(self, *args):
+        self.operator_number = self.select_operator_dialog.content_cls.operatornumbertext.text
+        print("Operator: {}\nType: {}".format(self.operator_number, type(self.operator_number)))
         self.close_select_operator_dialog()
 
     def close_select_operator_dialog(self, *args):
@@ -189,22 +193,6 @@ class OperatorEvaluationScreen(MDScreen):
     def set_start_time_dialog(self, *args):
         self.start_time_dialog.dismiss(force=True)
         if self.t_start is None or self.startdate is None:
-
-
-        #     if app.english is True:
-        #         statustext = "MISSING TIME RANGE. Please choose time range before running analysis."
-        #     else:
-        #         statustext = "FALTA RANGO DE TIEMPO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
-        # else:
-        #     if app.english is True:
-        #         statustext = "TIME RANGE SET: {} to {}".format(self.t_start, self.t_end)
-        #     else:
-        #         statustext = "SE HA FIJADO EL RANGO DE TIEMPO: {} a {}".format(self.t_start, self.t_end)
-        # if self.date and (self.t_start >= self.t_end):
-        #     if app.english is True:
-        #         statustext = "ERROR: Start time is later than end time."
-        #     else:
-        #         statustext = "ERROR: La hora de inicio es posterior a la hora de finalizaci\u00F3n."
             statustext = "Missing start time or date."
         else:
             statustext = "Good to go"
@@ -214,10 +202,6 @@ class OperatorEvaluationScreen(MDScreen):
     def clear_start_time_dialog(self, *args):
         self.t_start = None
         self.startdate = None
-        # if app.english is True:
-        #     statustext = "TIME RANGE CLEARED. Please choose time range before running analysis."
-        # else:
-        #     statustext = "RANGO DE TIEMPO BORRADO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
         statustext = "STARTING DATE AND TIME CLEARED. Please select a new date and time before generating report."
         self.snackbar_show(statustext)
         self.start_time_dialog = None
@@ -225,10 +209,6 @@ class OperatorEvaluationScreen(MDScreen):
     def cancel_start_time_dialog(self, *args):
         self.time_range_dialog.dismiss(force=True)
         if not self.t_start or not self.startdate:
-            # if app.english is True:
-            #     statustext = "MISSING TIME RANGE. Please choose time range before running analysis."
-            # else:
-            #     statustext = "FALTA RANGO DE TIEMPO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
             statustext = "Missing start time or date."
             self.snackbar_show(statustext)
         self.time_range_dialog = None
@@ -298,8 +278,6 @@ class OperatorEvaluationScreen(MDScreen):
     def on_end_date_save(self, instance, value, date_range):
         self.enddate = value
         print("Ending date is {}, {}".format(self.enddate, type(self.enddate)))
-        # self.dates = None
-        # print("self.date = {}\nself.dates = {}".format(self.date, self.dates))
 
     def set_end_time_dialog(self, *args):
         self.end_time_dialog.dismiss(force=True)
@@ -307,32 +285,12 @@ class OperatorEvaluationScreen(MDScreen):
             statustext = "MISSING END TIME"
         else:
             statustext = "GOOD TO GO"
-
-        #     if app.english is True:
-        #         statustext = "MISSING TIME RANGE. Please choose time range before running analysis."
-        #     else:
-        #         statustext = "FALTA RANGO DE TIEMPO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
-        # else:
-        #     if app.english is True:
-        #         statustext = "TIME RANGE SET: {} to {}".format(self.t_end, self.t_end)
-        #     else:
-        #         statustext = "SE HA FIJADO EL RANGO DE TIEMPO: {} a {}".format(self.t_end, self.t_end)
-        # if self.date and (self.t_end >= self.t_end):
-        #     if app.english is True:
-        #         statustext = "ERROR: end time is later than end time."
-        #     else:
-        #         statustext = "ERROR: La hora de inicio es posterior a la hora de finalizaci\u00F3n."
-
         self.snackbar_show(statustext)
         self.time_range_dialog = None
 
     def clear_end_time_dialog(self, *args):
         self.t_end = None
         self.enddate = None
-        # if app.english is True:
-        #     statustext = "TIME RANGE CLEARED. Please choose time range before running analysis."
-        # else:
-        #     statustext = "RANGO DE TIEMPO BORRADO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
         statustext = "ENDING DATE AND TIME CLEARED. Please select a new date and time before generating report."
         self.snackbar_show(statustext)
         self.end_time_dialog = None
@@ -340,10 +298,6 @@ class OperatorEvaluationScreen(MDScreen):
     def cancel_end_time_dialog(self, *args):
         self.time_range_dialog.dismiss(force=True)
         if not self.t_end or not self.enddate:
-            # if app.english is True:
-            #     statustext = "MISSING TIME RANGE. Please choose time range before running analysis."
-            # else:
-            #     statustext = "FALTA RANGO DE TIEMPO. Elija un intervalo de tiempo antes de ejecutar el an\u00E1lisis."
             statustext = "MISSING ENDING DATE OR TIME."
             self.snackbar_show(statustext)
         self.time_range_dialog = None
@@ -384,6 +338,9 @@ Box plots are only valid with at least 5 data points. More sample points are bet
     def close_evaluation_info_dialog(self, *args):
         self.evaluation_info_dialog.dismiss(force=True)
         self.evaluation_info_dialog = None
+
+
+    ### Functions for generating the operator evaluation report
 
 class SettingsScreen(MDScreen):
 
