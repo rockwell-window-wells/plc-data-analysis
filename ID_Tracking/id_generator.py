@@ -269,6 +269,7 @@ def list_IDcard(idlist, IDfilepath, QRfolder, IDcardfolder):
         except Exception as e:
             print(e)
             continue
+    
 
 def print_all_ID_by_type(typestring, IDfilepath, QRfolder, IDcardfolder):
     """Choose a category of ID from a list of acceptable strings, and print all
@@ -603,3 +604,4 @@ def rewrite_whole_Excel_sheet(IDfilepath, df, sheetnames):
 ##### Main function #####
 if __name__ == '__main__':
     print("id_generator is being run as the main function")
+    allnums = get_all_employee_nums("ID_data.xlsx")

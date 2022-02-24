@@ -13,9 +13,8 @@ from fpdf import FPDF
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
 import datetime as dt
-# import requests
 
-import data_request as dr
+import data_request
 
 # import api_config_vars as config
 
@@ -502,9 +501,9 @@ def get_single_operator_stats(df, opnum, timestring):
     # if 0 in unique_assistants:
     #     unique_assistants.remove(0)
 
-    leadstr = "Lead {}".format(opnum)
-    assiststr = "Assistant {}".format(opnum)
-    operator_strings = [leadstr, assiststr]
+    # leadstr = "Lead {}".format(opnum)
+    # assiststr = "Assistant {}".format(opnum)
+    # operator_strings = [leadstr, assiststr]
     # for operator in unique_leads:
     #     operator_strings.append("Lead {}".format(operator))
     # for operator in unique_assistants:
@@ -599,7 +598,7 @@ def analyze_single_mold(single_mold_data):
 def analyze_all_molds_api(dtstart, dtend):
     """Use API access methods to generate stat reports for given datetime range.
     """
-    all_layup, all_close, all_resin, all_cycle = dr.load_operator_data(dtstart, dtend)
+    all_layup, all_close, all_resin, all_cycle = data_request.load_operator_data(dtstart, dtend)
     
     # Remove faulty duplicates
     all_layup = clean_duplicate_times(all_layup)
@@ -607,15 +606,15 @@ def analyze_all_molds_api(dtstart, dtend):
     all_resin = clean_duplicate_times(all_resin)
     all_cycle = clean_duplicate_times(all_cycle)
     
-    numops_layup = compare_num_ops(all_layup, "Layup Time")
-    numops_close = compare_num_ops(all_close, "Close Time")
-    numops_resin = compare_num_ops(all_resin, "Resin Time")
-    numops_cycle = compare_num_ops(all_cycle, "Cycle Time")
+    compare_num_ops(all_layup, "Layup Time")
+    compare_num_ops(all_close, "Close Time")
+    compare_num_ops(all_resin, "Resin Time")
+    compare_num_ops(all_cycle, "Cycle Time")
 
-    get_single_operator_stats(all_layup, "Layup Time")
-    get_single_operator_stats(all_close, "Close Time")
-    get_single_operator_stats(all_resin, "Resin Time")
-    get_single_operator_stats(all_cycle, "Cycle Time")
+    get_all_operator_stats(all_layup, "Layup Time")
+    get_all_operator_stats(all_close, "Close Time")
+    get_all_operator_stats(all_resin, "Resin Time")
+    get_all_operator_stats(all_cycle, "Cycle Time")
     
     return all_layup, all_close, all_resin, all_cycle
 
@@ -689,10 +688,10 @@ def analyze_all_molds(mold_data_folder):
     # all_layup = all_layup.reset_index(drop=True)
     
     
-    numops_layup = compare_num_ops(all_layup, "Layup Time")
-    numops_close = compare_num_ops(all_close, "Close Time")
-    numops_resin = compare_num_ops(all_resin, "Resin Time")
-    numops_cycle = compare_num_ops(all_cycle, "Cycle Time")
+    compare_num_ops(all_layup, "Layup Time")
+    compare_num_ops(all_close, "Close Time")
+    compare_num_ops(all_resin, "Resin Time")
+    compare_num_ops(all_cycle, "Cycle Time")
 
     get_all_operator_stats(all_layup, "Layup Time")
     get_all_operator_stats(all_close, "Close Time")
@@ -739,43 +738,43 @@ def clean_duplicate_times(df):
     
     return df
 
-def adjust_data_by_num_operators(df, numops_df, input_col:str, output_col:str):
-    df_normalized = df
-    # Get rid of rows where there no operators clocked in to avoid throwing off
-    # the linear regression model
-    numops_df = numops_df[numops_df["N Operators"] != 0]
-    x = np.array(numops_df["N Operators"]).reshape((-1, 1))
-    y = np.array(numops_df[input_col])
-    model = LinearRegression()
-    model.fit(x, y)
-    r_sq = model.score(x, y)
-    print("R squared: {}".format(r_sq))
-    b = model.intercept_
-    a = float(model.coef_)
+# def adjust_data_by_num_operators(df, numops_df, input_col:str, output_col:str):
+#     df_normalized = df
+#     # Get rid of rows where there no operators clocked in to avoid throwing off
+#     # the linear regression model
+#     numops_df = numops_df[numops_df["N Operators"] != 0]
+#     x = np.array(numops_df["N Operators"]).reshape((-1, 1))
+#     y = np.array(numops_df[input_col])
+#     model = LinearRegression()
+#     model.fit(x, y)
+#     r_sq = model.score(x, y)
+#     print("R squared: {}".format(r_sq))
+#     b = model.intercept_
+#     a = float(model.coef_)
     
-    singleop_df = numops_df[numops_df["N Operators"] == 1]
-    single_median = singleop_df[input_col].median()
+#     singleop_df = numops_df[numops_df["N Operators"] == 1]
+#     single_median = singleop_df[input_col].median()
     
-    normalized_list = []
-    opcount = 0
-    for i in range(len(df_normalized)):
-        oplist = df.iloc[i,2:6]
-        opcount = oplist.astype(bool).sum()
-        if opcount == 0:
-            normalized_list.append(np.NaN)
-        else:
-            # Adjust each cycle time by the amount in the linear regression to
-            # make measurements level with the median of the single-operator
-            # measurements
-            t_meas = df[input_col].iloc[i]
-            t_adjust = t_meas - a*opcount + a # NOTE: THIS IS A LINEAR SHIFT, AND DOES NOT ADJUST THE VARIANCE OF THE DATA. MORE METHODS MIGHT BE NEEDED TO TAKE VARIANCE INTO ACCOUNT.
+#     normalized_list = []
+#     opcount = 0
+#     for i in range(len(df_normalized)):
+#         oplist = df.iloc[i,2:6]
+#         opcount = oplist.astype(bool).sum()
+#         if opcount == 0:
+#             normalized_list.append(np.NaN)
+#         else:
+#             # Adjust each cycle time by the amount in the linear regression to
+#             # make measurements level with the median of the single-operator
+#             # measurements
+#             t_meas = df[input_col].iloc[i]
+#             t_adjust = t_meas - a*opcount + a # NOTE: THIS IS A LINEAR SHIFT, AND DOES NOT ADJUST THE VARIANCE OF THE DATA. MORE METHODS MIGHT BE NEEDED TO TAKE VARIANCE INTO ACCOUNT.
             
-            normalized_list.append(t_adjust)
+#             normalized_list.append(t_adjust)
             
-            # normalized_list.append(df[input_col].iloc[i]*opcount)
-    df_normalized[output_col] = normalized_list
+#             # normalized_list.append(df[input_col].iloc[i]*opcount)
+#     df_normalized[output_col] = normalized_list
     
-    return df_normalized
+#     return df_normalized
 
 def compare_num_ops(df, timestring:str):
     """
@@ -853,9 +852,6 @@ def compare_num_ops(df, timestring:str):
     plt.savefig(plotname, dpi=300)
     plt.close()
     
-    
-    return df_num_ops
-    
 
 def get_specific_operator_report(opnum, dtstart, dtend):
     """Get cycle stats report for only one operator, by their number.
@@ -874,7 +870,7 @@ def get_specific_operator_report(opnum, dtstart, dtend):
     None.
 
     """
-    all_layup, all_close, all_resin, all_cycle = dr.load_operator_data(dtstart, dtend)
+    all_layup, all_close, all_resin, all_cycle = data_request.load_operator_data(dtstart, dtend)
     
     # Remove faulty duplicates
     all_layup = clean_duplicate_times(all_layup)
@@ -899,11 +895,6 @@ def get_specific_operator_report(opnum, dtstart, dtend):
                               (all_cycle["Assistant 1"] == opnum) |
                               (all_cycle["Assistant 2"] == opnum) |
                               (all_cycle["Assistant 3"] == opnum)]
-    
-    # numops_layup = compare_num_ops(all_layup, "Layup Time")
-    # numops_close = compare_num_ops(all_close, "Close Time")
-    # numops_resin = compare_num_ops(all_resin, "Resin Time")
-    # numops_cycle = compare_num_ops(all_cycle, "Cycle Time")
 
     get_single_operator_stats(all_layup, opnum, "Layup Time")
     get_single_operator_stats(all_close, opnum, "Close Time")
@@ -917,9 +908,9 @@ def get_specific_operator_report(opnum, dtstart, dtend):
 
 if __name__ == "__main__":
     dtstart = dt.datetime(2022,2,14,0,0,0)
-    dtend = dt.datetime(2022,2,21,23,59,59)
+    dtend = dt.datetime(2022,2,23,23,59,59)
     
-    opnum = 593
-    all_layup, all_close, all_resin, all_cycle = get_specific_operator_report(opnum, dtstart, dtend)
+    # opnum = 593
+    # all_layup, all_close, all_resin, all_cycle = get_specific_operator_report(opnum, dtstart, dtend)
     
-    # all_layup, all_close, all_resin, all_cycle = analyze_all_molds_api(dtstart, dtend)
+    all_layup, all_close, all_resin, all_cycle = analyze_all_molds_api(dtstart, dtend)
