@@ -249,8 +249,8 @@ KV = '''
                         md_bg_color: app.theme_cls.accent_color
                         # pos_hint: {"top": 0.5, "right": 0.5}
                         elevation: 5
-                        # on_release:
-                            # root.calculate(root.annotatevalues.active, root.annotatelines.active, app.datafolder)
+                        on_release:
+                            root.get_operator_reports()
 
     MDFloatingActionButton:
         id: button

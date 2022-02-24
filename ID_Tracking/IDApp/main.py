@@ -34,7 +34,9 @@ from os.path import exists
 
 import datetime as dt
 
-from libs.id_generator import get_all_employee_nums
+from libs.id_methods import get_all_employee_nums
+import libs.cycle_time_methods as cycle
+from libs import data_assets
 
 Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
 Window.size = (1000, 750)
@@ -65,19 +67,12 @@ class EquipmentIDScreen(MDScreen):
         self.snackbar.open()
 
 class OperatorContent(MDBoxLayout):
-    # def set_operator_list(self, singleoperator, dayshift, swingshift, graveyardshift, alloperators):
-    #     if singleoperator:
-    #         opnum_str = app.ids.operatorevaluationscreen.select_operator_dialog.content_cls.operatornumbertext.text
-    #         print("Operator: {}\nType: {}".format(opnum_str, type(opnum_str)))
-    #         # app.OPERATOR_LIST = []
-    #     else:
-    #         print("Not a single operator")
     pass
 
 class OperatorEvaluationScreen(MDScreen):
     start_time_dialog = None        # Holding variable for time dialog
     end_time_dialog = None
-    startdate = None
+    startdate = dt.date.today()
     enddate = dt.date.today()
     t_start = dt.time(0,0,0)        # Default start time
     t_end = dt.time(23,59,59)       # Default end time
@@ -144,8 +139,9 @@ class OperatorEvaluationScreen(MDScreen):
         elif graveyardshift:
             print("GRAVEYARD SHIFT SELECTION FEATURE IS NOT YET COMPLETE")
         elif alloperators:
-            directory = 'C:\\Users\\Ryan.Larson.ROCKWELLINC\\github\\plc-data-analysis\\ID_Tracking\\'
-            filepath = directory + "ID_data.xlsx"
+            # directory = 'Z:\\Production\\ID_Tracking\\ID_numbers\\'
+            # filepath = directory + "ID_data.xlsx"
+            filepath = data_assets.ID_data
             df = get_all_employee_nums(filepath)
             allnums = list(df["ID"])
             allnums = [int(num) for num in allnums]
@@ -238,7 +234,7 @@ class OperatorEvaluationScreen(MDScreen):
         else:
             statustext = "Good to go"
         self.snackbar_show(statustext)
-        self.time_range_dialog = None
+        self.start_time_dialog = None
         print(self.t_start)
         print(self.startdate)
 
@@ -250,11 +246,11 @@ class OperatorEvaluationScreen(MDScreen):
         self.start_time_dialog = None
 
     def cancel_start_time_dialog(self, *args):
-        self.time_range_dialog.dismiss(force=True)
+        self.start_time_dialog.dismiss(force=True)
         if not self.t_start or not self.startdate:
             statustext = "Missing start time or date."
             self.snackbar_show(statustext)
-        self.time_range_dialog = None
+        self.start_time_dialog = None
 
     ### Functions for choosing end date and time ###
     def show_end_time_dialog(self, *args):
@@ -329,7 +325,7 @@ class OperatorEvaluationScreen(MDScreen):
         else:
             statustext = "GOOD TO GO"
         self.snackbar_show(statustext)
-        self.time_range_dialog = None
+        self.end_time_dialog = None
         print(self.t_end)
         print(self.enddate)
 
@@ -341,11 +337,11 @@ class OperatorEvaluationScreen(MDScreen):
         self.end_time_dialog = None
 
     def cancel_end_time_dialog(self, *args):
-        self.time_range_dialog.dismiss(force=True)
+        self.end_time_dialog.dismiss(force=True)
         if not self.t_end or not self.enddate:
             statustext = "MISSING ENDING DATE OR TIME."
             self.snackbar_show(statustext)
-        self.time_range_dialog = None
+        self.end_time_dialog = None
 
 
     ### Functions for showing the operator evaluation info dialog ###
@@ -386,6 +382,19 @@ Box plots are only valid with at least 5 data points. More sample points are bet
 
 
     ### Functions for generating the operator evaluation report
+    def get_operator_reports(self, *args):
+        if (self.startdate or self.enddate or self.t_start or self.t_end) is None:
+            raise ValueError("A date or time is missing")
+        else:
+            dtstart = dt.datetime.combine(self.startdate, self.t_start)
+            dtend = dt.datetime.combine(self.enddate, self.t_end)
+
+        if len(app.OPERATOR_LIST) == 1:
+            opnum = app.OPERATOR_LIST[0]
+            all_layup, all_close, all_resin, all_cycle = cycle.get_specific_operator_report(opnum, dtstart, dtend)
+        else:
+            print("Multiple report generation is not yet ready. Thank you for your patience.")
+
 
 class SettingsScreen(MDScreen):
 
