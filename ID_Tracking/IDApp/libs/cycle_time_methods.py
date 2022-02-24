@@ -936,23 +936,23 @@ def get_specific_operator_report(opnum, dtstart, dtend):
     all_resin = clean_duplicate_times(all_resin)
     all_cycle = clean_duplicate_times(all_cycle)
 
-    # Remove any row in the all_* dataframes that doesn't contain opnum
-    all_layup = all_layup.loc[(all_layup["Lead"] == opnum) |
-                              (all_layup["Assistant 1"] == opnum) |
-                              (all_layup["Assistant 2"] == opnum) |
-                              (all_layup["Assistant 3"] == opnum)]
-    all_close = all_close.loc[(all_close["Lead"] == opnum) |
-                              (all_close["Assistant 1"] == opnum) |
-                              (all_close["Assistant 2"] == opnum) |
-                              (all_close["Assistant 3"] == opnum)]
-    all_resin = all_resin.loc[(all_resin["Lead"] == opnum) |
-                              (all_resin["Assistant 1"] == opnum) |
-                              (all_resin["Assistant 2"] == opnum) |
-                              (all_resin["Assistant 3"] == opnum)]
-    all_cycle = all_cycle.loc[(all_cycle["Lead"] == opnum) |
-                              (all_cycle["Assistant 1"] == opnum) |
-                              (all_cycle["Assistant 2"] == opnum) |
-                              (all_cycle["Assistant 3"] == opnum)]
+    # # Remove any row in the all_* dataframes that doesn't contain opnum
+    # all_layup = all_layup.loc[(all_layup["Lead"] == opnum) |
+    #                           (all_layup["Assistant 1"] == opnum) |
+    #                           (all_layup["Assistant 2"] == opnum) |
+    #                           (all_layup["Assistant 3"] == opnum)]
+    # all_close = all_close.loc[(all_close["Lead"] == opnum) |
+    #                           (all_close["Assistant 1"] == opnum) |
+    #                           (all_close["Assistant 2"] == opnum) |
+    #                           (all_close["Assistant 3"] == opnum)]
+    # all_resin = all_resin.loc[(all_resin["Lead"] == opnum) |
+    #                           (all_resin["Assistant 1"] == opnum) |
+    #                           (all_resin["Assistant 2"] == opnum) |
+    #                           (all_resin["Assistant 3"] == opnum)]
+    # all_cycle = all_cycle.loc[(all_cycle["Lead"] == opnum) |
+    #                           (all_cycle["Assistant 1"] == opnum) |
+    #                           (all_cycle["Assistant 2"] == opnum) |
+    #                           (all_cycle["Assistant 3"] == opnum)]
 
     # get_single_operator_stats(all_layup, opnum, "Layup Time")
     # get_single_operator_stats(all_close, opnum, "Close Time")
@@ -1201,7 +1201,7 @@ if __name__ == "__main__":
     endtime = dt.time(23,59,59)
     dtend = dt.datetime.combine(today, endtime)
 
-    # opnum = 593
-    # all_layup, all_close, all_resin, all_cycle = get_specific_operator_report(opnum, dtstart, dtend)
+    opnum = 593
+    all_layup, all_close, all_resin, all_cycle = get_specific_operator_report(opnum, dtstart, dtend)
 
-    all_layup, all_close, all_resin, all_cycle = analyze_all_molds_api(dtstart, dtend)
+    # all_layup, all_close, all_resin, all_cycle = analyze_all_molds_api(dtstart, dtend)
