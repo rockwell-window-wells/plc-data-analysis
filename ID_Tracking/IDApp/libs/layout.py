@@ -152,6 +152,7 @@ KV = '''
 <OperatorEvaluationScreen>:
     name: "operatorevaluationscreen"
     id: operator_evaluation_screen
+    evaluationparameterlabel: evaluationparameterlabel
 
     MDBoxLayout:
         orientation: "vertical"
@@ -176,8 +177,10 @@ KV = '''
             anchor_y: "center"
 
             MDGridLayout:
-                rows: 5
+                rows: 6
                 size_hint: (0.4, 0.4)
+                padding: 20
+                spacing: 50
 
                 AnchorLayout:
                     anchor_x: "center"
@@ -225,19 +228,6 @@ KV = '''
                     anchor_x: "center"
                     anchor_y: "center"
 
-                    MDLabel:
-                        id: evaluationparameterlabel
-                        text: "This is where confirmation will be made before generating reports"
-                        halign: "center"
-                        # id: getreport
-                        # text: "Generate Report"
-                        # font_style: "Button"
-                        # md_bg_color: app.theme_cls.accent_color
-                        # # pos_hint: {"top": 0.5, "right": 0.5}
-                        # elevation: 5
-                        # # on_release:
-                        #     # root.calculate(root.annotatevalues.active, root.annotatelines.active, app.datafolder)
-
                 AnchorLayout:
                     anchor_x: "center"
                     anchor_y: "center"
@@ -249,13 +239,26 @@ KV = '''
                         md_bg_color: app.theme_cls.accent_color
                         # pos_hint: {"top": 0.5, "right": 0.5}
                         elevation: 5
+                        on_press:
+                            evaluationparameterlabel.text = "Generating Report..."
                         on_release:
                             root.get_operator_reports()
+                            evaluationparameterlabel.text = ""
+
+                AnchorLayout:
+                    anchor_x: "center"
+                    anchor_y: "center"
+
+                    MDLabel:
+                        id: evaluationparameterlabel
+                        text: ""
+                        halign: "center"
+
 
     MDFloatingActionButton:
         id: button
         icon: "information-variant"
-        pos: 900, 600
+        pos_hint: {"top": 0.85, "right": 0.9}
         on_release:
             root.show_evaluation_info_dialog()
 

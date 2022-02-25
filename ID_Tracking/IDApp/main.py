@@ -86,6 +86,24 @@ class OperatorEvaluationScreen(MDScreen):
         self.snackbar = Snackbar(text = snackbartext)
         self.snackbar.open()
 
+    def update_report_label(self, *args):
+        if app.singleoperator:
+            labeltext = "Report will be generated for Operator {}\nStart: {} at {}\nEnd: {} at {}".format(app.OPERATOR_LIST[0], self.startdate, self.t_start, self.enddate, self.t_end)
+        elif app.dayshift:
+            labeltext = "Report will be generated for Day Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+        elif app.swingshift:
+            labeltext = "Report will be generated for Swing Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+        elif app.graveyardshift:
+            labeltext = "Report will be generated for Graveyard Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+        elif app.alloperators:
+            labeltext = "Report will be generated for all operators\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+        else:
+            raise ValueError("Error with operator selection")
+
+        self.evaluationparameterlabel.text = labeltext
+
+
+
     ### Functions related to Select Operator button ###
     def show_select_operator_dialog(self, *args):
         theme_cls = ThemeManager()
@@ -118,35 +136,45 @@ class OperatorEvaluationScreen(MDScreen):
     #     print(self.select_operator_dialog.content_cls.dayshiftcheck.active)
 
     def set_operator_list(self, *args):
-        singleoperator = self.select_operator_dialog.content_cls.singleoperatorcheck.active
-        dayshift = self.select_operator_dialog.content_cls.dayshiftcheck.active
-        swingshift = self.select_operator_dialog.content_cls.swingshiftcheck.active
-        graveyardshift = self.select_operator_dialog.content_cls.graveyardshiftcheck.active
-        alloperators = self.select_operator_dialog.content_cls.alloperatorscheck.active
+        app.singleoperator = self.select_operator_dialog.content_cls.singleoperatorcheck.active
+        app.dayshift = self.select_operator_dialog.content_cls.dayshiftcheck.active
+        app.swingshift = self.select_operator_dialog.content_cls.swingshiftcheck.active
+        app.graveyardshift = self.select_operator_dialog.content_cls.graveyardshiftcheck.active
+        app.alloperators = self.select_operator_dialog.content_cls.alloperatorscheck.active
 
-        if singleoperator:
+        if app.singleoperator:
             opnum_str = self.select_operator_dialog.content_cls.operatornumbertext.text
             if len(opnum_str) > 0:
                 opnum = int(opnum_str)
                 app.OPERATOR_LIST = [opnum]
+                # self.snackbar_show(app.OPERATOR_LIST)
+                self.update_report_label()
                 print("Operator: {}\nType: {}".format(app.OPERATOR_LIST, type(app.OPERATOR_LIST)))
             else:
                 print("Empty number")
-        elif dayshift:
-            print("DAY SHIFT SELECTION FEATURE IS NOT YET COMPLETE")
-        elif swingshift:
-            print("SWING SHIFT SELECTION FEATURE IS NOT YET COMPLETE")
-        elif graveyardshift:
-            print("GRAVEYARD SHIFT SELECTION FEATURE IS NOT YET COMPLETE")
-        elif alloperators:
+        elif app.dayshift:
+            app.OPERATOR_LIST = cycle.get_operator_list("Day")
+            self.update_report_label()
+            print(app.OPERATOR_LIST)
+            # print("DAY SHIFT SELECTION FEATURE IS NOT YET COMPLETE")
+        elif app.swingshift:
+            app.OPERATOR_LIST = cycle.get_operator_list("Swing")
+            self.update_report_label()
+            print(app.OPERATOR_LIST)
+        elif app.graveyardshift:
+            app.OPERATOR_LIST = cycle.get_operator_list("Graveyard")
+            self.update_report_label()
+            print(app.OPERATOR_LIST)
+        elif app.alloperators:
             # directory = 'Z:\\Production\\ID_Tracking\\ID_numbers\\'
             # filepath = directory + "ID_data.xlsx"
             filepath = data_assets.ID_data
             df = get_all_employee_nums(filepath)
             allnums = list(df["ID"])
             allnums = [int(num) for num in allnums]
-            print(allnums)
+            # print(allnums)
             app.OPERATOR_LIST = allnums
+            self.update_report_label()
         else:
             print("ERROR IN OPERATOR SELECTION")
 
@@ -214,6 +242,7 @@ class OperatorEvaluationScreen(MDScreen):
 
     def on_start_time_save(self, instance, time):
         self.t_start = time
+        self.update_report_label()
         print(self.t_start)
 
     def show_start_date_picker(self, *args):
@@ -223,6 +252,7 @@ class OperatorEvaluationScreen(MDScreen):
 
     def on_start_date_save(self, instance, value, date_range):
         self.startdate = value
+        self.update_report_label()
         print("Starting date is {}, {}".format(self.startdate, type(self.startdate)))
         # self.dates = None
         # print("self.date = {}\nself.dates = {}".format(self.date, self.dates))
@@ -307,6 +337,7 @@ class OperatorEvaluationScreen(MDScreen):
 
     def on_end_time_save(self, instance, time):
         self.t_end = time
+        self.update_report_label()
         print(self.t_end)
 
     def show_end_date_picker(self, *args):
@@ -316,6 +347,7 @@ class OperatorEvaluationScreen(MDScreen):
 
     def on_end_date_save(self, instance, value, date_range):
         self.enddate = value
+        self.update_report_label()
         print("Ending date is {}, {}".format(self.enddate, type(self.enddate)))
 
     def set_end_time_dialog(self, *args):
@@ -353,13 +385,13 @@ class OperatorEvaluationScreen(MDScreen):
 
         infotext =  """Operator reports are displayed with four box plots. The first three illustrate the cycle times for the chosen operator as a lead, as an assistant, and with all their times combined. The fourth column contains a plot of all cycle times logged at Rockwell during the period of interest.
 
-Compare the median lines for each plot to see what an operator averages most of the time. A median line below the team's median indicates that the operator averages faster cycle times than the team.
+Compare the medians for each plot to see what an operator averages most of the time. A median below the team's median indicates that the operator averages faster cycle times than the team.
 
 The other main feature to look for is how compact or stretched the box plot is. A box plot that is very compact means the operator is very consistent at hitting their cycle times, while a tall or stretched box plot indicates an operator that is variable or inconsistent.
 
-Outlier cases, if they exist, are shown as small circles above or below the box plot. These are cases that should be noted, but can be considered not typical, and in some cases can be ignored. These might happen due to conditions outside the operator's control, such as a bag change. This is not always the case, however.
+Outlier cases, if they exist, are shown as small circles above or below the box plot. These are cases that should be noted, but can be considered not typical, and in some cases can be ignored. These might happen due to conditions outside the operator's control, such as a bag change, but they can still be due to operator factors.
 
-Box plots are only valid with at least 5 data points. More sample points are better. For a proper evaluation, try to choose an evaluation period with at least 20 sample points. The number of samples in each box plot is displayed below the chart on the generated Operator Report.
+Box plots are only valid with at least 5 data points. More sample points are better. For a proper evaluation, try to choose an evaluation period with at least 20 sample points for each box plot. The number of samples in each box plot is displayed below the chart on the generated Operator Report.
                     """
 
         if not self.evaluation_info_dialog:
@@ -389,9 +421,33 @@ Box plots are only valid with at least 5 data points. More sample points are bet
             dtstart = dt.datetime.combine(self.startdate, self.t_start)
             dtend = dt.datetime.combine(self.enddate, self.t_end)
 
-        if len(app.OPERATOR_LIST) == 1:
+        # singleoperator = self.select_operator_dialog.content_cls.singleoperatorcheck.active
+        # dayshift = self.select_operator_dialog.content_cls.dayshiftcheck.active
+        # swingshift = self.select_operator_dialog.content_cls.swingshiftcheck.active
+        # graveyardshift = self.select_operator_dialog.content_cls.graveyardshiftcheck.active
+        # alloperators = self.select_operator_dialog.content_cls.alloperatorscheck.active
+
+        if app.singleoperator:
             opnum = app.OPERATOR_LIST[0]
             all_layup, all_close, all_resin, all_cycle = cycle.get_specific_operator_report(opnum, dtstart, dtend)
+            statustext = "Report successfully generated for Operator {}".format(opnum)
+            self.snackbar_show(statustext)
+        elif app.dayshift:
+            # app.OPERATOR_LIST = cycle.get_operator_list("Day")
+            # self.snackbar_show(app.OPERATOR_LIST)
+            cycle.get_operator_report_by_list(app.OPERATOR_LIST, "Day", dtstart, dtend)
+        elif app.swingshift:
+            # app.OPERATOR_LIST = cycle.get_operator_list("Swing")
+            # self.snackbar_show(app.OPERATOR_LIST)
+            cycle.get_operator_report_by_list(app.OPERATOR_LIST, "Swing", dtstart, dtend)
+        elif app.graveyardshift:
+            # app.OPERATOR_LIST = cycle.get_operator_list("Graveyard")
+            # self.snackbar_show(app.OPERATOR_LIST)
+            cycle.get_operator_report_by_list(app.OPERATOR_LIST, "Graveyard", dtstart, dtend)
+        elif app.alloperators:
+            cycle.analyze_all_molds_api(dtstart, dtend)
+            statustext = "Report successfully generated for all operators"
+            self.snackbar_show(statustext)
         else:
             print("Multiple report generation is not yet ready. Thank you for your patience.")
 
@@ -427,6 +483,11 @@ class DrawerList(ThemableBehavior, MDList):
 
 class IDApp(MDApp):
     OPERATOR_LIST = []
+    singleoperator = True
+    dayshift = False
+    swingshift = False
+    graveyardshift = False
+    alloperators = False
 
     def build(self):
         # App settings
