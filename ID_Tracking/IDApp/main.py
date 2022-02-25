@@ -261,9 +261,9 @@ class OperatorEvaluationScreen(MDScreen):
         self.start_time_dialog.dismiss(force=True)
         if self.t_start is None or self.startdate is None:
             statustext = "Missing start time or date."
-        else:
-            statustext = "Good to go"
-        self.snackbar_show(statustext)
+            self.snackbar_show(statustext)
+        # else:
+        #     statustext = "Good to go"
         self.start_time_dialog = None
         print(self.t_start)
         print(self.startdate)
@@ -354,9 +354,9 @@ class OperatorEvaluationScreen(MDScreen):
         self.end_time_dialog.dismiss(force=True)
         if not self.t_end:
             statustext = "MISSING END TIME"
-        else:
-            statustext = "GOOD TO GO"
-        self.snackbar_show(statustext)
+            self.snackbar_show(statustext)
+        # else:
+        #     statustext = "GOOD TO GO"
         self.end_time_dialog = None
         print(self.t_end)
         print(self.enddate)
@@ -430,8 +430,8 @@ Box plots are only valid with at least 5 data points. More sample points are bet
         if app.singleoperator:
             opnum = app.OPERATOR_LIST[0]
             all_layup, all_close, all_resin, all_cycle = cycle.get_specific_operator_report(opnum, dtstart, dtend)
-            statustext = "Report successfully generated for Operator {}".format(opnum)
-            self.snackbar_show(statustext)
+            # statustext = "Report successfully generated for Operator {}".format(opnum)
+            # self.snackbar_show(statustext)
         elif app.dayshift:
             # app.OPERATOR_LIST = cycle.get_operator_list("Day")
             # self.snackbar_show(app.OPERATOR_LIST)
@@ -446,8 +446,8 @@ Box plots are only valid with at least 5 data points. More sample points are bet
             cycle.get_operator_report_by_list(app.OPERATOR_LIST, "Graveyard", dtstart, dtend)
         elif app.alloperators:
             cycle.analyze_all_molds_api(dtstart, dtend)
-            statustext = "Report successfully generated for all operators"
-            self.snackbar_show(statustext)
+            # statustext = "Report successfully generated for all operators"
+            # self.snackbar_show(statustext)
         else:
             print("Multiple report generation is not yet ready. Thank you for your patience.")
 
