@@ -14,8 +14,10 @@ import seaborn as sns
 import datetime as dt
 import shutil
 
-from . import data_assets
-from . import api_config_vars as api
+import data_assets
+import api_config_vars as api
+# from . import data_assets
+# from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -33,13 +35,14 @@ class OperatorStatsPDF(FPDF):
         self.ln(20)
 
     def footer(self):
-        # Page numbers in the footer
-        self.set_y(-15)
-        self.set_font('Arial', 'I', 8)
-        self.set_text_color(128)
-        self.cell(0, 5, 'Page ' + str(self.page_no()), 0, 0, 'C')
+        pass
+        # # Page numbers in the footer
+        # self.set_y(-15)
+        # self.set_font('Arial', 'I', 8)
+        # self.set_text_color(128)
+        # self.cell(0, 5, 'Page ' + str(self.page_no()), 0, 0, 'C')
 
-    def page_body(self, datestart, dateend, plot, opnum, opname, cycles_logged, averages):
+    def page_body(self, datestart, dateend, plot, opnum, opname, cycles_logged, medians, averages):
         datetext = "Evaluation Period:"
         dateval = "{} to {}".format(str(datestart), str(dateend))
         leadcyclestext = "Lead Cycles:"
@@ -52,12 +55,37 @@ class OperatorStatsPDF(FPDF):
         teamcyclesval = str(cycles_logged[3])
         nametext = "Operator Name:"
         numtext = "Operator Number:"
+        
+        leadmed = medians[0]
+        assistmed = medians[1]
+        opmed = medians[2]
+        teammed = medians[3]
+        leadmedtext = "Lead Median:"
+        assistmedtext = "Assistant Median:"
+        opmedtext =   "All Operator Median:"
+        teammedtext = "Team Median:"
+        if np.isnan(leadmed):
+            leadmedval = "N/A"
+        else:
+            leadmedval =   "{} min".format(leadmed)
+        if np.isnan(assistmed):
+            assistmedval = "N/A"
+        else:
+            assistmedval = "{} min".format(assistmed)
+        if np.isnan(opmed):
+            opmedval = "N/A"
+        else:
+            opmedval = "{} min".format(opmed)
+        teammedval = "{} min".format(teammed)
+        
         leadavg = averages[0]
         assistavg = averages[1]
         opavg = averages[2]
         teamavg = averages[3]
         leadavgtext = "Lead Average:"
         assistavgtext = "Assistant Average:"
+        opavgtext =   "All Operator Average:"
+        teamavgtext = "Team Average:"
         if np.isnan(leadavg):
             leadavgval = "N/A"
         else:
@@ -66,15 +94,17 @@ class OperatorStatsPDF(FPDF):
             assistavgval = "N/A"
         else:
             assistavgval = "{} min".format(assistavg)
-        opavgtext =   "All Operator Average:"
-        opavgval = "{} min".format(opavg)
-        teamavgtext = "Team Average:"
+        if np.isnan(opavg):
+            opavgval = "N/A"
+        else:
+            opavgval = "{} min".format(opavg)
         teamavgval = "{} min".format(teamavg)
 
         # Get the maximum text width and calculate the cell size accordingly
         texts = [datetext, leadcyclestext, assistcyclestext, opcyclestext,
-                 teamcyclestext, nametext, numtext, leadavgtext, assistavgtext,
-                 opavgtext, teamavgtext]
+                 teamcyclestext, nametext, numtext, leadmedtext, assistmedtext,
+                 opmedtext, teammedtext, leadavgtext, assistavgtext, opavgtext,
+                 teamavgtext]
         maxtxtwidth = 0
         for txt in texts:
             if self.get_string_width(txt) > maxtxtwidth:
@@ -106,6 +136,15 @@ class OperatorStatsPDF(FPDF):
         self.cell(cellwidth, 6, teamcyclestext, 0, 0, 'L')
         self.cell(self.get_string_width(teamcyclesval), 6, teamcyclesval, 0, 1, 'L')
         self.cell(40, 3, "", 0, 1, 'L')
+        self.cell(cellwidth, 6, leadmedtext, 0, 0, 'L')
+        self.cell(self.get_string_width(leadmedval), 6, leadmedval, 0, 1, 'L')
+        self.cell(cellwidth, 6, assistmedtext, 0, 0, 'L')
+        self.cell(self.get_string_width(assistmedval), 6, assistmedval, 0, 1, 'L')
+        self.cell(cellwidth, 6, opmedtext, 0, 0, 'L')
+        self.cell(self.get_string_width(opmedval), 6, opmedval, 0, 1, 'L')
+        self.cell(cellwidth, 6, teammedtext, 0, 0, 'L')
+        self.cell(self.get_string_width(teammedval), 6, teammedval, 0, 1, 'L')
+        self.cell(40, 3, "", 0, 1, 'L')
         self.cell(cellwidth, 6, leadavgtext, 0, 0, 'L')
         self.cell(self.get_string_width(leadavgval), 6, leadavgval, 0, 1, 'L')
         self.cell(cellwidth, 6, assistavgtext, 0, 0, 'L')
@@ -116,14 +155,14 @@ class OperatorStatsPDF(FPDF):
         self.cell(self.get_string_width(teamavgval), 6, teamavgval, 0, 1, 'L')
 
 
-    def print_page(self, datestart, dateend, plot, opnum, opname, cycles_logged, averages):
+    def print_page(self, datestart, dateend, plot, opnum, opname, cycles_logged, medians, averages):
         # Generates the report
         self.add_page()
-        self.page_body(datestart, dateend, plot, opnum, opname, cycles_logged, averages)
+        self.page_body(datestart, dateend, plot, opnum, opname, cycles_logged, medians, averages)
 
-def generate_operator_PDF(datestart, dateend, plot, opnum, opname, cycles_logged, averages, filename, exportpath):
+def generate_operator_PDF(datestart, dateend, plot, opnum, opname, cycles_logged, medians, averages, filename, exportpath):
     pdf = OperatorStatsPDF()
-    pdf.print_page(datestart, dateend, plot, opnum, opname, cycles_logged, averages)
+    pdf.print_page(datestart, dateend, plot, opnum, opname, cycles_logged, medians, averages)
     exportfilepath = exportpath + '/' + filename
     # Check if the exported PDF file already exists in the export folder
     if os.path.exists(exportfilepath):
@@ -497,6 +536,11 @@ def get_all_operator_stats(df, timestring):
             cycles_logged.append(operator_compare["Team"].count())
             # opcycles = operator_compare[operator_col].count()
             # allcycles = operator_compare["Team"].count()
+            leadmed = np.around(operator_compare[lead_col].median(),1)
+            assistmed = np.around(operator_compare[assistant_col].median(),1)
+            opmed = np.around(operator_compare[operator_col].mean(),1)
+            teammed = np.around(operator_compare["Team"].median(),1)
+            medians = [leadmed, assistmed, opmed, teammed]
             leadavg = np.around(operator_compare[lead_col].mean(),1)
             assistavg = np.around(operator_compare[assistant_col].mean(),1)
             opavg = np.around(operator_compare[operator_col].mean(),1)
@@ -505,9 +549,9 @@ def get_all_operator_stats(df, timestring):
             filename = "Operator_{}_{}_Stats_{}_to_{}.pdf".format(operator, timestring.replace(" ","_"), startdate, enddate)
             exportpath = data_assets.pdftempfolder
             opname = lookup_operator_name(operator, data_assets.ID_data)
-            generate_operator_PDF(startdate, enddate, plotname, operator, opname, cycles_logged, averages, filename, exportpath)
+            generate_operator_PDF(startdate, enddate, plotname, operator, opname, cycles_logged, medians, averages, filename, exportpath)
 
-    mergefile = "All_Operators_{}_to_{}.pdf".format(startdate, enddate)
+    mergefile = "All_Operators_Cycle_Times_{}_to_{}.pdf".format(startdate, enddate)
     mergedfilepath = data_assets.pdftempfolder + "\\" + mergefile
     merge_operator_PDFs(exportpath, mergedfilepath)
     
@@ -522,8 +566,8 @@ def get_all_operator_stats(df, timestring):
         os.remove(path_to_file)
         
     # Automatically open the merged file from its new location
-    data_assets.pdfexportfolder + "\\" + mergefile
-    os.system(mergedfilepath)
+    # mergedfilepath = data_assets.pdfexportfolder + "\\" + mergefile
+    os.system(dest)
 
 
 def get_operator_stats_by_list(df, operator_list, timestring, shift=None):
@@ -554,7 +598,7 @@ def get_operator_stats_by_list(df, operator_list, timestring, shift=None):
 
     all_times = pd.DataFrame()
 
-    directory = data_assets.pdfexportfolder
+    directory = data_assets.pdftempfolder
 
     for operator in operator_list:
         df_operator = df.loc[(df["Lead"] == operator) |
@@ -602,36 +646,59 @@ def get_operator_stats_by_list(df, operator_list, timestring, shift=None):
             cycles_logged.append(operator_compare["Team"].count())
             # opcycles = operator_compare[operator_col].count()
             # allcycles = operator_compare["Team"].count()
+            leadmed = np.around(operator_compare[lead_col].median(),1)
+            assistmed = np.around(operator_compare[assistant_col].median(),1)
+            opmed = np.around(operator_compare[operator_col].mean(),1)
+            teammed = np.around(operator_compare["Team"].median(),1)
+            medians = [leadmed, assistmed, opmed, teammed]
             leadavg = np.around(operator_compare[lead_col].mean(),1)
             assistavg = np.around(operator_compare[assistant_col].mean(),1)
             opavg = np.around(operator_compare[operator_col].mean(),1)
             teamavg = np.around(operator_compare["Team"].mean(),1)
             averages = [leadavg, assistavg, opavg, teamavg]
             filename = "Operator_{}_{}_Stats_{}_to_{}.pdf".format(operator, timestring.replace(" ","_"), startdate, enddate)
-            exportpath = data_assets.pdfexportfolder
+            exportpath = data_assets.pdftempfolder
             opname = lookup_operator_name(operator, data_assets.ID_data)
-            generate_operator_PDF(startdate, enddate, plotname, operator, opname, cycles_logged, averages, filename, exportpath)
+            generate_operator_PDF(startdate, enddate, plotname, operator, opname, cycles_logged, medians, averages, filename, exportpath)
 
 
     if shift is None:
         mergefile = "List_Operators_{}_to_{}.pdf".format(startdate, enddate)
-        mergedfilepath = data_assets.pdfexportfolder + "\\" + mergefile
+        mergedfilepath = data_assets.pdftempfolder + "\\" + mergefile
         merge_operator_PDFs(exportpath, mergedfilepath)
     else:
-        merge_by_shift(startdate, enddate, shift, exportpath)
+        mergefile, mergedfilepath = merge_by_shift(startdate, enddate, shift, exportpath)
+        
+    # Copy merged file into Operator_Reports folder
+    dest = data_assets.pdfexportfolder + "\\" + mergefile
+    shutil.copyfile(mergedfilepath, dest)
+
+    # Delete all files from temp data holding folder
+    files_in_directory = os.listdir(directory)
+    for file in files_in_directory:
+        path_to_file = os.path.join(directory, file)
+        os.remove(path_to_file)
+        
+    # Automatically open the merged file from its new location
+    # mergedfilepath = data_assets.pdfexportfolder + "\\" + mergefile
+    os.system(dest)
 
 
 def merge_by_shift(startdate, enddate, shift, exportpath):
     shift = shift.lower()
     if shift == "day":
-        mergefile = "Day_Shift_Operators_{}_to_{}.pdf".format(startdate, enddate)
+        mergefile = "Day_Shift_Operators_Cycle_Times_{}_to_{}.pdf".format(startdate, enddate)
     elif shift == "swing":
-        mergefile = "Swing_Shift_Operators_{}_to_{}.pdf".format(startdate, enddate)
+        mergefile = "Swing_Shift_Operators_Cycle_Times_{}_to_{}.pdf".format(startdate, enddate)
     elif shift == "graveyard":
-        mergefile = "Graveyard_Shift_Operators_{}_to_{}.pdf".format(startdate, enddate)
+        mergefile = "Graveyard_Shift_Operators_Cycle_Times_{}_to_{}.pdf".format(startdate, enddate)
+    else:
+        raise ValueError("No shift specified")
 
-    mergedfilepath = data_assets.pdfexportfolder + "\\" + mergefile
+    mergedfilepath = data_assets.pdftempfolder + "\\" + mergefile
     merge_operator_PDFs(exportpath, mergedfilepath)
+    
+    return mergefile, mergedfilepath
 
 
 
@@ -641,7 +708,7 @@ def get_single_operator_stats(df, opnum, timestring):
 
     all_times = pd.DataFrame()
 
-    directory = os.getcwd()
+    directory = data_assets.pdftempfolder
 
     df_operator = df.loc[(df["Lead"] == opnum) |
                         (df["Assistant 1"] == opnum) |
@@ -686,15 +753,35 @@ def get_single_operator_stats(df, opnum, timestring):
         cycles_logged.append(operator_compare[assistant_col].count())
         cycles_logged.append(operator_compare[operator_col].count())
         cycles_logged.append(operator_compare["Team"].count())
+        leadmed = np.around(operator_compare[lead_col].median(),1)
+        assistmed = np.around(operator_compare[assistant_col].median(),1)
+        opmed = np.around(operator_compare[operator_col].mean(),1)
+        teammed = np.around(operator_compare["Team"].median(),1)
+        medians = [leadmed, assistmed, opmed, teammed]
         leadavg = np.around(operator_compare[lead_col].mean(),1)
         assistavg = np.around(operator_compare[assistant_col].mean(),1)
         opavg = np.around(operator_compare[operator_col].mean(),1)
         teamavg = np.around(operator_compare["Team"].mean(),1)
         averages = [leadavg, assistavg, opavg, teamavg]
         filename = "Operator_{}_{}_Stats_{}_to_{}.pdf".format(opnum, timestring.replace(" ","_"), startdate, enddate)
-        exportpath = os.getcwd()
+        exportpath = data_assets.pdftempfolder
         opname = lookup_operator_name(opnum, data_assets.ID_data)
-        generate_operator_PDF(startdate, enddate, plotname, opnum, opname, cycles_logged, averages, filename, exportpath)
+        generate_operator_PDF(startdate, enddate, plotname, opnum, opname, cycles_logged, medians, averages, filename, exportpath)
+        
+    # Copy merged file into Operator_Reports folder
+    filepath = data_assets.pdftempfolder + "\\" + filename
+    dest = data_assets.pdfexportfolder + "\\" + filename
+    shutil.copyfile(filepath, dest)
+
+    # Delete all files from temp data holding folder
+    files_in_directory = os.listdir(directory)
+    for file in files_in_directory:
+        path_to_file = os.path.join(directory, file)
+        os.remove(path_to_file)
+        
+    # Automatically open the merged file from its new location
+    # mergedfilepath = data_assets.pdfexportfolder + "\\" + mergefile
+    os.system(dest)
 
 
 def lookup_operator_name(opnum, IDfilepath):
@@ -744,56 +831,56 @@ def analyze_all_molds_api(dtstart, dtend):
 
     return all_layup, all_close, all_resin, all_cycle
 
-def analyze_all_molds(mold_data_folder):
-    """
-    Take a list of CSV files containing mold data downloaded from StrideLinx.
-    Combine the data into one large dataframe of cycle times and their
-    associated operators, and get individual operator stats. Print a nice report
-    for each individual operator number that includes their lead, assistant,
-    and overall stats compared to all cycle times for the same period.
-    """
-    mold_data_files = []
-    for root, dirs, files in os.walk(os.path.abspath(mold_data_folder)):
-        for file in files:
-            mold_data_files.append(os.path.join(root, file))
+# def analyze_all_molds(mold_data_folder):
+#     """
+#     Take a list of CSV files containing mold data downloaded from StrideLinx.
+#     Combine the data into one large dataframe of cycle times and their
+#     associated operators, and get individual operator stats. Print a nice report
+#     for each individual operator number that includes their lead, assistant,
+#     and overall stats compared to all cycle times for the same period.
+#     """
+#     mold_data_files = []
+#     for root, dirs, files in os.walk(os.path.abspath(mold_data_folder)):
+#         for file in files:
+#             mold_data_files.append(os.path.join(root, file))
 
-    layup_frames = []
-    close_frames = []
-    resin_frames = []
-    cycle_frames = []
-    for datafile in mold_data_files:
-        df_layup, df_close, df_resin, df_cycle = clean_single_mold_data(datafile)
-        layup_frames.append(df_layup)
-        close_frames.append(df_close)
-        resin_frames.append(df_resin)
-        cycle_frames.append(df_cycle)
+#     layup_frames = []
+#     close_frames = []
+#     resin_frames = []
+#     cycle_frames = []
+#     for datafile in mold_data_files:
+#         df_layup, df_close, df_resin, df_cycle = clean_single_mold_data(datafile)
+#         layup_frames.append(df_layup)
+#         close_frames.append(df_close)
+#         resin_frames.append(df_resin)
+#         cycle_frames.append(df_cycle)
 
-    all_layup = pd.concat(layup_frames)
-    all_layup = all_layup.reset_index(drop=True)
-    all_close = pd.concat(close_frames)
-    all_close = all_close.reset_index(drop=True)
-    all_resin = pd.concat(resin_frames)
-    all_resin = all_resin.reset_index(drop=True)
-    all_cycle = pd.concat(cycle_frames)
-    all_cycle = all_cycle.reset_index(drop=True)
+#     all_layup = pd.concat(layup_frames)
+#     all_layup = all_layup.reset_index(drop=True)
+#     all_close = pd.concat(close_frames)
+#     all_close = all_close.reset_index(drop=True)
+#     all_resin = pd.concat(resin_frames)
+#     all_resin = all_resin.reset_index(drop=True)
+#     all_cycle = pd.concat(cycle_frames)
+#     all_cycle = all_cycle.reset_index(drop=True)
 
-    # Remove faulty duplicates
-    all_layup = clean_duplicate_times(all_layup)
-    all_close = clean_duplicate_times(all_close)
-    all_resin = clean_duplicate_times(all_resin)
-    all_cycle = clean_duplicate_times(all_cycle)
+#     # Remove faulty duplicates
+#     all_layup = clean_duplicate_times(all_layup)
+#     all_close = clean_duplicate_times(all_close)
+#     all_resin = clean_duplicate_times(all_resin)
+#     all_cycle = clean_duplicate_times(all_cycle)
 
-    compare_num_ops(all_layup, "Layup Time")
-    compare_num_ops(all_close, "Close Time")
-    compare_num_ops(all_resin, "Resin Time")
-    compare_num_ops(all_cycle, "Cycle Time")
+#     compare_num_ops(all_layup, "Layup Time")
+#     compare_num_ops(all_close, "Close Time")
+#     compare_num_ops(all_resin, "Resin Time")
+#     compare_num_ops(all_cycle, "Cycle Time")
 
-    get_all_operator_stats(all_layup, "Layup Time")
-    get_all_operator_stats(all_close, "Close Time")
-    get_all_operator_stats(all_resin, "Resin Time")
-    get_all_operator_stats(all_cycle, "Cycle Time")
+#     get_all_operator_stats(all_layup, "Layup Time")
+#     get_all_operator_stats(all_close, "Close Time")
+#     get_all_operator_stats(all_resin, "Resin Time")
+#     get_all_operator_stats(all_cycle, "Cycle Time")
 
-    return all_layup, all_close, all_resin, all_cycle
+#     return all_layup, all_close, all_resin, all_cycle
 
 def clean_duplicate_times(df):
     dupinds = []
@@ -962,6 +1049,20 @@ def get_specific_operator_report(opnum, dtstart, dtend):
     return all_layup, all_close, all_resin, all_cycle
 
 
+def get_operator_report_by_list(operator_list, shift, dtstart, dtend):
+    """
+    """
+    all_layup, all_close, all_resin, all_cycle = load_operator_data(dtstart, dtend)
+
+    # Remove faulty duplicates
+    all_layup = clean_duplicate_times(all_layup)
+    all_close = clean_duplicate_times(all_close)
+    all_resin = clean_duplicate_times(all_resin)
+    all_cycle = clean_duplicate_times(all_cycle)
+    
+    get_operator_stats_by_list(all_cycle, operator_list, "Cycle Time", shift)
+
+
 def load_operator_data_single_mold(dtstart, dtend, moldcolor):
     """Load data via API for a single mold, identified by its publicID
     """
@@ -1003,14 +1104,19 @@ def load_operator_data_single_mold(dtstart, dtend, moldcolor):
         # print("Carriage return found at the end of column name")
         lastcolnew = lastcolold[0:-1]
         df = df.rename(columns={lastcolold: lastcolnew})
-
-
+    
     # Convert to the relevant data types
     for i,col in enumerate(df.columns):
         if col == "time":
             df[col] = pd.to_datetime(df[col])
         else:
             df[col] = df[col].astype(float)
+    
+    # Fix issue where some data is read in from the day before the date of
+    # dtstart. Get rid of rows with a date earlier than daystart.
+    dtstart = dt.datetime.strptime(dtstart, "%Y-%m-%dT%H:%M:%SZ")
+    daystart = dt.datetime.date(dtstart)
+    df = df.loc[pd.to_datetime(df["time"]).dt.date >= daystart]
 
     return df
 
@@ -1195,13 +1301,43 @@ def load_operator_data(dtstart, dtend):
     return all_layup, all_close, all_resin, all_cycle
 
 
+def get_operator_list(shiftstr):
+    """
+    
+
+    Parameters
+    ----------
+    shiftstr : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    operator_list : A list of integers corresponding to the operators of the
+        chosen shift.
+
+    """
+    operator_list = []
+    df = pd.read_excel(data_assets.ID_data, None)
+    df_lead = df["Personnel-Lead"]
+    df_shift = df_lead.loc[df_lead["Shift"] == shiftstr]
+    ids = list(df_shift["ID"])
+    ids = [str(id) for id in ids]
+    ids = [id[2:] for id in ids]
+    operator_list = [int(id) for id in ids]
+    
+    return operator_list
+
+
 if __name__ == "__main__":
     dtstart = dt.datetime(2022,2,17,0,0,0)
     today = dt.date.today()
     endtime = dt.time(23,59,59)
     dtend = dt.datetime.combine(today, endtime)
 
-    opnum = 593
-    all_layup, all_close, all_resin, all_cycle = get_specific_operator_report(opnum, dtstart, dtend)
+    # # opnum = 593
+    # # all_layup, all_close, all_resin, all_cycle = get_specific_operator_report(opnum, dtstart, dtend)
 
-    # all_layup, all_close, all_resin, all_cycle = analyze_all_molds_api(dtstart, dtend)
+    all_layup, all_close, all_resin, all_cycle = analyze_all_molds_api(dtstart, dtend)
+    
+    # shiftstr = "Day"
+    # operator_list = get_operator_list(shiftstr)
