@@ -33,6 +33,7 @@ from kivy.resources import resource_add_path, resource_find
 from os.path import exists
 
 import datetime as dt
+from dateutil.relativedelta import relativedelta
 
 from libs.id_methods import get_all_employee_nums
 import libs.cycle_time_methods as cycle
@@ -72,8 +73,8 @@ class OperatorContent(MDBoxLayout):
 class OperatorEvaluationScreen(MDScreen):
     start_time_dialog = None        # Holding variable for time dialog
     end_time_dialog = None
-    startdate = dt.date.today()
     enddate = dt.date.today()
+    startdate = enddate + relativedelta(months=-6)
     t_start = dt.time(0,0,0)        # Default start time
     t_end = dt.time(23,59,59)       # Default end time
     select_operator_dialog = None
@@ -254,16 +255,12 @@ class OperatorEvaluationScreen(MDScreen):
         self.startdate = value
         self.update_report_label()
         print("Starting date is {}, {}".format(self.startdate, type(self.startdate)))
-        # self.dates = None
-        # print("self.date = {}\nself.dates = {}".format(self.date, self.dates))
 
     def set_start_time_dialog(self, *args):
         self.start_time_dialog.dismiss(force=True)
         if self.t_start is None or self.startdate is None:
             statustext = "Missing start time or date."
             self.snackbar_show(statustext)
-        # else:
-        #     statustext = "Good to go"
         self.start_time_dialog = None
         print(self.t_start)
         print(self.startdate)
