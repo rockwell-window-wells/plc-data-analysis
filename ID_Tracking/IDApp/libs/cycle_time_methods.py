@@ -5,6 +5,7 @@ data_request.py into a single module to avoid both modules calling each other.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.cbook import boxplot_stats
 import os
 import requests
 from fpdf import FPDF
@@ -1327,9 +1328,84 @@ def get_operator_list(shiftstr):
     
     return operator_list
 
+def cycle_time_over_time(dtstart, dtend):
+    all_layup, all_close, all_resin, all_cycle = load_operator_data(dtstart, dtend)
+    
+    cycles = all_cycle.drop(labels=["Lead", "Assistant 1", "Assistant 2", "Assistant 3"], axis=1)
+    
+    # Sort by time column
+    cycles = cycles.sort_values(by="time", axis=0)
+    # Reindex
+    cycles = cycles.reset_index(drop=True)
+    cycles["Date"] = pd.to_datetime(cycles["time"]).dt.date
+    cycles = cycles[["Date", "Cycle Time"]]
+    
+    fig,ax=plt.subplots(dpi=300)
+    # boxdates = cycles["Date"].astype(str)
+    # customPalette = sns.light_palette("lightblue", 1, reverse=True)
+    # flierprops = dict(marker='o', markerfacecolor='None', markersize=4)
+    # # sns.boxplot(x="variable", y="value", data=pd.melt(operator_compare), flierprops=flierprops, palette=customPalette)
+    # sns.boxplot(x=boxdates, y=cycles["Cycle Time"], flierprops=flierprops, palette=customPalette)
+    medians = cycles.groupby(["Date"])["Cycle Time"].median()
+    dates = cycles["Date"].unique()
+    dates_str = [str(day) for day in dates]
+    
+    # Reorganize data for boxplot property calculation
+    whiskers_hi = []
+    whiskers_lo = []
+    outliers = []
+    for date in dates:
+        df_day = cycles.loc[cycles["Date"] == date]
+        cycle_data = list(df_day["Cycle Time"])
+        stats = boxplot_stats(cycle_data)
+        stats = stats[0]
+        
+        whishi = stats["whishi"]
+        whislo = stats["whislo"]
+        fliers = stats["fliers"]
+        whiskers_hi.append(whishi)
+        whiskers_lo.append(whislo)
+        outliers.append(fliers)
+        # print(whishi)
+        # print(whislo)
+        # print("")
+    
+    
+    
+    # Skip labels so there are 5 at most on the plot
+    labelskip = 0
+    dateticks = dates_str
+    while len(dateticks) > 5:
+        labelskip += 1
+        dateticks = dates_str[::labelskip]
+        
+    datelabels = []
+    for i,day in enumerate(dates_str):
+        if day in dateticks:
+            datelabels.append(day)
+        else:
+            datelabels.append("")
+    
+    # Make the plot
+    sns.set_theme(style="ticks")
+    sns.lineplot(x=dates, y=medians, linewidth=3)
+    plt.plot(dates, whiskers_hi, 'b', alpha=0.5)
+    plt.plot(dates, whiskers_lo, 'b', alpha=0.5)
+    plt.fill_between(dates, whiskers_hi, whiskers_lo, alpha=0.2)
+    for i,fliers in enumerate(outliers):
+        if len(fliers) > 0:
+            outlier_dates = [dates[i]] * len(fliers)
+            sns.scatterplot(x=outlier_dates, y=fliers, color='b', marker='o', alpha=0.5, s=20)
+    
+    plt.xticks(dates, datelabels, rotation=-90)
+    plt.xlabel("Date")
+    plt.title("Cycle Time Variability")
+    
+    return cycles, medians, dates
+
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,2,17,0,0,0)
+    dtstart = dt.datetime(2022,1,14,0,0,0)
     today = dt.date.today()
     endtime = dt.time(23,59,59)
     dtend = dt.datetime.combine(today, endtime)
@@ -1337,7 +1413,9 @@ if __name__ == "__main__":
     # # opnum = 593
     # # all_layup, all_close, all_resin, all_cycle = get_specific_operator_report(opnum, dtstart, dtend)
 
-    all_layup, all_close, all_resin, all_cycle = analyze_all_molds_api(dtstart, dtend)
+    # all_layup, all_close, all_resin, all_cycle = analyze_all_molds_api(dtstart, dtend)
     
     # shiftstr = "Day"
     # operator_list = get_operator_list(shiftstr)
+    
+    cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
