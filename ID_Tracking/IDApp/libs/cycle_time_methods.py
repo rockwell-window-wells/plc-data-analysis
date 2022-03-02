@@ -15,10 +15,10 @@ import seaborn as sns
 import datetime as dt
 import shutil
 
-# import data_assets
-# import api_config_vars as api
-from . import data_assets
-from . import api_config_vars as api
+import data_assets
+import api_config_vars as api
+# from . import data_assets
+# from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -1404,8 +1404,102 @@ def cycle_time_over_time(dtstart, dtend):
     return cycles, medians, dates
 
 
+def filter_outlier_cycles(dtstart, dtend):
+    # Load all operator data to determine what times the outliers took place
+    all_cycle = load_operator_data(dtstart, dtend)[3]
+    # all_cycle = all_cycle.drop(["Lead", "Assistant 1",
+                                # "Assistant 2", "Assistant 3"], axis=1)
+    
+    stats = boxplot_stats(all_cycle["Cycle Time"])
+    stats = stats[0]
+    outliers = stats["fliers"]
+    whisker_hi = stats["whishi"]
+    whisker_lo = stats["whislo"]
+    
+    all_outliers = all_cycle.loc[(all_cycle["Cycle Time"]>whisker_hi) | (all_cycle["Cycle Time"]<whisker_lo)]
+    all_outliers = all_outliers.reset_index(drop=True)
+    
+    # Load each dataframe by mold to check for outlier matches and 
+    brown_outliers  = pd.DataFrame()
+    purple_outliers = pd.DataFrame()
+    red_outliers    = pd.DataFrame()
+    pink_outliers   = pd.DataFrame()
+    orange_outliers = pd.DataFrame()
+    green_outliers  = pd.DataFrame()
+    
+    # Convert dtstart and dtend from datetimes to formatted strings
+    dtstart = dtstart.strftime("%Y-%m-%dT%H:%M:%SZ")
+    dtend = dtend.strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    matchcount = 0
+    
+    for moldcolor in api.molds:
+        df_raw = load_operator_data_single_mold(dtstart, dtend, moldcolor)
+        
+        # Drop the columns not relevant to cycle times
+        # df_raw = df_raw.drop(["Weekly Count", "Monthly Count", "Trash Count"], axis=1)
+
+        # Sort by ascending time
+        df_sorted = df_raw.sort_values(list(df_raw.columns), ascending=True)
+        df_sorted = df_sorted.reset_index(drop=True)
+
+        # Get rid of any rows with nan in all columns but time
+        nan_indices = []
+        for i in range(len(df_sorted)):
+            if np.isnan(df_sorted["Layup Time"].iloc[i]):
+                if np.isnan(df_sorted["Close Time"].iloc[i]):
+                    if np.isnan(df_sorted["Resin Time"].iloc[i]):
+                        if np.isnan(df_sorted["Cycle Time"].iloc[i]):
+                            if np.isnan(df_sorted["Lead"].iloc[i]):
+                                if np.isnan(df_sorted["Assistant 1"].iloc[i]):
+                                    if np.isnan(df_sorted["Assistant 2"].iloc[i]):
+                                        if np.isnan(df_sorted["Assistant 3"].iloc[i]):
+                                            nan_indices.append(i)
+
+        df_cleaned = df_sorted.drop(df_sorted.index[nan_indices])
+        
+        df_cycles = df_cleaned[~df_cleaned["Cycle Time"].isnull()]
+        
+        df_cycles = df_cycles.reset_index(drop=True)
+        df_cycles = df_cycles.drop(["Layup Time", "Close Time", "Resin Time", "Lead", "Assistant 1", "Assistant 2", "Assistant 3"], axis=1)
+        
+        # print("\n####### Mold color: {} #########\n".format(moldcolor))
+        
+        # Get the rows that match outliers in all_outliers
+        for ind_all in all_outliers.index:
+            # print("\nall_outliers index: {}\n".format(ind_all))
+            for ind_mold in df_cycles.index:
+                # print("df_cycles index: {}".format(ind_mold))
+                if df_cycles["time"][ind_mold] == all_outliers["time"][ind_all] and df_cycles["Cycle Time"][ind_mold] == all_outliers["Cycle Time"][ind_all]:
+                    # print("Found a match!")
+                    matchcount += 1
+                    outlierrow = df_cycles.iloc[ind_mold]
+                    if moldcolor == "Brown":
+                        brown_outliers = brown_outliers.append(outlierrow, ignore_index=True)
+                    elif moldcolor == "Purple":
+                        purple_outliers = purple_outliers.append(outlierrow, ignore_index=True)
+                    elif moldcolor == "Red":
+                        red_outliers = red_outliers.append(outlierrow, ignore_index=True)
+                    elif moldcolor == "Pink":
+                        pink_outliers = pink_outliers.append(outlierrow, ignore_index=True)
+                    elif moldcolor == "Orange":
+                        orange_outliers = orange_outliers.append(outlierrow, ignore_index=True)
+                    elif moldcolor == "Green":
+                        green_outliers = green_outliers.append(outlierrow, ignore_index=True)
+                        
+                # else:
+                    # print("...")
+        
+    # print("Matchcount: {}".format(matchcount))
+    # print("")
+    return all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers
+        
+        
+
+
+
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,1,14,0,0,0)
+    dtstart = dt.datetime(2022,2,22,0,0,0)
     today = dt.date.today()
     endtime = dt.time(23,59,59)
     dtend = dt.datetime.combine(today, endtime)
@@ -1418,4 +1512,6 @@ if __name__ == "__main__":
     # shiftstr = "Day"
     # operator_list = get_operator_list(shiftstr)
     
-    cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
+    # cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
+
+    all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers = filter_outlier_cycles(dtstart, dtend)
