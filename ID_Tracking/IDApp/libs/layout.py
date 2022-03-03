@@ -56,11 +56,71 @@ KV = '''
     # employeename: employeename
     # analysistitle: analysistitle
 
-    MDLabel:
-        id: operatoridscreenlabel
-        text: "This is the operator ID screen"
-        font_style: "H5"
-        # pos_hint: {"top": 0.6, "x": 0.01}
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: 10
+        spacing: 10
+
+        MDFloatLayout:
+
+            MDLabel:
+                id: operatoreidtitle
+                text: "Operator IDs"
+                font_style: "H5"
+                pos_hint: {"top": 1.375, "x": 0.01}
+
+    AnchorLayout:
+        anchor_x: "center"
+        anchor_y: "center"
+
+        MDGridLayout:
+            rows: 2
+            columns: 2
+            size_hint: (0.8, 0.8)
+            padding: 20
+            spacing: 20
+
+            AnchorLayout:
+                anchor_x: "center"
+                anchor_y: "center"
+
+                MDRaisedButton:
+                    id: addoperator
+                    text: "Add Operator"
+                    font_style: "Button"
+                    # md_bg_color: app.theme_cls.accent_color
+                    # pos_hint: {"top": 0.5, "right": 0.5}
+                    elevation: 5
+                    # on_release:
+                        # root.show_select_operator_dialog()
+
+            AnchorLayout:
+                anchor_x: "center"
+                anchor_y: "center"
+
+                MDRaisedButton:
+                    id: dummybutton
+                    text: "Dummy Button"
+                    font_style: "Button"
+                    # md_bg_color: app.theme_cls.accent_color
+                    # pos_hint: {"top": 0.5, "right": 0.5}
+                    elevation: 5
+                    # on_release:
+                        # root.show_select_operator_dialog()
+
+            AnchorLayout:
+                anchor_x: "center"
+                anchor_y: "center"
+
+                MDRaisedButton:
+                    id: dummybutton
+                    text: "Dummy Button"
+                    font_style: "Button"
+                    # md_bg_color: app.theme_cls.accent_color
+                    # pos_hint: {"top": 0.5, "right": 0.5}
+                    elevation: 5
+                    # on_release:
+                        # root.show_select_operator_dialog()
 
 <Check@MDCheckbox>:
     group: 'group'

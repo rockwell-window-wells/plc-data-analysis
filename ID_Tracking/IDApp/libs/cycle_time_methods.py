@@ -15,10 +15,10 @@ import seaborn as sns
 import datetime as dt
 import shutil
 
-import data_assets
-import api_config_vars as api
-# from . import data_assets
-# from . import api_config_vars as api
+# import data_assets
+# import api_config_vars as api
+from . import data_assets
+from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -52,7 +52,7 @@ class OperatorStatsPDF(FPDF):
         assistcyclesval = str(cycles_logged[1])
         opcyclestext = "Operator Cycles:"
         opcyclesval = str(cycles_logged[2])
-        teamcyclestext = "Rockwell Cycles:"
+        teamcyclestext = "RockWell Cycles:"
         teamcyclesval = str(cycles_logged[3])
         nametext = "Operator Name:"
         numtext = "Operator Number:"
@@ -64,7 +64,7 @@ class OperatorStatsPDF(FPDF):
         leadmedtext = "Lead Median:"
         assistmedtext = "Assistant Median:"
         opmedtext =   "All Operator Median:"
-        teammedtext = "Rockwell Median:"
+        teammedtext = "RockWell Median:"
         if np.isnan(leadmed):
             leadmedval = "N/A"
         else:
@@ -86,7 +86,7 @@ class OperatorStatsPDF(FPDF):
         leadavgtext = "Lead Average:"
         assistavgtext = "Assistant Average:"
         opavgtext =   "All Operator Average:"
-        teamavgtext = "Rockwell Average:"
+        teamavgtext = "RockWell Average:"
         if np.isnan(leadavg):
             leadavgval = "N/A"
         else:
@@ -517,7 +517,7 @@ def get_all_operator_stats(df, timestring):
         operator_compare = pd.concat([operator_compare, df_lead[timestring].rename(lead_col)], axis=1)
         operator_compare = pd.concat([operator_compare, df_assistant[timestring].rename(assistant_col)], axis=1)
         operator_compare = pd.concat([operator_compare, df_operator[timestring].rename(operator_col)], axis=1)
-        operator_compare = pd.concat([operator_compare, df[timestring].rename("Rockwell")], axis=1)
+        operator_compare = pd.concat([operator_compare, df[timestring].rename("RockWell")], axis=1)
 
         sns.set_theme(style="whitegrid")
         customPalette = sns.light_palette("lightblue", 4)
@@ -534,18 +534,18 @@ def get_all_operator_stats(df, timestring):
             cycles_logged.append(operator_compare[lead_col].count())
             cycles_logged.append(operator_compare[assistant_col].count())
             cycles_logged.append(operator_compare[operator_col].count())
-            cycles_logged.append(operator_compare["Rockwell"].count())
+            cycles_logged.append(operator_compare["RockWell"].count())
             # opcycles = operator_compare[operator_col].count()
-            # allcycles = operator_compare["Rockwell"].count()
+            # allcycles = operator_compare["RockWell"].count()
             leadmed = np.around(operator_compare[lead_col].median(),1)
             assistmed = np.around(operator_compare[assistant_col].median(),1)
             opmed = np.around(operator_compare[operator_col].mean(),1)
-            teammed = np.around(operator_compare["Rockwell"].median(),1)
+            teammed = np.around(operator_compare["RockWell"].median(),1)
             medians = [leadmed, assistmed, opmed, teammed]
             leadavg = np.around(operator_compare[lead_col].mean(),1)
             assistavg = np.around(operator_compare[assistant_col].mean(),1)
             opavg = np.around(operator_compare[operator_col].mean(),1)
-            teamavg = np.around(operator_compare["Rockwell"].mean(),1)
+            teamavg = np.around(operator_compare["RockWell"].mean(),1)
             averages = [leadavg, assistavg, opavg, teamavg]
             filename = "Operator_{}_{}_Stats_{}_to_{}.pdf".format(operator, timestring.replace(" ","_"), startdate, enddate)
             exportpath = data_assets.pdftempfolder
@@ -627,7 +627,7 @@ def get_operator_stats_by_list(df, operator_list, timestring, shift=None):
         operator_compare = pd.concat([operator_compare, df_lead[timestring].rename(lead_col)], axis=1)
         operator_compare = pd.concat([operator_compare, df_assistant[timestring].rename(assistant_col)], axis=1)
         operator_compare = pd.concat([operator_compare, df_operator[timestring].rename(operator_col)], axis=1)
-        operator_compare = pd.concat([operator_compare, df[timestring].rename("Rockwell")], axis=1)
+        operator_compare = pd.concat([operator_compare, df[timestring].rename("RockWell")], axis=1)
 
         sns.set_theme(style="whitegrid")
         customPalette = sns.light_palette("lightblue", 4)
@@ -644,18 +644,18 @@ def get_operator_stats_by_list(df, operator_list, timestring, shift=None):
             cycles_logged.append(operator_compare[lead_col].count())
             cycles_logged.append(operator_compare[assistant_col].count())
             cycles_logged.append(operator_compare[operator_col].count())
-            cycles_logged.append(operator_compare["Rockwell"].count())
+            cycles_logged.append(operator_compare["RockWell"].count())
             # opcycles = operator_compare[operator_col].count()
-            # allcycles = operator_compare["Rockwell"].count()
+            # allcycles = operator_compare["RockWell"].count()
             leadmed = np.around(operator_compare[lead_col].median(),1)
             assistmed = np.around(operator_compare[assistant_col].median(),1)
             opmed = np.around(operator_compare[operator_col].mean(),1)
-            teammed = np.around(operator_compare["Rockwell"].median(),1)
+            teammed = np.around(operator_compare["RockWell"].median(),1)
             medians = [leadmed, assistmed, opmed, teammed]
             leadavg = np.around(operator_compare[lead_col].mean(),1)
             assistavg = np.around(operator_compare[assistant_col].mean(),1)
             opavg = np.around(operator_compare[operator_col].mean(),1)
-            teamavg = np.around(operator_compare["Rockwell"].mean(),1)
+            teamavg = np.around(operator_compare["RockWell"].mean(),1)
             averages = [leadavg, assistavg, opavg, teamavg]
             filename = "Operator_{}_{}_Stats_{}_to_{}.pdf".format(operator, timestring.replace(" ","_"), startdate, enddate)
             exportpath = data_assets.pdftempfolder
@@ -736,7 +736,7 @@ def get_single_operator_stats(df, opnum, timestring):
     operator_compare = pd.concat([operator_compare, df_lead[timestring].rename(lead_col)], axis=1)
     operator_compare = pd.concat([operator_compare, df_assistant[timestring].rename(assistant_col)], axis=1)
     operator_compare = pd.concat([operator_compare, df_operator[timestring].rename(operator_col)], axis=1)
-    operator_compare = pd.concat([operator_compare, df[timestring].rename("Rockwell")], axis=1)
+    operator_compare = pd.concat([operator_compare, df[timestring].rename("RockWell")], axis=1)
 
     sns.set_theme(style="whitegrid")
     customPalette = sns.light_palette("lightblue", 4)
@@ -753,16 +753,16 @@ def get_single_operator_stats(df, opnum, timestring):
         cycles_logged.append(operator_compare[lead_col].count())
         cycles_logged.append(operator_compare[assistant_col].count())
         cycles_logged.append(operator_compare[operator_col].count())
-        cycles_logged.append(operator_compare["Rockwell"].count())
+        cycles_logged.append(operator_compare["RockWell"].count())
         leadmed = np.around(operator_compare[lead_col].median(),1)
         assistmed = np.around(operator_compare[assistant_col].median(),1)
         opmed = np.around(operator_compare[operator_col].mean(),1)
-        teammed = np.around(operator_compare["Rockwell"].median(),1)
+        teammed = np.around(operator_compare["RockWell"].median(),1)
         medians = [leadmed, assistmed, opmed, teammed]
         leadavg = np.around(operator_compare[lead_col].mean(),1)
         assistavg = np.around(operator_compare[assistant_col].mean(),1)
         opavg = np.around(operator_compare[operator_col].mean(),1)
-        teamavg = np.around(operator_compare["Rockwell"].mean(),1)
+        teamavg = np.around(operator_compare["RockWell"].mean(),1)
         averages = [leadavg, assistavg, opavg, teamavg]
         filename = "Operator_{}_{}_Stats_{}_to_{}.pdf".format(opnum, timestring.replace(" ","_"), startdate, enddate)
         exportpath = data_assets.pdftempfolder
@@ -1397,7 +1397,7 @@ def cycle_time_over_time(dtstart, dtend):
             outlier_dates = [dates[i]] * len(fliers)
             sns.scatterplot(x=outlier_dates, y=fliers, color='b', marker='o', alpha=0.5, s=20)
     
-    plt.xticks(dates, datelabels, rotation=-90)
+    plt.xticks(dates, datelabels, rotation=90)
     plt.xlabel("Date")
     plt.title("Cycle Time Variability")
     
@@ -1512,6 +1512,6 @@ if __name__ == "__main__":
     # shiftstr = "Day"
     # operator_list = get_operator_list(shiftstr)
     
-    # cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
+    cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
 
-    all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers = filter_outlier_cycles(dtstart, dtend)
+    # all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers = filter_outlier_cycles(dtstart, dtend)
