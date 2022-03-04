@@ -16,10 +16,10 @@ import datetime as dt
 import pytz
 import shutil
 
-import data_assets
-import api_config_vars as api
-# from . import data_assets
-# from . import api_config_vars as api
+# import data_assets
+# import api_config_vars as api
+from . import data_assets
+from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -1137,6 +1137,11 @@ def load_operator_data(dtstart, dtend):
     dtstart = dtstart.astimezone(cet)
     dtend = dtend.astimezone(cet)
     
+    # Subtract an hour from start (weird API behavior adjustment - end time
+    # doesn't appear to be affected by this issue, so it's not a daylight
+    # savings time thing)
+    dtstart = dtstart - dt.timedelta(hours=1)
+    
     
     
     # dtstart = dtstart.astimezone(tzinfo)
@@ -1516,7 +1521,7 @@ def filter_outlier_cycles(dtstart, dtend):
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,3,4,6,0,0)
+    dtstart = dt.datetime(2022,3,4,2,30,0)
     today = dt.date.today()
     endtime = dt.time(13,0,0)
     dtend = dt.datetime.combine(today, endtime)
