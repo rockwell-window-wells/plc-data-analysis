@@ -13,12 +13,13 @@ from PyPDF2 import PdfFileMerger, PdfFileReader
 import seaborn as sns
 # from sklearn.linear_model import LinearRegression
 import datetime as dt
+import pytz
 import shutil
 
-# import data_assets
-# import api_config_vars as api
-from . import data_assets
-from . import api_config_vars as api
+import data_assets
+import api_config_vars as api
+# from . import data_assets
+# from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -1113,11 +1114,11 @@ def load_operator_data_single_mold(dtstart, dtend, moldcolor):
         else:
             df[col] = df[col].astype(float)
     
-    # Fix issue where some data is read in from the day before the date of
-    # dtstart. Get rid of rows with a date earlier than daystart.
-    dtstart = dt.datetime.strptime(dtstart, "%Y-%m-%dT%H:%M:%SZ")
-    daystart = dt.datetime.date(dtstart)
-    df = df.loc[pd.to_datetime(df["time"]).dt.date >= daystart]
+    # # Fix issue where some data is read in from the day before the date of
+    # # dtstart. Get rid of rows with a date earlier than daystart.
+    # dtstart = dt.datetime.strptime(dtstart, "%Y-%m-%dT%H:%M:%SZ")
+    # daystart = dt.datetime.date(dtstart)
+    # df = df.loc[pd.to_datetime(df["time"]).dt.date >= daystart]
 
     return df
 
@@ -1125,6 +1126,22 @@ def load_operator_data_single_mold(dtstart, dtend, moldcolor):
 def load_operator_data(dtstart, dtend):
     """Load the data via API for all molds and export as a single DataFrame.
     """
+    # Adjust dtstart and dtend to Central European Time for API compatibility
+    mtn = pytz.timezone('US/Mountain')
+    # utc = pytz.UTC
+    cet = pytz.timezone('CET')
+    
+    dtstart = mtn.localize(dtstart)
+    dtend = mtn.localize(dtend)
+    
+    dtstart = dtstart.astimezone(cet)
+    dtend = dtend.astimezone(cet)
+    
+    
+    
+    # dtstart = dtstart.astimezone(tzinfo)
+    # dtend = dtend.astimezone(tzinfo)
+    
     # Convert dtstart and dtend from datetimes to formatted strings
     dtstart = dtstart.strftime("%Y-%m-%dT%H:%M:%SZ")
     dtend = dtend.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -1499,19 +1516,19 @@ def filter_outlier_cycles(dtstart, dtend):
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,2,22,0,0,0)
+    dtstart = dt.datetime(2022,3,4,6,0,0)
     today = dt.date.today()
-    endtime = dt.time(23,59,59)
+    endtime = dt.time(13,0,0)
     dtend = dt.datetime.combine(today, endtime)
 
     # # opnum = 593
     # # all_layup, all_close, all_resin, all_cycle = get_specific_operator_report(opnum, dtstart, dtend)
 
-    # all_layup, all_close, all_resin, all_cycle = analyze_all_molds_api(dtstart, dtend)
+    all_layup, all_close, all_resin, all_cycle = analyze_all_molds_api(dtstart, dtend)
     
     # shiftstr = "Day"
     # operator_list = get_operator_list(shiftstr)
     
-    cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
+    # cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
 
     # all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers = filter_outlier_cycles(dtstart, dtend)
