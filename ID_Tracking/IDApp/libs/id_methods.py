@@ -169,7 +169,29 @@ def generate_IDPDF(idlist, filename):
             i += 1
         exportfilepath = exportpath + '\\' + filename + "({}).pdf".format(i)
     pdf.output(exportfilepath, 'F')
+
+def print_list_employee_IDcards_PDF(idlist, filename):
+    """Take in a list of up to 3 digit integers, print the ID card images, and
+    combine them into a named PDF file in the expected location.
+
+    Parameters
+    ----------
+    idlist : TYPE
+        DESCRIPTION.
+    filename : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
+    for id in idlist:
+        print_IDcard_type_3digit("personnel", id)
+        
+    generate_IDPDF(idlist, filename)
     
+
 def print_all_employee_IDcards_PDF():
     print_all_employee_IDcards()
     
@@ -811,4 +833,7 @@ if __name__ == '__main__':
     # # allnums = get_all_employee_nums()
     # print_all_employee_IDcards()
 
-    print_all_employee_IDcards_PDF()
+    # print_all_employee_IDcards_PDF()
+    filename = "short_list.pdf"
+    idlist = [123, 777, 666, 222, 1, 5]
+    print_list_employee_IDcards_PDF(idlist, filename)
