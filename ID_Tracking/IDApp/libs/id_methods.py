@@ -169,6 +169,16 @@ def generate_IDPDF(idlist, filename):
             i += 1
         exportfilepath = exportpath + '\\' + filename + "({}).pdf".format(i)
     pdf.output(exportfilepath, 'F')
+    
+def print_all_employee_IDcards_PDF():
+    print_all_employee_IDcards()
+    
+    idlist = get_all_employee_nums() # This outputs a DataFrame
+    idlist = idlist["ID"]
+    idlist = list(idlist)
+    idlist = [int(id) for id in idlist]
+    filename = "All_Operator_IDs.pdf"
+    generate_IDPDF(idlist, filename)
 
 
 # NOTE: The final version might need to work with image files, in which case
@@ -801,9 +811,4 @@ if __name__ == '__main__':
     # # allnums = get_all_employee_nums()
     # print_all_employee_IDcards()
 
-    idlist = get_all_employee_nums()
-    idlist = idlist["ID"]
-    idlist = list(idlist)
-    idlist = [int(id) for id in idlist]
-    filename = "test.pdf"
-    generate_IDPDF(idlist, filename)
+    print_all_employee_IDcards_PDF()
