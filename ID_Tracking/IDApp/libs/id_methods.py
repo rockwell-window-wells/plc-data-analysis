@@ -8,8 +8,8 @@ import datetime as dt
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-import data_assets
-# from . import data_assets
+# import data_assets
+from . import data_assets
 
 ##### ID card printing class and functions #####
 class IDPDF(FPDF):
@@ -203,6 +203,28 @@ def print_all_employee_IDcards_PDF():
     generate_IDPDF(idlist, filename)
 
 
+def print_all_equipment_IDcards_PDF():
+    """Choose a category of ID from a list of acceptable strings, and print all
+    of ID cards for any assigned ID numbers in that category. Personnel option
+    prints all IDs that are associated with personnel (prefixes 10 and 11 as of
+    1/12/2022).
+    """
+    # Set relevant folders
+    IDfilepath = data_assets.ID_data
+                
+    typedict = {"molddown": 30,
+                "bag": 31}
+
+    for typestring in typedict.keys():
+        print_all_ID_by_type(typestring)
+        
+    
+    
+    
+    
+    
+    
+
 # NOTE: The final version might need to work with image files, in which case
 # these ID printing methods will need to change
 def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
@@ -381,9 +403,8 @@ def print_IDcard_type_3digit(typestring, id_num):
     # Set relevant folders
     IDfilepath = data_assets.ID_data
     
-    typedict = {"purple": 30,
-                "bag": 31,
-                "pictureframe": 32}
+    typedict = {"molddown": 30,
+                "bag": 31}
     prefixes = []
     id_strings = []
     df = pd.read_excel(IDfilepath, None)
@@ -485,9 +506,9 @@ def print_all_ID_by_type(typestring):
     # Set relevant folders
     IDfilepath = data_assets.ID_data
     
-    typedict = {"purple": 30,
+    typedict = {"molddown": 30,
                 "bag": 31,
-                "pictureframe": 32}
+                }
     prefixes = []
     id_strings = []
     df = pd.read_excel(IDfilepath, None)
@@ -525,7 +546,7 @@ def print_all_IDcards():
     """Single function to update the QR codes and ID cards with all of the
     currently assigned ID numbers for both personnel and equipment.
     """    
-    typekeys = ["personnel", "purple", "bag", "pictureframe"]
+    typekeys = ["personnel", "molddown", "bag"]
     for key in typekeys:
         print_all_ID_by_type(key)
 
@@ -537,9 +558,8 @@ def N_new_equip_ids(n, typestring):
     # Set relevant folders
     IDfilepath = data_assets.ID_data
     
-    typedict = {"purple": 30,
-                "bag": 31,
-                "pictureframe": 32}
+    typedict = {"molddown": 30,
+                "bag": 31}
     prefix = None
 
     # id_strings = []
