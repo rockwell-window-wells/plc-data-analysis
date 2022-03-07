@@ -4,6 +4,7 @@ pdfexportfolder = "Z:\\Production\\ID_Tracking\\Operator_Reports"    # Folder fo
 pdftempfolder = "Z:\\Production\\ID_Tracking\\temp"    # Folder for exporting plots and pdf reports
 
 ID_data = 'Z:\\Production\\ID_Tracking\\ID_numbers\\ID_data.xlsx'
+ID_input = "Z:\\Production\\ID_Tracking\\ID_numbers\\ID_number_input.xlsx"
 
 IDcardImagesfolder = "Z:\\Production\\ID_Tracking\\IDcardImages"
 QRcodesfolder = "Z:\\Production\\ID_Tracking\\QRcodes"

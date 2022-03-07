@@ -5,3 +5,5 @@
 *.pyc
 *.pdf
 *.ico
+*.docx
+api_config_vars.py
