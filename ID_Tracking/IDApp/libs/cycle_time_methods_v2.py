@@ -13,14 +13,14 @@ from PyPDF2 import PdfFileMerger, PdfFileReader
 import seaborn as sns
 import datetime as dt
 import shutil
-
-import data_assets
-import id_methods
-import api_config_vars as api
 from natsort import natsorted
-# from . import data_assets
-# from . import id_methods
-# from . import api_config_vars as api
+
+# import data_assets
+# import id_methods
+# import api_config_vars as api
+from . import data_assets
+from . import id_methods
+from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -635,28 +635,7 @@ def lookup_operator_name(opnum, IDfilepath):
 #     get_all_operator_stats(df_cycle)
 
 
-# def analyze_all_molds_api(dtstart, dtend):
-#     """Use API access methods to generate stat reports for given datetime range.
-#     """
-#     all_layup, all_close, all_resin, all_cycle = load_operator_data(dtstart, dtend)
 
-#     # Remove faulty duplicates
-#     # all_layup = clean_duplicate_times(all_layup)
-#     # all_close = clean_duplicate_times(all_close)
-#     # all_resin = clean_duplicate_times(all_resin)
-#     all_cycle = clean_duplicate_times(all_cycle)
-
-#     # compare_num_ops(all_layup, "Layup Time")
-#     # compare_num_ops(all_close, "Close Time")
-#     # compare_num_ops(all_resin, "Resin Time")
-#     compare_num_ops(all_cycle, "Cycle Time")
-
-#     # get_all_operator_stats(all_layup, "Layup Time")
-#     # get_all_operator_stats(all_close, "Close Time")
-#     # get_all_operator_stats(all_resin, "Resin Time")
-#     get_all_operator_stats(all_cycle, "Cycle Time")
-
-#     return all_layup, all_close, all_resin, all_cycle
 
 
 def clean_duplicate_times(df):
@@ -666,8 +645,8 @@ def clean_duplicate_times(df):
         if i == 0:
             continue
         else:
-            prev = df.iloc[i-1,1:6]
-            curr = df.iloc[i,1:6]
+            prev = df.iloc[i-1,1:5]
+            curr = df.iloc[i,1:5]
             if curr.equals(prev):
                 dupinds.append(i)
                 continue
@@ -775,62 +754,63 @@ def compare_num_ops(df, timestring:str):
     plt.close()
 
 
-# def get_specific_operator_report(opnum, dtstart, dtend):
-#     """Get cycle stats report for only one operator, by their number.
+def get_specific_operator_report(opnum, dtstart, dtend):
+    """Get cycle stats report for only one operator, by their number.
 
-#     Parameters
-#     ----------
-#     opnum : TYPE
-#         DESCRIPTION.
-#     dtstart : TYPE
-#         DESCRIPTION.
-#     dtend : TYPE
-#         DESCRIPTION.
+    Parameters
+    ----------
+    opnum : TYPE
+        DESCRIPTION.
+    dtstart : TYPE
+        DESCRIPTION.
+    dtend : TYPE
+        DESCRIPTION.
 
-#     Returns
-#     -------
-#     None.
+    Returns
+    -------
+    None.
 
-#     """
-#     all_layup, all_close, all_resin, all_cycle = load_operator_data(dtstart, dtend)
+    """
+    df_eval = load_operator_data(dtstart, dtend)[0]
 
-#     # Remove faulty duplicates
-#     all_layup = clean_duplicate_times(all_layup)
-#     all_close = clean_duplicate_times(all_close)
-#     all_resin = clean_duplicate_times(all_resin)
-#     all_cycle = clean_duplicate_times(all_cycle)
+    # Remove faulty duplicates
+    df_eval = clean_duplicate_times(df_eval)
 
-#     # # Remove any row in the all_* dataframes that doesn't contain opnum
-#     # all_layup = all_layup.loc[(all_layup["Lead"] == opnum) |
-#     #                           (all_layup["Assistant 1"] == opnum) |
-#     #                           (all_layup["Assistant 2"] == opnum) |
-#     #                           (all_layup["Assistant 3"] == opnum)]
-#     # all_close = all_close.loc[(all_close["Lead"] == opnum) |
-#     #                           (all_close["Assistant 1"] == opnum) |
-#     #                           (all_close["Assistant 2"] == opnum) |
-#     #                           (all_close["Assistant 3"] == opnum)]
-#     # all_resin = all_resin.loc[(all_resin["Lead"] == opnum) |
-#     #                           (all_resin["Assistant 1"] == opnum) |
-#     #                           (all_resin["Assistant 2"] == opnum) |
-#     #                           (all_resin["Assistant 3"] == opnum)]
-#     # all_cycle = all_cycle.loc[(all_cycle["Lead"] == opnum) |
-#     #                           (all_cycle["Assistant 1"] == opnum) |
-#     #                           (all_cycle["Assistant 2"] == opnum) |
-#     #                           (all_cycle["Assistant 3"] == opnum)]
+    get_single_operator_stats(df_eval, opnum)
 
-#     # get_single_operator_stats(all_layup, opnum, "Layup Time")
-#     # get_single_operator_stats(all_close, opnum, "Close Time")
-#     # get_single_operator_stats(all_resin, opnum, "Resin Time")
-#     get_single_operator_stats(all_cycle, opnum, "Cycle Time")
-
-#     return all_layup, all_close, all_resin, all_cycle
+    return df_eval
 
 
 def get_operator_report_by_list(operator_list, shift, dtstart, dtend):
     """
     """
-    df_eval = load_operator_data(dtstart, dtend)[0]    
+    df_eval = load_operator_data(dtstart, dtend)[0]   
+    
+    # Remove faulty duplicates
+    df_eval = clean_duplicate_times(df_eval)
+    
     get_operator_stats_by_list(df_eval, operator_list, shift)
+    
+    return df_eval
+
+
+def get_all_operator_reports(dtstart, dtend):
+    """Use API access methods to generate stat reports for given datetime range.
+    """
+    df_eval = load_operator_data(dtstart, dtend)[0]
+
+    # Remove faulty duplicates
+    df_eval = clean_duplicate_times(df_eval)
+    
+    # # compare_num_ops(all_layup, "Layup Time")
+    # # compare_num_ops(all_close, "Close Time")
+    # # compare_num_ops(all_resin, "Resin Time")
+    # compare_num_ops(all_cycle, "Cycle Time")
+
+    get_all_operator_stats(df_eval)
+
+    return df_eval
+
 
 
 def load_operator_data_single_mold(dtstart, dtend, moldcolor):
@@ -1559,12 +1539,15 @@ if __name__ == "__main__":
     endtime = dt.time(23,59,59)
     dtend = dt.datetime.combine(today, endtime)
 
-    df_eval, df_manminutes = load_operator_data(dtstart, dtend)
+    # df_eval, df_manminutes = load_operator_data(dtstart, dtend)
     
-    # operator_list = [217, 254, 666]
+    operator_list = [217, 254, 666]
+    shift = None
     # get_operator_stats_by_list(df_eval, operator_list, shift=None)
     
-    get_all_operator_stats(df_eval)
+    # get_all_operator_stats(df_eval)
     
     # opnum = 217
     # get_single_operator_stats(df_eval, opnum)
+    
+    df_eval = get_operator_report_by_list(operator_list, shift, dtstart, dtend)
