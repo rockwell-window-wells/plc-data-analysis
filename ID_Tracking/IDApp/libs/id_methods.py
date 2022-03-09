@@ -573,6 +573,39 @@ def get_all_employee_nums(IDfilepath):
     allnums["ID"] = allnums["ID"].str[2:]
     return allnums
 
+def get_shift_lists(IDfilepath):
+    """
+    Returns three lists, containing all 3-digit ID numbers associated with each
+    shift.
+
+    Parameters
+    ----------
+    IDfilepath : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    daylist: list of day shift IDs
+    swinglist: list of swing shift IDs
+    gravelist: list of graveyard shift IDs
+
+    """
+    leads = pd.read_excel(IDfilepath, sheet_name="Personnel-Lead")
+    allnums = leads[~leads["Name"].isnull()]   # Dataframe of just the rows with names assigned to IDs
+    allnums = allnums.drop(columns=["Type", "Date"])
+    allnums["ID"] = allnums["ID"].apply(str)
+    allnums["ID"] = allnums["ID"].str[2:]
+    
+    idlist = list(allnums["ID"])
+    shiftlist = list(allnums["Shift"])
+    
+    daylist =   [int(id) for i,id in enumerate(idlist) if shiftlist[i]=="Day"]
+    swinglist = [int(id) for i,id in enumerate(idlist) if shiftlist[i]=="Swing"]
+    gravelist = [int(id) for i,id in enumerate(idlist) if shiftlist[i]=="Graveyard"]
+    
+    return daylist, swinglist, gravelist
+    
+
 def reassign_employee_num(employee_name, new_desired_num):
     """Take an employee name (assumed to be unique in the list of employee names
     and ID numbers) and reassign them to a new desired ID number. Clear the data
