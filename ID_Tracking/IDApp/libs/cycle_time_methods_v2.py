@@ -17,6 +17,7 @@ import shutil
 import data_assets
 import id_methods
 import api_config_vars as api
+from natsort import natsorted
 # from . import data_assets
 # from . import id_methods
 # from . import api_config_vars as api
@@ -183,6 +184,7 @@ def merge_operator_PDFs(exportfolder, mergedfilepath):
     Take all PDF files in the output folder and merge them together.
     """
     x = [a for a in os.listdir(exportfolder) if a.endswith(".pdf")]
+    x = natsorted(x)
     # print(x)
     x = [exportfolder + "\\" + a for a in x]    # List of strings at this point
 
@@ -195,14 +197,6 @@ def merge_operator_PDFs(exportfolder, mergedfilepath):
 
     with open(mergedfilepath, "wb") as fout:
         merger.write(fout)
-
-    # for pdf in x:
-    #     pdf.close()
-
-    # mergedfilepath.close()
-
-    # # Automatically open the merged file
-    # os.system(mergedfilepath)
 
 
 ##### Index Alignment Methods #####
@@ -267,158 +261,158 @@ def align_cycles_inds_times(input_inds, input_times, ref_inds, longest_inds, lon
             datetimes.append(datetimes[-1])
 
 
-def clean_single_mold_data(single_mold_data):
-    """
-    Take in StrideLinx data download for a given period, and produce a dataframe
-    of times and associated cycle times and operators.
-    """
-    # Load the data from .csv (make this general after testing is complete)
-    df_raw = pd.read_csv(single_mold_data, parse_dates=["time"])
+# def clean_single_mold_data(single_mold_data):
+#     """
+#     Take in StrideLinx data download for a given period, and produce a dataframe
+#     of times and associated cycle times and operators.
+#     """
+#     # Load the data from .csv (make this general after testing is complete)
+#     df_raw = pd.read_csv(single_mold_data, parse_dates=["time"])
 
-    # Drop the columns not relevant to cycle times
-    df_raw = df_raw.drop(["Leak Time", "Leak Count", "Parts Count",
-                        "Weekly Count", "Monthly Count", "Trash Count"], axis=1)
+#     # Drop the columns not relevant to cycle times
+#     df_raw = df_raw.drop(["Leak Time", "Leak Count", "Parts Count",
+#                         "Weekly Count", "Monthly Count", "Trash Count"], axis=1)
 
-    # Sort by ascending time
-    df_sorted = df_raw.sort_values(list(df_raw.columns), ascending=True)
-    df_sorted = df_sorted.reset_index(drop=True)
+#     # Sort by ascending time
+#     df_sorted = df_raw.sort_values(list(df_raw.columns), ascending=True)
+#     df_sorted = df_sorted.reset_index(drop=True)
 
-    # Get rid of any rows with nan in all columns but time
-    nan_indices = []
-    for i in range(len(df_sorted)):
-        if np.isnan(df_sorted["Layup Time"].iloc[i]):
-            if np.isnan(df_sorted["Close Time"].iloc[i]):
-                if np.isnan(df_sorted["Resin Time"].iloc[i]):
-                    if np.isnan(df_sorted["Cycle Time"].iloc[i]):
-                        if np.isnan(df_sorted["Lead"].iloc[i]):
-                            if np.isnan(df_sorted["Assistant 1"].iloc[i]):
-                                if np.isnan(df_sorted["Assistant 2"].iloc[i]):
-                                    if np.isnan(df_sorted["Assistant 3"].iloc[i]):
-                                        nan_indices.append(i)
+#     # Get rid of any rows with nan in all columns but time
+#     nan_indices = []
+#     for i in range(len(df_sorted)):
+#         if np.isnan(df_sorted["Layup Time"].iloc[i]):
+#             if np.isnan(df_sorted["Close Time"].iloc[i]):
+#                 if np.isnan(df_sorted["Resin Time"].iloc[i]):
+#                     if np.isnan(df_sorted["Cycle Time"].iloc[i]):
+#                         if np.isnan(df_sorted["Lead"].iloc[i]):
+#                             if np.isnan(df_sorted["Assistant 1"].iloc[i]):
+#                                 if np.isnan(df_sorted["Assistant 2"].iloc[i]):
+#                                     if np.isnan(df_sorted["Assistant 3"].iloc[i]):
+#                                         nan_indices.append(i)
 
-    df_cleaned = df_sorted.drop(df_sorted.index[nan_indices])
-    df_cleaned = df_cleaned.reset_index(drop=True)
+#     df_cleaned = df_sorted.drop(df_sorted.index[nan_indices])
+#     df_cleaned = df_cleaned.reset_index(drop=True)
 
-    ### Collapse the rows together so corresponding cycle times are on the same row
-    # Find the indices where there is a cycle time.
-    cycle_inds = []
-    not_nan_series = df_cleaned["Cycle Time"].notnull()
-    for i in range(len(not_nan_series)):
-        if not_nan_series.iloc[i] == True:
-            cycle_inds.append(i)
+#     ### Collapse the rows together so corresponding cycle times are on the same row
+#     # Find the indices where there is a cycle time.
+#     cycle_inds = []
+#     not_nan_series = df_cleaned["Cycle Time"].notnull()
+#     for i in range(len(not_nan_series)):
+#         if not_nan_series.iloc[i] == True:
+#             cycle_inds.append(i)
 
-    # Find the indices where there is a resin time
-    resin_inds = []
-    not_nan_series = df_cleaned["Resin Time"].notnull()
-    for i in range(len(not_nan_series)):
-        if not_nan_series.iloc[i] == True:
-            resin_inds.append(i)
+#     # Find the indices where there is a resin time
+#     resin_inds = []
+#     not_nan_series = df_cleaned["Resin Time"].notnull()
+#     for i in range(len(not_nan_series)):
+#         if not_nan_series.iloc[i] == True:
+#             resin_inds.append(i)
 
-    # Find the indices where there is a close time
-    close_inds = []
-    not_nan_series = df_cleaned["Close Time"].notnull()
-    for i in range(len(not_nan_series)):
-        if not_nan_series.iloc[i] == True:
-            close_inds.append(i)
+#     # Find the indices where there is a close time
+#     close_inds = []
+#     not_nan_series = df_cleaned["Close Time"].notnull()
+#     for i in range(len(not_nan_series)):
+#         if not_nan_series.iloc[i] == True:
+#             close_inds.append(i)
 
-    # Find the indices where there is a layup time
-    layup_inds = []
-    not_nan_series = df_cleaned["Layup Time"].notnull()
-    for i in range(len(not_nan_series)):
-        if not_nan_series.iloc[i] == True:
-            layup_inds.append(i)
+#     # Find the indices where there is a layup time
+#     layup_inds = []
+#     not_nan_series = df_cleaned["Layup Time"].notnull()
+#     for i in range(len(not_nan_series)):
+#         if not_nan_series.iloc[i] == True:
+#             layup_inds.append(i)
 
-    # Find the indices where there is a lead number
-    lead_inds = []
-    not_nan_series = df_cleaned["Lead"].notnull()
-    for i in range(len(not_nan_series)):
-        if not_nan_series.iloc[i] == True:
-            lead_inds.append(i)
-    lead_inds = np.array(lead_inds)
+#     # Find the indices where there is a lead number
+#     lead_inds = []
+#     not_nan_series = df_cleaned["Lead"].notnull()
+#     for i in range(len(not_nan_series)):
+#         if not_nan_series.iloc[i] == True:
+#             lead_inds.append(i)
+#     lead_inds = np.array(lead_inds)
 
-    # Find the indices where there is an assistant 1 number
-    assistant1_inds = []
-    not_nan_series = df_cleaned["Assistant 1"].notnull()
-    for i in range(len(not_nan_series)):
-        if not_nan_series.iloc[i] == True:
-            assistant1_inds.append(i)
-    assistant1_inds = np.array(assistant1_inds)
+#     # Find the indices where there is an assistant 1 number
+#     assistant1_inds = []
+#     not_nan_series = df_cleaned["Assistant 1"].notnull()
+#     for i in range(len(not_nan_series)):
+#         if not_nan_series.iloc[i] == True:
+#             assistant1_inds.append(i)
+#     assistant1_inds = np.array(assistant1_inds)
 
-    # Find the indices where there is an assistant 2 number
-    assistant2_inds = []
-    not_nan_series = df_cleaned["Assistant 2"].notnull()
-    for i in range(len(not_nan_series)):
-        if not_nan_series.iloc[i] == True:
-            assistant2_inds.append(i)
-    assistant2_inds = np.array(assistant2_inds)
+#     # Find the indices where there is an assistant 2 number
+#     assistant2_inds = []
+#     not_nan_series = df_cleaned["Assistant 2"].notnull()
+#     for i in range(len(not_nan_series)):
+#         if not_nan_series.iloc[i] == True:
+#             assistant2_inds.append(i)
+#     assistant2_inds = np.array(assistant2_inds)
 
-    # Find the indices where there is an assistant 3 number
-    assistant3_inds = []
-    not_nan_series = df_cleaned["Assistant 3"].notnull()
-    for i in range(len(not_nan_series)):
-        if not_nan_series.iloc[i] == True:
-            assistant3_inds.append(i)
-    assistant3_inds = np.array(assistant3_inds)
+#     # Find the indices where there is an assistant 3 number
+#     assistant3_inds = []
+#     not_nan_series = df_cleaned["Assistant 3"].notnull()
+#     for i in range(len(not_nan_series)):
+#         if not_nan_series.iloc[i] == True:
+#             assistant3_inds.append(i)
+#     assistant3_inds = np.array(assistant3_inds)
 
-    # Grab each datetime that corresponds to a logged cycle time
-    cycle_datetimes = []
-    for i, cycle_ind in enumerate(cycle_inds):
-        cycle_datetimes.append(df_cleaned["time"].iloc[cycle_ind])
+#     # Grab each datetime that corresponds to a logged cycle time
+#     cycle_datetimes = []
+#     for i, cycle_ind in enumerate(cycle_inds):
+#         cycle_datetimes.append(df_cleaned["time"].iloc[cycle_ind])
 
-    # Grab each datetime that corresponds to a logged resin time
-    resin_datetimes = []
-    for i, resin_ind in enumerate(resin_inds):
-        resin_datetimes.append(df_cleaned["time"].iloc[resin_ind])
+#     # Grab each datetime that corresponds to a logged resin time
+#     resin_datetimes = []
+#     for i, resin_ind in enumerate(resin_inds):
+#         resin_datetimes.append(df_cleaned["time"].iloc[resin_ind])
 
-    # Grab each datetime that corresponds to a logged close time
-    close_datetimes = []
-    for i, close_ind in enumerate(close_inds):
-        close_datetimes.append(df_cleaned["time"].iloc[close_ind])
+#     # Grab each datetime that corresponds to a logged close time
+#     close_datetimes = []
+#     for i, close_ind in enumerate(close_inds):
+#         close_datetimes.append(df_cleaned["time"].iloc[close_ind])
 
-    # Grab each datetime that corresponds to a logged layup time
-    layup_datetimes = []
-    for i, layup_ind in enumerate(layup_inds):
-        layup_datetimes.append(df_cleaned["time"].iloc[layup_ind])
+#     # Grab each datetime that corresponds to a logged layup time
+#     layup_datetimes = []
+#     for i, layup_ind in enumerate(layup_inds):
+#         layup_datetimes.append(df_cleaned["time"].iloc[layup_ind])
 
-    # Grab each cycle time
-    cycle_times = []
-    for i, cycle_ind in enumerate(cycle_inds):
-        cycle_times.append(df_cleaned["Cycle Time"].iloc[cycle_ind])
+#     # Grab each cycle time
+#     cycle_times = []
+#     for i, cycle_ind in enumerate(cycle_inds):
+#         cycle_times.append(df_cleaned["Cycle Time"].iloc[cycle_ind])
 
 
-    # Grab each resin time
-    resin_times = []
-    for i, resin_ind in enumerate(resin_inds):
-        resin_times.append(df_cleaned["Resin Time"].iloc[resin_ind])
+#     # Grab each resin time
+#     resin_times = []
+#     for i, resin_ind in enumerate(resin_inds):
+#         resin_times.append(df_cleaned["Resin Time"].iloc[resin_ind])
 
-    # Grab each close time
-    close_times = []
-    for i, close_ind in enumerate(close_inds):
-        close_times.append(df_cleaned["Close Time"].iloc[close_ind])
+#     # Grab each close time
+#     close_times = []
+#     for i, close_ind in enumerate(close_inds):
+#         close_times.append(df_cleaned["Close Time"].iloc[close_ind])
 
-    # Grab each layup time
-    layup_times = []
-    for i, layup_ind in enumerate(layup_inds):
-        layup_times.append(df_cleaned["Layup Time"].iloc[layup_ind])
+#     # Grab each layup time
+#     layup_times = []
+#     for i, layup_ind in enumerate(layup_inds):
+#         layup_times.append(df_cleaned["Layup Time"].iloc[layup_ind])
 
-    df_layup = align_operator_times(df_cleaned, layup_datetimes, "Layup Time",
-                                    layup_inds, layup_times, lead_inds,
-                                    assistant1_inds, assistant2_inds,
-                                    assistant3_inds)
-    df_close = align_operator_times(df_cleaned, close_datetimes, "Close Time",
-                                    close_inds, close_times, lead_inds,
-                                    assistant1_inds, assistant2_inds,
-                                    assistant3_inds)
-    df_resin = align_operator_times(df_cleaned, resin_datetimes, "Resin Time",
-                                    resin_inds, resin_times, lead_inds,
-                                    assistant1_inds, assistant2_inds,
-                                    assistant3_inds)
-    df_cycle = align_operator_times(df_cleaned, cycle_datetimes, "Cycle Time",
-                                    cycle_inds, cycle_times, lead_inds,
-                                    assistant1_inds, assistant2_inds,
-                                    assistant3_inds)
+#     df_layup = align_operator_times(df_cleaned, layup_datetimes, "Layup Time",
+#                                     layup_inds, layup_times, lead_inds,
+#                                     assistant1_inds, assistant2_inds,
+#                                     assistant3_inds)
+#     df_close = align_operator_times(df_cleaned, close_datetimes, "Close Time",
+#                                     close_inds, close_times, lead_inds,
+#                                     assistant1_inds, assistant2_inds,
+#                                     assistant3_inds)
+#     df_resin = align_operator_times(df_cleaned, resin_datetimes, "Resin Time",
+#                                     resin_inds, resin_times, lead_inds,
+#                                     assistant1_inds, assistant2_inds,
+#                                     assistant3_inds)
+#     df_cycle = align_operator_times(df_cleaned, cycle_datetimes, "Cycle Time",
+#                                     cycle_inds, cycle_times, lead_inds,
+#                                     assistant1_inds, assistant2_inds,
+#                                     assistant3_inds)
 
-    return df_layup, df_close, df_resin, df_cycle
+#     return df_layup, df_close, df_resin, df_cycle
 
 
 def align_operator_times(df_cleaned, datetimes, timestring, time_inds, measured_times, lead_inds, assistant1_inds, assistant2_inds, assistant3_inds):
@@ -633,36 +627,36 @@ def lookup_operator_name(opnum, IDfilepath):
     return opname
 
 
-def analyze_single_mold(single_mold_data):
-    df_layup, df_close, df_resin, df_cycle = clean_single_mold_data(single_mold_data)
-    get_all_operator_stats(df_layup)
-    get_all_operator_stats(df_close)
-    get_all_operator_stats(df_resin)
-    get_all_operator_stats(df_cycle)
+# def analyze_single_mold(single_mold_data):
+#     df_layup, df_close, df_resin, df_cycle = clean_single_mold_data(single_mold_data)
+#     get_all_operator_stats(df_layup)
+#     get_all_operator_stats(df_close)
+#     get_all_operator_stats(df_resin)
+#     get_all_operator_stats(df_cycle)
 
 
-def analyze_all_molds_api(dtstart, dtend):
-    """Use API access methods to generate stat reports for given datetime range.
-    """
-    all_layup, all_close, all_resin, all_cycle = load_operator_data(dtstart, dtend)
+# def analyze_all_molds_api(dtstart, dtend):
+#     """Use API access methods to generate stat reports for given datetime range.
+#     """
+#     all_layup, all_close, all_resin, all_cycle = load_operator_data(dtstart, dtend)
 
-    # Remove faulty duplicates
-    # all_layup = clean_duplicate_times(all_layup)
-    # all_close = clean_duplicate_times(all_close)
-    # all_resin = clean_duplicate_times(all_resin)
-    all_cycle = clean_duplicate_times(all_cycle)
+#     # Remove faulty duplicates
+#     # all_layup = clean_duplicate_times(all_layup)
+#     # all_close = clean_duplicate_times(all_close)
+#     # all_resin = clean_duplicate_times(all_resin)
+#     all_cycle = clean_duplicate_times(all_cycle)
 
-    # compare_num_ops(all_layup, "Layup Time")
-    # compare_num_ops(all_close, "Close Time")
-    # compare_num_ops(all_resin, "Resin Time")
-    compare_num_ops(all_cycle, "Cycle Time")
+#     # compare_num_ops(all_layup, "Layup Time")
+#     # compare_num_ops(all_close, "Close Time")
+#     # compare_num_ops(all_resin, "Resin Time")
+#     compare_num_ops(all_cycle, "Cycle Time")
 
-    # get_all_operator_stats(all_layup, "Layup Time")
-    # get_all_operator_stats(all_close, "Close Time")
-    # get_all_operator_stats(all_resin, "Resin Time")
-    get_all_operator_stats(all_cycle, "Cycle Time")
+#     # get_all_operator_stats(all_layup, "Layup Time")
+#     # get_all_operator_stats(all_close, "Close Time")
+#     # get_all_operator_stats(all_resin, "Resin Time")
+#     get_all_operator_stats(all_cycle, "Cycle Time")
 
-    return all_layup, all_close, all_resin, all_cycle
+#     return all_layup, all_close, all_resin, all_cycle
 
 
 def clean_duplicate_times(df):
@@ -781,55 +775,55 @@ def compare_num_ops(df, timestring:str):
     plt.close()
 
 
-def get_specific_operator_report(opnum, dtstart, dtend):
-    """Get cycle stats report for only one operator, by their number.
+# def get_specific_operator_report(opnum, dtstart, dtend):
+#     """Get cycle stats report for only one operator, by their number.
 
-    Parameters
-    ----------
-    opnum : TYPE
-        DESCRIPTION.
-    dtstart : TYPE
-        DESCRIPTION.
-    dtend : TYPE
-        DESCRIPTION.
+#     Parameters
+#     ----------
+#     opnum : TYPE
+#         DESCRIPTION.
+#     dtstart : TYPE
+#         DESCRIPTION.
+#     dtend : TYPE
+#         DESCRIPTION.
 
-    Returns
-    -------
-    None.
+#     Returns
+#     -------
+#     None.
 
-    """
-    all_layup, all_close, all_resin, all_cycle = load_operator_data(dtstart, dtend)
+#     """
+#     all_layup, all_close, all_resin, all_cycle = load_operator_data(dtstart, dtend)
 
-    # Remove faulty duplicates
-    all_layup = clean_duplicate_times(all_layup)
-    all_close = clean_duplicate_times(all_close)
-    all_resin = clean_duplicate_times(all_resin)
-    all_cycle = clean_duplicate_times(all_cycle)
+#     # Remove faulty duplicates
+#     all_layup = clean_duplicate_times(all_layup)
+#     all_close = clean_duplicate_times(all_close)
+#     all_resin = clean_duplicate_times(all_resin)
+#     all_cycle = clean_duplicate_times(all_cycle)
 
-    # # Remove any row in the all_* dataframes that doesn't contain opnum
-    # all_layup = all_layup.loc[(all_layup["Lead"] == opnum) |
-    #                           (all_layup["Assistant 1"] == opnum) |
-    #                           (all_layup["Assistant 2"] == opnum) |
-    #                           (all_layup["Assistant 3"] == opnum)]
-    # all_close = all_close.loc[(all_close["Lead"] == opnum) |
-    #                           (all_close["Assistant 1"] == opnum) |
-    #                           (all_close["Assistant 2"] == opnum) |
-    #                           (all_close["Assistant 3"] == opnum)]
-    # all_resin = all_resin.loc[(all_resin["Lead"] == opnum) |
-    #                           (all_resin["Assistant 1"] == opnum) |
-    #                           (all_resin["Assistant 2"] == opnum) |
-    #                           (all_resin["Assistant 3"] == opnum)]
-    # all_cycle = all_cycle.loc[(all_cycle["Lead"] == opnum) |
-    #                           (all_cycle["Assistant 1"] == opnum) |
-    #                           (all_cycle["Assistant 2"] == opnum) |
-    #                           (all_cycle["Assistant 3"] == opnum)]
+#     # # Remove any row in the all_* dataframes that doesn't contain opnum
+#     # all_layup = all_layup.loc[(all_layup["Lead"] == opnum) |
+#     #                           (all_layup["Assistant 1"] == opnum) |
+#     #                           (all_layup["Assistant 2"] == opnum) |
+#     #                           (all_layup["Assistant 3"] == opnum)]
+#     # all_close = all_close.loc[(all_close["Lead"] == opnum) |
+#     #                           (all_close["Assistant 1"] == opnum) |
+#     #                           (all_close["Assistant 2"] == opnum) |
+#     #                           (all_close["Assistant 3"] == opnum)]
+#     # all_resin = all_resin.loc[(all_resin["Lead"] == opnum) |
+#     #                           (all_resin["Assistant 1"] == opnum) |
+#     #                           (all_resin["Assistant 2"] == opnum) |
+#     #                           (all_resin["Assistant 3"] == opnum)]
+#     # all_cycle = all_cycle.loc[(all_cycle["Lead"] == opnum) |
+#     #                           (all_cycle["Assistant 1"] == opnum) |
+#     #                           (all_cycle["Assistant 2"] == opnum) |
+#     #                           (all_cycle["Assistant 3"] == opnum)]
 
-    # get_single_operator_stats(all_layup, opnum, "Layup Time")
-    # get_single_operator_stats(all_close, opnum, "Close Time")
-    # get_single_operator_stats(all_resin, opnum, "Resin Time")
-    get_single_operator_stats(all_cycle, opnum, "Cycle Time")
+#     # get_single_operator_stats(all_layup, opnum, "Layup Time")
+#     # get_single_operator_stats(all_close, opnum, "Close Time")
+#     # get_single_operator_stats(all_resin, opnum, "Resin Time")
+#     get_single_operator_stats(all_cycle, opnum, "Cycle Time")
 
-    return all_layup, all_close, all_resin, all_cycle
+#     return all_layup, all_close, all_resin, all_cycle
 
 
 def get_operator_report_by_list(operator_list, shift, dtstart, dtend):
