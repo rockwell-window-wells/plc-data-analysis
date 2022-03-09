@@ -462,116 +462,14 @@ def align_operator_times(df_cleaned, datetimes, timestring, time_inds, measured_
     return df_aligned
 
 
-def get_all_operator_stats(df, timestring):
-    startdate = df["time"].iloc[0].date()
-    enddate = df["time"].iloc[-1].date()
-
-    ### Get statistics on each operator in the data ###
-    # Get lists of unique operator numbers for each category
-    unique_leads = [int(x) for x in df["Lead"].unique()]
-    if 0 in unique_leads:
-        unique_leads.remove(0)
-    unique_assistant1 = [int(x) for x in df["Assistant 1"].unique()]
-    unique_assistant2 = [int(x) for x in df["Assistant 2"].unique()]
-    unique_assistant3 = [int(x) for x in df["Assistant 3"].unique()]
-    unique_assistants = unique_assistant1 + unique_assistant2 + unique_assistant3
-    unique_assistants = list(np.unique(unique_assistants))
-    if 0 in unique_assistants:
-        unique_assistants.remove(0)
-
-
-    operator_strings = []
-    for operator in unique_leads:
-        operator_strings.append("Lead {}".format(operator))
-    for operator in unique_assistants:
-        operator_strings.append("Assistant {}".format(operator))
-
-    all_times = pd.DataFrame()
-
-    # Go through each unique operator number and gather their data
-    unique_operators = unique_leads + unique_assistants
-    unique_operators = list(np.unique(unique_operators))
-
-    directory = data_assets.pdftempfolder
-
-    for operator in unique_operators:
-        df_operator = df.loc[(df["Lead"] == operator) |
-                            (df["Assistant 1"] == operator) |
-                            (df["Assistant 2"] == operator) |
-                            (df["Assistant 3"] == operator)]
-
-        df_lead = df.loc[df["Lead"] == operator]
-        df_assistant = df.loc[(df["Assistant 1"] == operator) |
-                                (df["Assistant 2"] == operator) |
-                                (df["Assistant 3"] == operator)]
-
-        # Append the cycle time data as a column to all_times
-        lead_col = "Lead {}".format(operator)
-        assistant_col = "Assistant {}".format(operator)
-        operator_col = "All Operator {}".format(operator)
-        all_times = pd.concat([all_times, df_lead[timestring].rename(lead_col)], axis=1)
-        all_times = pd.concat([all_times, df_assistant[timestring].rename(assistant_col)], axis=1)
-
-        # Compare the current operator against all cycle times
-        lead_col = "Lead"
-        assistant_col = "Assistant"
-        operator_col = "All Operator {}".format(operator)
-        operator_compare = pd.DataFrame()
-        operator_compare = pd.concat([operator_compare, df_lead[timestring].rename(lead_col)], axis=1)
-        operator_compare = pd.concat([operator_compare, df_assistant[timestring].rename(assistant_col)], axis=1)
-        operator_compare = pd.concat([operator_compare, df_operator[timestring].rename(operator_col)], axis=1)
-        operator_compare = pd.concat([operator_compare, df[timestring].rename("RockWell")], axis=1)
-
-        sns.set_theme(style="whitegrid")
-        customPalette = sns.light_palette("lightblue", 4)
-        flierprops = dict(marker='o', markerfacecolor='None', markersize=4)
-        sns.boxplot(x="variable", y="value", data=pd.melt(operator_compare), flierprops=flierprops, palette=customPalette)
-        plt.title("Operator {} {}s: {} to {}".format(operator, timestring, startdate, enddate))
-        plt.ylabel("{} (minutes)".format(timestring))
-        plt.xlabel("")
-        plotname = directory + "\\Operator_{}_{}.png".format(operator, timestring.replace(" ","_"))
-        plt.savefig(plotname, dpi=200)
-        plt.close()
-        if timestring == "Cycle Time":
-            cycles_logged = []
-            cycles_logged.append(operator_compare[lead_col].count())
-            cycles_logged.append(operator_compare[assistant_col].count())
-            cycles_logged.append(operator_compare[operator_col].count())
-            cycles_logged.append(operator_compare["RockWell"].count())
-            # opcycles = operator_compare[operator_col].count()
-            # allcycles = operator_compare["RockWell"].count()
-            leadmed = np.around(operator_compare[lead_col].median(),1)
-            assistmed = np.around(operator_compare[assistant_col].median(),1)
-            opmed = np.around(operator_compare[operator_col].mean(),1)
-            teammed = np.around(operator_compare["RockWell"].median(),1)
-            medians = [leadmed, assistmed, opmed, teammed]
-            leadavg = np.around(operator_compare[lead_col].mean(),1)
-            assistavg = np.around(operator_compare[assistant_col].mean(),1)
-            opavg = np.around(operator_compare[operator_col].mean(),1)
-            teamavg = np.around(operator_compare["RockWell"].mean(),1)
-            averages = [leadavg, assistavg, opavg, teamavg]
-            filename = "Operator_{}_{}_Stats_{}_to_{}.pdf".format(operator, timestring.replace(" ","_"), startdate, enddate)
-            exportpath = data_assets.pdftempfolder
-            opname = lookup_operator_name(operator, data_assets.ID_data)
-            generate_operator_PDF(startdate, enddate, plotname, operator, opname, cycles_logged, medians, averages, shift, filename, exportpath)
-
-    mergefile = "All_Operators_Cycle_Times_{}_to_{}.pdf".format(startdate, enddate)
-    mergedfilepath = data_assets.pdftempfolder + "\\" + mergefile
-    merge_operator_PDFs(exportpath, mergedfilepath)
+def get_all_operator_stats(df):
+    # Get operator list
+    IDfilepath = data_assets.ID_data
+    allnums = id_methods.get_all_employee_nums(IDfilepath)
+    operator_list = list(allnums["ID"])
+    operator_list = [int(id) for id in operator_list]
     
-    # Copy merged file into Operator_Reports folder
-    dest = data_assets.pdfexportfolder + "\\" + mergefile
-    shutil.copyfile(mergedfilepath, dest)
-
-    # Delete all files from temp data holding folder
-    files_in_directory = os.listdir(directory)
-    for file in files_in_directory:
-        path_to_file = os.path.join(directory, file)
-        os.remove(path_to_file)
-        
-    # Automatically open the merged file from its new location
-    # mergedfilepath = data_assets.pdfexportfolder + "\\" + mergefile
-    os.system(dest)
+    get_operator_stats_by_list(df, operator_list, "all")
 
 
 def get_operator_stats_by_list(df, operator_list, shift=None):
@@ -602,8 +500,6 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
     
     timestring = "Cycle Time"
 
-    all_times = pd.DataFrame()
-
     directory = data_assets.pdftempfolder
     
     # Get list of operator numbers on each shift by checking Excel data
@@ -611,11 +507,6 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
     daylist, swinglist, gravelist = id_methods.get_shift_lists(IDfilepath)
 
     for operator in operator_list:
-        # df_operator = df.loc[(df["Lead"] == operator) |
-        #                     (df["Assistant 1"] == operator) |
-        #                     (df["Assistant 2"] == operator) |
-        #                     (df["Assistant 3"] == operator)]
-        
         # Get all rows where the current operator is in the lead list
         df_lead = df[pd.DataFrame(df.Lead.tolist()).isin([operator]).any(1).values]
         
@@ -625,8 +516,10 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
             operator_shift = "Day"
         elif operator in swinglist:
             operator_shift = "Swing"
-        else:
+        elif operator in gravelist:
             operator_shift = "Graveyard"
+        else:
+            operator_shift = "N/A"
             
         df_shift = df[pd.DataFrame(df.Shift.tolist()).isin([operator_shift]).any(1).values]
         
@@ -635,24 +528,13 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
         df_shift = df_shift[df_shift["First Monday Part"] != 1]
         df_company = df[df["First Monday Part"] != 1]
 
-        # # Append the cycle time data as a column to all_times
-        # lead_col = "Lead {}".format(operator)
-        # # assistant_col = "Assistant {}".format(operator)
-        # # operator_col = "All Operator {}".format(operator)
-        # all_times = pd.concat([all_times, df_lead[timestring].rename(lead_col)], axis=1)
-        # # all_times = pd.concat([all_times, df_assistant[timestring].rename(assistant_col)], axis=1)
-
         # Compare the current operator against all cycle times
         lead_col = "Lead"
         shift_col = "Shift"
         company_col = "RockWell"
-        # assistant_col = "Assistant"
-        # operator_col = "All Operator {}".format(operator)
         operator_compare = pd.DataFrame()
         operator_compare = pd.concat([operator_compare, df_lead[timestring].rename(lead_col)], axis=1)
         operator_compare = pd.concat([operator_compare, df_shift[timestring].rename("Shift")], axis=1)
-        # operator_compare = pd.concat([operator_compare, df_assistant[timestring].rename(assistant_col)], axis=1)
-        # operator_compare = pd.concat([operator_compare, df_operator[timestring].rename(operator_col)], axis=1)
         operator_compare = pd.concat([operator_compare, df_company[timestring].rename("RockWell")], axis=1)
 
         sns.set_theme(style="whitegrid")
@@ -686,10 +568,14 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
             generate_operator_PDF(startdate, enddate, plotname, operator, opname, cycles_logged, medians, averages, operator_shift, filename, exportpath)
 
 
-    if shift is None:
+    if shift is None and len(operator_list) > 1:
         mergefile = "List_Operators_{}_to_{}.pdf".format(startdate, enddate)
         mergedfilepath = data_assets.pdftempfolder + "\\" + mergefile
         merge_operator_PDFs(exportpath, mergedfilepath)
+    elif shift is None and len(operator_list) == 1:
+        # Copy merged file into Operator_Reports folder
+        mergefile = filename
+        mergedfilepath = data_assets.pdftempfolder + "\\" + filename
     else:
         mergefile, mergedfilepath = merge_by_shift(startdate, enddate, shift, exportpath)
         
@@ -704,7 +590,6 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
         os.remove(path_to_file)
         
     # Automatically open the merged file from its new location
-    # mergedfilepath = data_assets.pdfexportfolder + "\\" + mergefile
     os.system(dest)
 
 
@@ -716,6 +601,8 @@ def merge_by_shift(startdate, enddate, shift, exportpath):
         mergefile = "Swing_Shift_Operators_Cycle_Times_{}_to_{}.pdf".format(startdate, enddate)
     elif shift == "graveyard":
         mergefile = "Graveyard_Shift_Operators_Cycle_Times_{}_to_{}.pdf".format(startdate, enddate)
+    elif shift == "all":
+        mergefile = "All_Operators_Cycle_Times_{}_to_{}.pdf".format(startdate, enddate)
     else:
         raise ValueError("No shift specified")
 
@@ -725,87 +612,9 @@ def merge_by_shift(startdate, enddate, shift, exportpath):
     return mergefile, mergedfilepath
 
 
-
-def get_single_operator_stats(df, opnum, timestring):
-    startdate = df["time"].iloc[0].date()
-    enddate = df["time"].iloc[-1].date()
-
-    all_times = pd.DataFrame()
-
-    directory = data_assets.pdftempfolder
-
-    df_operator = df.loc[(df["Lead"] == opnum) |
-                        (df["Assistant 1"] == opnum) |
-                        (df["Assistant 2"] == opnum) |
-                        (df["Assistant 3"] == opnum)]
-
-    df_lead = df.loc[df["Lead"] == opnum]
-    df_assistant = df.loc[(df["Assistant 1"] == opnum) |
-                            (df["Assistant 2"] == opnum) |
-                            (df["Assistant 3"] == opnum)]
-
-    # Append the cycle time data as a column to all_times
-    lead_col = "Lead {}".format(opnum)
-    assistant_col = "Assistant {}".format(opnum)
-    operator_col = "All Operator {}".format(opnum)
-    all_times = pd.concat([all_times, df_lead[timestring].rename(lead_col)], axis=1)
-    all_times = pd.concat([all_times, df_assistant[timestring].rename(assistant_col)], axis=1)
-
-    # Compare the current operator against all cycle times
-    lead_col = "Lead"
-    assistant_col = "Assistant"
-    operator_col = "All Operator {}".format(opnum)
-    operator_compare = pd.DataFrame()
-    operator_compare = pd.concat([operator_compare, df_lead[timestring].rename(lead_col)], axis=1)
-    operator_compare = pd.concat([operator_compare, df_assistant[timestring].rename(assistant_col)], axis=1)
-    operator_compare = pd.concat([operator_compare, df_operator[timestring].rename(operator_col)], axis=1)
-    operator_compare = pd.concat([operator_compare, df[timestring].rename("RockWell")], axis=1)
-
-    sns.set_theme(style="whitegrid")
-    customPalette = sns.light_palette("lightblue", 4)
-    flierprops = dict(marker='o', markerfacecolor='None', markersize=4)
-    sns.boxplot(x="variable", y="value", data=pd.melt(operator_compare), flierprops=flierprops, palette=customPalette)
-    plt.title("Operator {} {}s: {} to {}".format(opnum, timestring, startdate, enddate))
-    plt.ylabel("{} (minutes)".format(timestring))
-    plt.xlabel("")
-    plotname = directory + "\\Operator_{}_{}.png".format(opnum, timestring.replace(" ","_"))
-    plt.savefig(plotname, dpi=300)
-    plt.close()
-    if timestring == "Cycle Time":
-        cycles_logged = []
-        cycles_logged.append(operator_compare[lead_col].count())
-        cycles_logged.append(operator_compare[assistant_col].count())
-        cycles_logged.append(operator_compare[operator_col].count())
-        cycles_logged.append(operator_compare["RockWell"].count())
-        leadmed = np.around(operator_compare[lead_col].median(),1)
-        assistmed = np.around(operator_compare[assistant_col].median(),1)
-        opmed = np.around(operator_compare[operator_col].mean(),1)
-        teammed = np.around(operator_compare["RockWell"].median(),1)
-        medians = [leadmed, assistmed, opmed, teammed]
-        leadavg = np.around(operator_compare[lead_col].mean(),1)
-        assistavg = np.around(operator_compare[assistant_col].mean(),1)
-        opavg = np.around(operator_compare[operator_col].mean(),1)
-        teamavg = np.around(operator_compare["RockWell"].mean(),1)
-        averages = [leadavg, assistavg, opavg, teamavg]
-        filename = "Operator_{}_{}_Stats_{}_to_{}.pdf".format(opnum, timestring.replace(" ","_"), startdate, enddate)
-        exportpath = data_assets.pdftempfolder
-        opname = lookup_operator_name(opnum, data_assets.ID_data)
-        generate_operator_PDF(startdate, enddate, plotname, opnum, opname, cycles_logged, medians, averages, shift, filename, exportpath)
-        
-    # Copy merged file into Operator_Reports folder
-    filepath = data_assets.pdftempfolder + "\\" + filename
-    dest = data_assets.pdfexportfolder + "\\" + filename
-    shutil.copyfile(filepath, dest)
-
-    # Delete all files from temp data holding folder
-    files_in_directory = os.listdir(directory)
-    for file in files_in_directory:
-        path_to_file = os.path.join(directory, file)
-        os.remove(path_to_file)
-        
-    # Automatically open the merged file from its new location
-    # mergedfilepath = data_assets.pdfexportfolder + "\\" + mergefile
-    os.system(dest)
+def get_single_operator_stats(df, opnum):
+    operator_list = [opnum]
+    get_operator_stats_by_list(df, operator_list, shift=None)
 
 
 def lookup_operator_name(opnum, IDfilepath):
@@ -855,56 +664,6 @@ def analyze_all_molds_api(dtstart, dtend):
 
     return all_layup, all_close, all_resin, all_cycle
 
-# def analyze_all_molds(mold_data_folder):
-#     """
-#     Take a list of CSV files containing mold data downloaded from StrideLinx.
-#     Combine the data into one large dataframe of cycle times and their
-#     associated operators, and get individual operator stats. Print a nice report
-#     for each individual operator number that includes their lead, assistant,
-#     and overall stats compared to all cycle times for the same period.
-#     """
-#     mold_data_files = []
-#     for root, dirs, files in os.walk(os.path.abspath(mold_data_folder)):
-#         for file in files:
-#             mold_data_files.append(os.path.join(root, file))
-
-#     layup_frames = []
-#     close_frames = []
-#     resin_frames = []
-#     cycle_frames = []
-#     for datafile in mold_data_files:
-#         df_layup, df_close, df_resin, df_cycle = clean_single_mold_data(datafile)
-#         layup_frames.append(df_layup)
-#         close_frames.append(df_close)
-#         resin_frames.append(df_resin)
-#         cycle_frames.append(df_cycle)
-
-#     all_layup = pd.concat(layup_frames)
-#     all_layup = all_layup.reset_index(drop=True)
-#     all_close = pd.concat(close_frames)
-#     all_close = all_close.reset_index(drop=True)
-#     all_resin = pd.concat(resin_frames)
-#     all_resin = all_resin.reset_index(drop=True)
-#     all_cycle = pd.concat(cycle_frames)
-#     all_cycle = all_cycle.reset_index(drop=True)
-
-#     # Remove faulty duplicates
-#     all_layup = clean_duplicate_times(all_layup)
-#     all_close = clean_duplicate_times(all_close)
-#     all_resin = clean_duplicate_times(all_resin)
-#     all_cycle = clean_duplicate_times(all_cycle)
-
-#     compare_num_ops(all_layup, "Layup Time")
-#     compare_num_ops(all_close, "Close Time")
-#     compare_num_ops(all_resin, "Resin Time")
-#     compare_num_ops(all_cycle, "Cycle Time")
-
-#     get_all_operator_stats(all_layup, "Layup Time")
-#     get_all_operator_stats(all_close, "Close Time")
-#     get_all_operator_stats(all_resin, "Resin Time")
-#     get_all_operator_stats(all_cycle, "Cycle Time")
-
-#     return all_layup, all_close, all_resin, all_cycle
 
 def clean_duplicate_times(df):
     dupinds = []
@@ -1076,15 +835,8 @@ def get_specific_operator_report(opnum, dtstart, dtend):
 def get_operator_report_by_list(operator_list, shift, dtstart, dtend):
     """
     """
-    df_eval = load_operator_data(dtstart, dtend)[0]
-
-    # # Remove faulty duplicates
-    # all_layup = clean_duplicate_times(all_layup)
-    # all_close = clean_duplicate_times(all_close)
-    # all_resin = clean_duplicate_times(all_resin)
-    # all_cycle = clean_duplicate_times(all_cycle)
-    
-    get_operator_stats_by_list(all_cycle, operator_list, "Cycle Time", shift)
+    df_eval = load_operator_data(dtstart, dtend)[0]    
+    get_operator_stats_by_list(df_eval, operator_list, shift)
 
 
 def load_operator_data_single_mold(dtstart, dtend, moldcolor):
@@ -1686,12 +1438,7 @@ def cycle_time_over_time(dtstart, dtend):
         fliers = stats["fliers"]
         whiskers_hi.append(whishi)
         whiskers_lo.append(whislo)
-        outliers.append(fliers)
-        # print(whishi)
-        # print(whislo)
-        # print("")
-    
-    
+        outliers.append(fliers)    
     
     # Skip labels so there are 5 at most on the plot
     labelskip = 0
@@ -1784,8 +1531,6 @@ def filter_outlier_cycles(dtstart, dtend):
         df_cycles = df_cycles.reset_index(drop=True)
         df_cycles = df_cycles.drop(["Layup Time", "Close Time", "Resin Time", "Lead", "Assistant 1", "Assistant 2", "Assistant 3"], axis=1)
         
-        # print("\n####### Mold color: {} #########\n".format(moldcolor))
-        
         # Get the rows that match outliers in all_outliers
         for ind_all in all_outliers.index:
             # print("\nall_outliers index: {}\n".format(ind_all))
@@ -1807,12 +1552,7 @@ def filter_outlier_cycles(dtstart, dtend):
                         orange_outliers = orange_outliers.append(outlierrow, ignore_index=True)
                     elif moldcolor == "Green":
                         green_outliers = green_outliers.append(outlierrow, ignore_index=True)
-                        
-                # else:
-                    # print("...")
-        
-    # print("Matchcount: {}".format(matchcount))
-    # print("")
+
     return all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers
         
         
@@ -1820,12 +1560,17 @@ def filter_outlier_cycles(dtstart, dtend):
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,3,1,0,0,0)
+    dtstart = dt.datetime(2022,2,21,0,0,0)
     today = dt.date.today()
     endtime = dt.time(23,59,59)
     dtend = dt.datetime.combine(today, endtime)
 
     df_eval, df_manminutes = load_operator_data(dtstart, dtend)
     
-    operator_list = [217, 254, 666]
-    get_operator_stats_by_list(df_eval, operator_list, shift=None)
+    # operator_list = [217, 254, 666]
+    # get_operator_stats_by_list(df_eval, operator_list, shift=None)
+    
+    get_all_operator_stats(df_eval)
+    
+    # opnum = 217
+    # get_single_operator_stats(df_eval, opnum)
