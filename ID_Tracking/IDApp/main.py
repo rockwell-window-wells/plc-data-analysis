@@ -36,7 +36,8 @@ import datetime as dt
 from dateutil.relativedelta import relativedelta
 
 from libs.id_methods import get_all_employee_nums
-import libs.cycle_time_methods as cycle
+import libs.cycle_time_methods_v2 as cycle
+# import libs.cycle_time_methods as cycle
 from libs import data_assets
 
 Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
@@ -442,7 +443,7 @@ Box plots are only valid with at least 5 data points. More sample points are bet
             # self.snackbar_show(app.OPERATOR_LIST)
             cycle.get_operator_report_by_list(app.OPERATOR_LIST, "Graveyard", dtstart, dtend)
         elif app.alloperators:
-            cycle.analyze_all_molds_api(dtstart, dtend)
+            cycle.get_all_operator_reports(dtstart, dtend)
             # statustext = "Report successfully generated for all operators"
             # self.snackbar_show(statustext)
         else:
