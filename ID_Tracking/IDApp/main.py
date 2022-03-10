@@ -427,7 +427,7 @@ Box plots are only valid with at least 5 data points. More sample points are bet
 
         if app.singleoperator:
             opnum = app.OPERATOR_LIST[0]
-            all_layup, all_close, all_resin, all_cycle = cycle.get_specific_operator_report(opnum, dtstart, dtend)
+            cycle.get_specific_operator_report(opnum, dtstart, dtend)
             # statustext = "Report successfully generated for Operator {}".format(opnum)
             # self.snackbar_show(statustext)
         elif app.dayshift:

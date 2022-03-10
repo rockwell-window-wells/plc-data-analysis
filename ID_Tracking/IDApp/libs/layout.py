@@ -460,12 +460,12 @@ KV = '''
                     root.nav_drawer.set_state("close")
                     root.screen_manager.current = "homescreen"
 
-            ItemDrawer:
-                text: "Operator ID"
-                icon: "account"
-                on_release:
-                    root.nav_drawer.set_state("close")
-                    root.screen_manager.current = "operatoridscreen"
+            # ItemDrawer:
+            #     text: "Operator ID"
+            #     icon: "account"
+            #     on_release:
+            #         root.nav_drawer.set_state("close")
+            #         root.screen_manager.current = "operatoridscreen"
 
             ItemDrawer:
                 text: "Operator Evaluation"
@@ -474,19 +474,19 @@ KV = '''
                     root.nav_drawer.set_state("close")
                     root.screen_manager.current = "operatorevaluationscreen"
 
-            ItemDrawer:
-                text: "Equipment ID"
-                icon: "tools"
-                on_release:
-                    root.nav_drawer.set_state("close")
-                    root.screen_manager.current = "equipmentidscreen"
-
-            ItemDrawer:
-                text: "Settings"
-                icon: "cog"
-                on_release:
-                    root.nav_drawer.set_state("close")
-                    root.screen_manager.current = "settings"
+            # ItemDrawer:
+            #     text: "Equipment ID"
+            #     icon: "tools"
+            #     on_release:
+            #         root.nav_drawer.set_state("close")
+            #         root.screen_manager.current = "equipmentidscreen"
+            #
+            # ItemDrawer:
+            #     text: "Settings"
+            #     icon: "cog"
+            #     on_release:
+            #         root.nav_drawer.set_state("close")
+            #         root.screen_manager.current = "settings"
 
 
 RootScreen:
@@ -508,13 +508,13 @@ RootScreen:
 
             HomeScreen:
 
-            OperatorIDScreen:
+            # OperatorIDScreen:
 
             OperatorEvaluationScreen:
 
-            EquipmentIDScreen:
-
-            SettingsScreen:
+            # EquipmentIDScreen:
+            #
+            # SettingsScreen:
 
 
         MDNavigationDrawer:
