@@ -90,7 +90,10 @@ class OperatorEvaluationScreen(MDScreen):
 
     def update_report_label(self, *args):
         if app.singleoperator:
-            labeltext = "Report will be generated for Operator {}\nStart: {} at {}\nEnd: {} at {}".format(app.OPERATOR_LIST[0], self.startdate, self.t_start, self.enddate, self.t_end)
+            if len(app.OPERATOR_LIST) == 0:
+                labeltext = "NO OPERATOR SELECTED!\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            else:
+                labeltext = "Report will be generated for Operator {}\nStart: {} at {}\nEnd: {} at {}".format(app.OPERATOR_LIST[0], self.startdate, self.t_start, self.enddate, self.t_end)
         elif app.dayshift:
             labeltext = "Report will be generated for Day Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
         elif app.swingshift:
@@ -256,6 +259,9 @@ class OperatorEvaluationScreen(MDScreen):
         self.startdate = value
         self.update_report_label()
         print("Starting date is {}, {}".format(self.startdate, type(self.startdate)))
+        if self.startdate < dt.date(2022,2,8):
+            statustext = "WARNING: Start dates earlier than Feb 2, 2022 may cause errors."
+            self.snackbar_show(statustext)
 
     def set_start_time_dialog(self, *args):
         self.start_time_dialog.dismiss(force=True)
@@ -275,7 +281,9 @@ class OperatorEvaluationScreen(MDScreen):
 
     def cancel_start_time_dialog(self, *args):
         self.start_time_dialog.dismiss(force=True)
+        print(self.startdate, self.t_start)
         if not self.t_start or not self.startdate:
+            print(self.startdate, self.t_start)
             statustext = "Missing start time or date."
             self.snackbar_show(statustext)
         self.start_time_dialog = None
@@ -368,7 +376,9 @@ class OperatorEvaluationScreen(MDScreen):
 
     def cancel_end_time_dialog(self, *args):
         self.end_time_dialog.dismiss(force=True)
+        print(self.enddate, self.t_end)
         if not self.t_end or not self.enddate:
+            print(self.enddate, self.t_end)
             statustext = "MISSING ENDING DATE OR TIME."
             self.snackbar_show(statustext)
         self.end_time_dialog = None
@@ -426,10 +436,12 @@ Box plots are only valid with at least 5 data points. More sample points are bet
         # alloperators = self.select_operator_dialog.content_cls.alloperatorscheck.active
 
         if app.singleoperator:
-            opnum = app.OPERATOR_LIST[0]
-            cycle.get_specific_operator_report(opnum, dtstart, dtend)
-            # statustext = "Report successfully generated for Operator {}".format(opnum)
-            # self.snackbar_show(statustext)
+            if len(app.OPERATOR_LIST) > 0:
+                opnum = app.OPERATOR_LIST[0]
+                cycle.get_specific_operator_report(opnum, dtstart, dtend)
+            else:
+                statustext = "No operator selected"
+                self.snackbar_show(statustext)
         elif app.dayshift:
             # app.OPERATOR_LIST = cycle.get_operator_list("Day")
             # self.snackbar_show(app.OPERATOR_LIST)
@@ -495,8 +507,9 @@ class IDApp(MDApp):
         self.theme_cls.primary_hue = "400"
         # self.theme_cls.accent_palette = "Amber"
         self.title = "Rockwell ID & Evaluation Tool"
-        # self.icon = "assets/RWLettermark.png"
         self.items = ["A", "B", "C", "D", "E"]
+
+        # self.icon = "assets/Boxplot.png"
 
         screen = Builder.load_string(KV)
 
