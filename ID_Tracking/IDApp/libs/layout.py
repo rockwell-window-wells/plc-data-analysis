@@ -33,7 +33,7 @@ KV = '''
                         font_style: "Button"
                         elevation: 5
                         # pos_hint: {"top": 1, "right": 1.0}
-                        # on_release: root.translate_en()
+                        on_release: root.translate_en()
 
                 AnchorLayout:
                     anchor_x: "center"
@@ -44,7 +44,7 @@ KV = '''
                         font_style: "Button"
                         elevation: 5
                         pos_hint: {"top": 1, "right": 1.0}
-                        # on_release: root.translate_esp()
+                        on_release: root.translate_esp()
 
 
 <OperatorIDScreen>:
@@ -152,7 +152,7 @@ KV = '''
             pos_hint: {'center_x': .5, 'center_y': .75}
 
         MDLabel:
-            text: "Single Operator"
+            text: app.single_operator_select
 
     MDBoxLayout:
         orientation: "horizontal"
@@ -164,7 +164,7 @@ KV = '''
             pos_hint: {'center_x': .5, 'center_y': .75}
 
         MDLabel:
-            text: "Day Shift"
+            text: app.dayshift_select
 
     MDBoxLayout:
         orientation: "horizontal"
@@ -176,7 +176,7 @@ KV = '''
             pos_hint: {'center_x': .5, 'center_y': .75}
 
         MDLabel:
-            text: "Swing Shift"
+            text: app.swingshift_select
 
     MDBoxLayout:
         orientation: "horizontal"
@@ -188,7 +188,7 @@ KV = '''
             pos_hint: {'center_x': .5, 'center_y': .75}
 
         MDLabel:
-            text: "Graveyard Shift"
+            text: app.graveshift_select
 
     MDBoxLayout:
         orientation: "horizontal"
@@ -200,13 +200,13 @@ KV = '''
             pos_hint: {'center_x': .5, 'center_y': .75}
 
         MDLabel:
-            text: "All Operators"
+            text: app.alloperators_select
 
 
 
     MDTextField:
         id: operatornumbertext
-        hint_text: "Enter Operator Number"
+        hint_text: app.enter_operator_num
 
 
 <OperatorEvaluationScreen>:
@@ -223,7 +223,7 @@ KV = '''
 
             MDLabel:
                 id: operatorevaluationtitle
-                text: "Operator Evaluation"
+                text: app.operator_eval_title
                 font_style: "H5"
                 pos_hint: {"top": 1.375, "x": 0.01}
 
@@ -248,7 +248,7 @@ KV = '''
 
                     MDRaisedButton:
                         id: getreport
-                        text: "Select Operator"
+                        text: app.select_operator_btn
                         font_style: "Button"
                         # md_bg_color: app.theme_cls.accent_color
                         # pos_hint: {"top": 0.5, "right": 0.5}
@@ -262,7 +262,7 @@ KV = '''
 
                     MDRaisedButton:
                         id: getreport
-                        text: "Starting Date/Time"
+                        text: app.startdate_time_btn
                         font_style: "Button"
                         # md_bg_color: app.theme_cls.accent_color
                         # pos_hint: {"top": 0.5, "right": 0.5}
@@ -276,7 +276,7 @@ KV = '''
 
                     MDRaisedButton:
                         id: getreport
-                        text: "Ending Date/Time"
+                        text: app.enddate_time_btn
                         font_style: "Button"
                         # md_bg_color: app.theme_cls.accent_color
                         # pos_hint: {"top": 0.5, "right": 0.5}
@@ -294,13 +294,13 @@ KV = '''
 
                     MDRaisedButton:
                         id: getreport
-                        text: "Generate Report"
+                        text: app.generate_report_btn
                         font_style: "Button"
                         md_bg_color: app.theme_cls.accent_color
                         # pos_hint: {"top": 0.5, "right": 0.5}
                         elevation: 5
                         on_press:
-                            evaluationparameterlabel.text = "Generating Report..."
+                            evaluationparameterlabel.text = app.generating_report_text
                         on_release:
                             root.get_operator_reports()
                             evaluationparameterlabel.text = ""
@@ -454,7 +454,7 @@ KV = '''
             id: md_list
 
             ItemDrawer:
-                text: "Home"
+                text: app.home_title
                 icon: "home"
                 on_release:
                     root.nav_drawer.set_state("close")
@@ -468,7 +468,7 @@ KV = '''
             #         root.screen_manager.current = "operatoridscreen"
 
             ItemDrawer:
-                text: "Operator Evaluation"
+                text: app.operator_eval_title
                 icon: "chart-box"
                 on_release:
                     root.nav_drawer.set_state("close")
@@ -496,7 +496,7 @@ RootScreen:
         id: toolbar
         pos_hint: {"top": 1}
         elevation: 10
-        title: "Navigation"
+        title: app.navigation_title
         left_action_items: [['menu', lambda x: nav_drawer.set_state("open")]]
 
 

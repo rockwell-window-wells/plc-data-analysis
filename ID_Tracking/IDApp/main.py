@@ -50,6 +50,60 @@ class RootScreen(MDScreen):
 
 
 class HomeScreen(MDScreen):
+    def translate_en(self):
+        app.english = True
+        app.home_title = app.home_title_en
+        app.operator_eval_title = app.operator_eval_title_en
+        app.navigation_title = app.navigation_title_en
+        app.select_operator_btn = app.select_operator_btn_en
+        app.startdate_time_btn = app.startdate_time_btn_en
+        app.enddate_time_btn = app.enddate_time_btn_en
+        app.generate_report_btn = app.generate_report_btn_en
+        app.single_operator_select = app.single_operator_select_en
+        app.dayshift_select = app.dayshift_select_en
+        app.swingshift_select = app.swingshift_select_en
+        app.graveshift_select = app.graveshift_select_en
+        app.alloperators_select = app.alloperators_select_en
+        app.enter_operator_num = app.enter_operator_num_en
+        app.set_btn = app.set_btn_en
+        app.clear_btn = app.clear_btn_en
+        app.cancel_btn = app.cancel_btn_en
+        app.startdate_time_title = app.startdate_time_title_en
+        app.startdate_btn = app.startdate_btn_en
+        app.starttime_btn = app.starttime_btn_en
+        app.enddate_time_title = app.enddate_time_title_en
+        app.enddate_btn = app.enddate_btn_en
+        app.endtime_btn = app.endtime_btn_en
+
+        self.snackbar_show("Language changed to English")
+
+    def translate_esp(self):
+        app.english = False
+        app.home_title = app.home_title_esp
+        app.operator_eval_title = app.operator_eval_title_esp
+        app.navigation_title = app.navigation_title_esp
+        app.select_operator_btn = app.select_operator_btn_esp
+        app.startdate_time_btn = app.startdate_time_btn_esp
+        app.enddate_time_btn = app.enddate_time_btn_esp
+        app.generate_report_btn = app.generate_report_btn_esp
+        app.single_operator_select = app.single_operator_select_esp
+        app.dayshift_select = app.dayshift_select_esp
+        app.swingshift_select = app.swingshift_select_esp
+        app.graveshift_select = app.graveshift_select_esp
+        app.alloperators_select = app.alloperators_select_esp
+        app.enter_operator_num = app.enter_operator_num_esp
+        app.set_btn = app.set_btn_esp
+        app.clear_btn = app.clear_btn_esp
+        app.cancel_btn = app.cancel_btn_esp
+        app.startdate_time_title = app.startdate_time_title_esp
+        app.startdate_btn = app.startdate_btn_esp
+        app.starttime_btn = app.starttime_btn_esp
+        app.enddate_time_title = app.enddate_time_title_esp
+        app.enddate_btn = app.enddate_btn_esp
+        app.endtime_btn = app.endtime_btn_esp
+
+        self.snackbar_show("Idioma cambiado a Espa\u00F1ol")
+
     # Snackbar for showing status messages (better than allocating space to labels)
     def snackbar_show(self, snackbartext):
         self.snackbar = Snackbar(text = snackbartext)
@@ -91,19 +145,40 @@ class OperatorEvaluationScreen(MDScreen):
     def update_report_label(self, *args):
         if app.singleoperator:
             if len(app.OPERATOR_LIST) == 0:
-                labeltext = "NO OPERATOR SELECTED!\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+                if app.english is True:
+                    labeltext = "NO OPERATOR SELECTED!\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+                else:
+                    labeltext = "".format(self.startdate, self.t_start, self.enddate, self.t_end)
             else:
-                labeltext = "Report will be generated for Operator {}\nStart: {} at {}\nEnd: {} at {}".format(app.OPERATOR_LIST[0], self.startdate, self.t_start, self.enddate, self.t_end)
+                if app.english is True:
+                    labeltext = "Report will be generated for Operator {}\nStart: {} at {}\nEnd: {} at {}".format(app.OPERATOR_LIST[0], self.startdate, self.t_start, self.enddate, self.t_end)
+                else:
+                    labeltext = "".format(app.OPERATOR_LIST[0], self.startdate, self.t_start, self.enddate, self.t_end)
         elif app.dayshift:
-            labeltext = "Report will be generated for Day Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            if app.english is True:
+                labeltext = "Report will be generated for Day Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            else:
+                labeltext = "".format(self.startdate, self.t_start, self.enddate, self.t_end)
         elif app.swingshift:
-            labeltext = "Report will be generated for Swing Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            if app.english is True:
+                labeltext = "Report will be generated for Swing Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            else:
+                labeltext = "".format(self.startdate, self.t_start, self.enddate, self.t_end)
         elif app.graveyardshift:
-            labeltext = "Report will be generated for Graveyard Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            if app.english is True:
+                labeltext = "Report will be generated for Graveyard Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            else:
+                labeltext = "".format(self.startdate, self.t_start, self.enddate, self.t_end)
         elif app.alloperators:
-            labeltext = "Report will be generated for all operators\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            if app.english is True:
+                labeltext = "Report will be generated for all operators\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            else:
+                labeltext = "".format(self.startdate, self.t_start, self.enddate, self.t_end)
         else:
-            raise ValueError("Error with operator selection")
+            if app.english is True:
+                raise ValueError("Error with operator selection")
+            else:
+                raise ValueError("")
 
         self.evaluationparameterlabel.text = labeltext
 
@@ -260,13 +335,16 @@ class OperatorEvaluationScreen(MDScreen):
         self.update_report_label()
         print("Starting date is {}, {}".format(self.startdate, type(self.startdate)))
         if self.startdate < dt.date(2022,2,8):
-            statustext = "WARNING: Start dates earlier than Feb 2, 2022 may cause errors."
+            statustext = "WARNING: Starting dates earlier than Feb 2, 2022 may cause errors."
             self.snackbar_show(statustext)
 
     def set_start_time_dialog(self, *args):
         self.start_time_dialog.dismiss(force=True)
         if self.t_start is None or self.startdate is None:
             statustext = "Missing start time or date."
+            self.snackbar_show(statustext)
+        if self.startdate < dt.date(2022,2,8):
+            statustext = "WARNING: Start dates earlier than Feb 2, 2022 may cause errors."
             self.snackbar_show(statustext)
         self.start_time_dialog = None
         print(self.t_start)
@@ -391,7 +469,7 @@ class OperatorEvaluationScreen(MDScreen):
         theme_cls.primary_palette = "Teal"
         theme_cls.primary_hue = "400"
 
-        infotext =  """Operator reports are displayed with four box plots. The first three illustrate the cycle times for the chosen operator as a lead, as an assistant, and with all their times combined. The fourth column contains a plot of all cycle times logged at Rockwell during the period of interest.
+        infotext =  """Operator reports are displayed with three box plots. The first one illustrates the cycle times for the chosen operator as a lead, the second shows the operator's shift, and the third shows all cycle times at RockWell over the same period.
 
 Compare the medians for each plot to see what an operator averages most of the time. A median below the team's median indicates that the operator averages faster cycle times than the team.
 
@@ -399,7 +477,7 @@ The other main feature to look for is how compact or stretched the box plot is. 
 
 Outlier cases, if they exist, are shown as small circles above or below the box plot. These are cases that should be noted, but can be considered not typical, and in some cases can be ignored. These might happen due to conditions outside the operator's control, such as a bag change, but they can still be due to operator factors.
 
-Box plots are only valid with at least 5 data points. More sample points are better. For a proper evaluation, try to choose an evaluation period with at least 20 sample points for each box plot. The number of samples in each box plot is displayed below the chart on the generated Operator Report.
+Box plots are only valid with at least 5 data points. More sample points are better. For a proper evaluation, try to choose an evaluation period with at least 100 sample points for each box plot. The number of samples in each box plot is displayed below the chart on the generated Operator Report.
                     """
 
         if not self.evaluation_info_dialog:
@@ -443,21 +521,13 @@ Box plots are only valid with at least 5 data points. More sample points are bet
                 statustext = "No operator selected"
                 self.snackbar_show(statustext)
         elif app.dayshift:
-            # app.OPERATOR_LIST = cycle.get_operator_list("Day")
-            # self.snackbar_show(app.OPERATOR_LIST)
             cycle.get_operator_report_by_list(app.OPERATOR_LIST, "Day", dtstart, dtend)
         elif app.swingshift:
-            # app.OPERATOR_LIST = cycle.get_operator_list("Swing")
-            # self.snackbar_show(app.OPERATOR_LIST)
             cycle.get_operator_report_by_list(app.OPERATOR_LIST, "Swing", dtstart, dtend)
         elif app.graveyardshift:
-            # app.OPERATOR_LIST = cycle.get_operator_list("Graveyard")
-            # self.snackbar_show(app.OPERATOR_LIST)
             cycle.get_operator_report_by_list(app.OPERATOR_LIST, "Graveyard", dtstart, dtend)
         elif app.alloperators:
             cycle.get_all_operator_reports(dtstart, dtend)
-            # statustext = "Report successfully generated for all operators"
-            # self.snackbar_show(statustext)
         else:
             print("Multiple report generation is not yet ready. Thank you for your patience.")
 
@@ -499,6 +569,82 @@ class IDApp(MDApp):
     graveyardshift = False
     alloperators = False
 
+    ### Labels in English ###
+    home_title_en = "Home"
+    operator_eval_title_en = "Operator Evaluation"
+    navigation_title_en = "Navigation"
+    select_operator_btn_en = "Select Operator"
+    startdate_time_btn_en = "Starting Date/Time"
+    enddate_time_btn_en = "Ending Date/Time"
+    generate_report_btn_en = "Generate Report"
+    single_operator_select_en = "Single Operator"
+    dayshift_select_en = "Day Shift"
+    swingshift_select_en = "Swing Shift"
+    graveshift_select_en = "Graveyard Shift"
+    alloperators_select_en = "All Operators"
+    enter_operator_num_en = "Enter Operator Number"
+    set_btn_en = "Set"
+    clear_btn_en = "Clear"
+    cancel_btn_en = "Cancel"
+    startdate_time_title_en = "Choose Start Date & Time"
+    startdate_btn_en = "Start Date"
+    starttime_btn_en = "Start Time"
+    enddate_time_title_en = "Choose End Date & Time"
+    enddate_btn_en = "End Date"
+    endtime_btn_en = "End Time"
+    generating_report_text_en = "Generating Report..."
+
+
+    ### Labels in Spanish ###
+    home_title_esp = "Inicio"
+    analysis_title_esp = "An\u00E1lisis"
+    navigation_title_esp = "Navegaci\u00F3n"
+    refresh_data_esp = "Actualizar datos"
+    single_day_esp = "Fecha \u00FAnica"
+    multi_day_esp = "Fechas multiples"
+    time_range_esp = "Rango de tiempo"
+    calculate_esp = "Calcular"
+    export_esp = "Exportar"
+    annotate_vals_esp = "Anotar Valores"
+    annotate_lines_esp = "Anotar L\u00EDneas"
+    employee_hint_esp = "Empleado que lleva el PAC 8000"
+    refresh_dialog_title_esp = "Actualizaci\u00F3n de Datos Completa"
+    refresh_dialog_text_esp = "Todos los datos brutos se han preparado para su uso."
+    time_range_dialog_title_esp = "Establecer Rango de Tiempo"
+    time_range_dialog_start_esp = "Inicio"
+    time_range_dialog_end_esp = "Finalizaci\u00F3n"
+    clear_btn_esp = "Limpiar"
+    cancel_btn_esp = "Cancelar"
+    export_dialog_title_esp = "Exportaci\u00F3n de Datos Completa"
+
+
+    ### Reference variables for text labels ###
+    home_title = StringProperty(home_title_en)
+    operator_eval_title = StringProperty(operator_eval_title_en)
+    navigation_title = StringProperty(navigation_title_en)
+    select_operator_btn = StringProperty(select_operator_btn_en)
+    startdate_time_btn = StringProperty(startdate_time_btn_en)
+    enddate_time_btn = StringProperty(enddate_time_btn_en)
+    generate_report_btn = StringProperty(generate_report_btn_en)
+    single_operator_select = StringProperty(single_operator_select_en)
+    dayshift_select = StringProperty(dayshift_select_en)
+    swingshift_select = StringProperty(swingshift_select_en)
+    graveshift_select = StringProperty(graveshift_select_en)
+    alloperators_select = StringProperty(alloperators_select_en)
+    enter_operator_num = StringProperty(enter_operator_num_en)
+    set_btn = StringProperty(set_btn_en)
+    clear_btn = StringProperty(clear_btn_en)
+    cancel_btn = StringProperty(cancel_btn_en)
+    startdate_time_title = StringProperty(startdate_time_title_en)
+    startdate_btn = StringProperty(startdate_btn_en)
+    starttime_btn = StringProperty(starttime_btn_en)
+    enddate_time_title = StringProperty(enddate_time_title_en)
+    enddate_btn = StringProperty(enddate_btn_en)
+    endtime_btn = StringProperty(endtime_btn_en)
+    generating_report_text = StringProperty(generating_report_text_en)
+
+    english = True
+
     def build(self):
         # App settings
         # self.theme_cls.colors = colors
@@ -507,7 +653,6 @@ class IDApp(MDApp):
         self.theme_cls.primary_hue = "400"
         # self.theme_cls.accent_palette = "Amber"
         self.title = "Rockwell ID & Evaluation Tool"
-        self.items = ["A", "B", "C", "D", "E"]
 
         # self.icon = "assets/Boxplot.png"
 

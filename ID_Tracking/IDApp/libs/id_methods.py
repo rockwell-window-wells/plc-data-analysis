@@ -8,6 +8,8 @@ import datetime as dt
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+import data_assets
+
 ##### ID card printing class and functions #####
 
 # NOTE: The final version might need to work with image files, in which case
@@ -638,3 +640,5 @@ def rewrite_whole_Excel_sheet(IDfilepath, df, sheetnames):
 if __name__ == '__main__':
     print("id_generator is being run as the main function")
     allnums = get_all_employee_nums("ID_data.xlsx")
+    
+    print_all_IDcards(IDfilepath, QRfolder, IDcardfolder)
