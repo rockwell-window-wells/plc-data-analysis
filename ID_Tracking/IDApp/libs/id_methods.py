@@ -9,8 +9,219 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 import data_assets
+# from . import data_assets
 
 ##### ID card printing class and functions #####
+class IDPDF(FPDF):
+    def __init__(self):
+        super().__init__()
+        self.WIDTH = 210
+        self.HEIGHT = 297
+
+    def header(self):
+        # Custom logo and positioning
+        # self.image(data_assets.fulllogo, 10, 8, 33)
+        # self.set_font('Arial', '', 11)
+        # # self.cell(self.WIDTH - 80)
+        # self.cell(80, 1, 'Remember to print on both sides, flipped along long edge', 0, 0, 'L')
+        # self.ln(20)
+        pass
+
+    def footer(self):
+        # pass
+        # Page numbers in the footer
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.set_text_color(128)
+        self.cell(0, 5, 'Page ' + str(self.page_no()), 0, 0, 'C')
+
+    def page_body(self, images):
+        # Calculate positions of the IDcards on the page
+        marginwidth = 0
+        wcard = 64.77
+        hcard = 103.632
+        wpage = self.WIDTH
+        hpage = self.HEIGHT
+        
+        wcard_center_from_edge = marginwidth + ((wpage/2) - marginwidth)/2
+        hcard_center_from_edge = marginwidth + ((hpage/2) - marginwidth)/2
+        
+        # Top left
+        TLx = wcard_center_from_edge - wcard/2
+        TLy = hcard_center_from_edge - hcard/2
+        
+        # Top right
+        TRx = wpage - wcard_center_from_edge - wcard/2
+        TRy = TLy
+        
+        # Bottom left
+        BLx = TLx
+        BLy = hpage - hcard_center_from_edge - hcard/2
+        
+        # Bottom right
+        BRx = TRx
+        BRy = BLy        
+        
+        self.set_margins(marginwidth, marginwidth, marginwidth)
+        
+        if len(images) == 4:
+            self.image(images[0], x=TLx, y=TLy, w=wcard)
+            self.image(images[1], x=TRx, y=TRy, w=wcard)
+            self.image(images[2], x=BLx, y=BLy, w=wcard)
+            self.image(images[3], x=BRx, y=BRy, w=wcard)
+        elif len(images) == 3:
+            self.image(images[0], x=TLx, y=TLy, w=wcard)
+            self.image(images[1], x=TRx, y=TRy, w=wcard)
+            self.image(images[2], x=BLx, y=BLy, w=wcard)
+        elif len(images) == 2:
+            self.image(images[0], x=TLx, y=TLy, w=wcard)
+            self.image(images[1], x=TRx, y=TRy, w=wcard)
+        else:
+            self.image(images[0], x=TLx, y=TLy, w=wcard)
+
+    def print_page(self, images):
+        # Generates the report
+        self.add_page()
+        self.page_body(images)
+
+def chunker(seq, size):
+    return (seq[pos:pos + size] for pos in range(0, len(seq), size))
+
+def unify_IDcard_lists(idlist):
+    # Convert idlist, which is the list of 3-digit or fewer numbers, and
+    # gather the filepaths of the images to be added to the PDF in the
+    # correct order
+    leadlist = []
+    assistlist = []
+    IDcardfolder = data_assets.IDcardImagesfolder
+    blankcard = "../assets/Portrait_white_ID.png"
+    
+    for id in idlist:
+        idstr = str(id)
+        if len(idstr) == 1:
+            idstr = "00" + idstr
+        elif len(idstr) == 2:
+            idstr = "0" + idstr
+            
+        leadID = IDcardfolder + "\\" + "10" + idstr + "Lead.png"
+        assistID = IDcardfolder + "\\" + "11" + idstr + "Assistant.png"
+        
+        leadlist.append(leadID)
+        assistlist.append(assistID)
+        
+    # Group leadlist into fours
+    leadlist_copy = leadlist
+    leadlist = []
+    for group in chunker(leadlist_copy, 4):
+        if len(group) == 4:
+            templist = group
+        elif len(group) == 3:
+            templist = [group[0], group[1], group[2], blankcard]
+        elif len(group) == 2:
+            templist = [group[0], group[1], blankcard, blankcard]
+        elif len(group) == 1:
+            templist = [group[0], blankcard, blankcard, blankcard]
+        leadlist.append(templist)
+    
+    # Reorder assistlist so the cards will be rearranged for printing
+    # back to back
+    assistlist_copy = assistlist
+    assistlist = []
+    
+    for group in chunker(assistlist_copy, 4):
+        # print("group: {}".format(group))
+        if len(group) == 4:
+            templist = [group[1], group[0], group[3], group[2]]
+        elif len(group) == 3:
+            templist = [group[1], group[0], blankcard, group[2]]
+        elif len(group) == 2:
+            templist = [group[1], group[0], blankcard, blankcard]
+        elif len(group) == 1:
+            templist = [blankcard, group[0], blankcard, blankcard]
+        assistlist.append(templist)
+    
+    
+    unified_idlist = []
+    for i in range(len(leadlist)):
+        unified_idlist.append(leadlist[i])
+        unified_idlist.append(assistlist[i])
+            
+    return unified_idlist
+        
+
+def generate_IDPDF(idlist, filename):
+    pdf = IDPDF()
+    
+    unified_idlist = unify_IDcard_lists(idlist)
+    
+    for elem in unified_idlist:
+        pdf.print_page(elem)
+    
+    exportpath = data_assets.IDcardPrintsfolder
+    
+    exportfilepath = exportpath + '\\' + filename
+    # Check if the exported PDF file already exists in the export folder
+    if os.path.exists(exportfilepath):
+        # Change exportfilepath by appending a number to the end of the PDF file name
+        filename = os.path.splitext(filename)[0]
+        i = 1
+        while os.path.exists(exportpath + '\\' + filename + "({}).pdf".format(i)):
+            i += 1
+        exportfilepath = exportpath + '\\' + filename + "({}).pdf".format(i)
+    pdf.output(exportfilepath, 'F')
+
+def print_list_employee_IDcards_PDF(idlist, filename):
+    """Take in a list of up to 3 digit integers, print the ID card images, and
+    combine them into a named PDF file in the expected location.
+    Parameters
+    ----------
+    idlist : TYPE
+        DESCRIPTION.
+    filename : TYPE
+        DESCRIPTION.
+    Returns
+    -------
+    None.
+    """
+    for id in idlist:
+        print_IDcard_type_3digit("personnel", id)
+        
+    generate_IDPDF(idlist, filename)
+    
+
+def print_all_employee_IDcards_PDF():
+    # print_all_employee_IDcards()
+    
+    idlist = get_all_employee_nums(data_assets.ID_data) # This outputs a DataFrame
+    idlist = idlist["ID"]
+    idlist = list(idlist)
+    idlist = [int(id) for id in idlist]
+    
+    filename = "All_Operator_IDs.pdf"
+    generate_IDPDF(idlist, filename)
+
+
+def print_all_equipment_IDcards_PDF():
+    """Choose a category of ID from a list of acceptable strings, and print all
+    of ID cards for any assigned ID numbers in that category. Personnel option
+    prints all IDs that are associated with personnel (prefixes 10 and 11 as of
+    1/12/2022).
+    """
+    # Set relevant folders
+    IDfilepath = data_assets.ID_data
+                
+    typedict = {"molddown": 30,
+                "bag": 31}
+
+    for typestring in typedict.keys():
+        print_all_ID_by_type(typestring)
+        
+    
+    
+    
+    
+    
+    
 
 # NOTE: The final version might need to work with image files, in which case
 # these ID printing methods will need to change
@@ -90,7 +301,7 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     template.paste(qr, (left, top, right, bottom))
 
     fontsize = 75
-    font = ImageFont.truetype("./assets/Roboto-Black.ttf", size=fontsize)
+    font = ImageFont.truetype(data_assets.font, size=fontsize)
     draw = ImageDraw.Draw(template)
     if prefix != "11":
         draw.rectangle((bleed, bleed, W-bleed, H-bleed))
@@ -103,11 +314,11 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
                 break
             else:
                 fontsize -= 5
-                font = ImageFont.truetype("./assets/Roboto-Black.ttf", size=fontsize)
+                font = ImageFont.truetype(data_assets.font, size=fontsize)
                 w, h = draw.textsize(msg, font=font)
         draw.text(((W-w)/2, (H-W)/6 + bleed), employee_name, font=font, fill='black')
     fontsize = 75
-    font = ImageFont.truetype("./assets/Roboto-Black.ttf", size=fontsize)
+    font = ImageFont.truetype(data_assets.font, size=fontsize)
     msg = itemtype
     w, h = draw.textsize(msg, font=font)
     draw.text(((W-w)/2, (H-W)/2 + bleed), itemtype, font=font, fill='black')
@@ -164,7 +375,7 @@ def print_IDcard_5digit(idnum, IDfilepath, QRfolder, IDcardfolder):
         generate_qrcode(str(idnum), QRfolder)
 
     # Print the ID card and export it to the IDcardfolder with
-    templatefile = "./assets/Portrait_white_ID.png"
+    templatefile = data_assets.templatefile
     card = generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name)
     IDcardfilename = str(idnum) + itemtype + ".png"
     IDcardpath = IDcardfolder + '/' + IDcardfilename
@@ -639,6 +850,6 @@ def rewrite_whole_Excel_sheet(IDfilepath, df, sheetnames):
 ##### Main function #####
 if __name__ == '__main__':
     print("id_generator is being run as the main function")
-    allnums = get_all_employee_nums("ID_data.xlsx")
+    allnums = get_all_employee_nums(data_assets.ID_data)
     
-    print_all_IDcards(IDfilepath, QRfolder, IDcardfolder)
+    print_all_employee_IDcards_PDF()
