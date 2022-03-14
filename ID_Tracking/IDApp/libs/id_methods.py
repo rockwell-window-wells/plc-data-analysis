@@ -38,8 +38,8 @@ class IDPDF(FPDF):
     def page_body(self, images):
         # Calculate positions of the IDcards on the page
         marginwidth = 0
-        wcard = 64.77
-        hcard = 103.632
+        wcard = 71
+        hcard = 113.6
         wpage = self.WIDTH
         hpage = self.HEIGHT
         
@@ -60,7 +60,7 @@ class IDPDF(FPDF):
         
         # Bottom right
         BRx = TRx
-        BRy = BLy        
+        BRy = BLy
         
         self.set_margins(marginwidth, marginwidth, marginwidth)
         
@@ -180,11 +180,9 @@ def print_list_employee_IDcards_PDF(idlist, filename):
         DESCRIPTION.
     filename : TYPE
         DESCRIPTION.
-
     Returns
     -------
     None.
-
     """
     for id in idlist:
         print_IDcard_type_3digit("personnel", id)
@@ -193,9 +191,9 @@ def print_list_employee_IDcards_PDF(idlist, filename):
     
 
 def print_all_employee_IDcards_PDF():
-    print_all_employee_IDcards()
+    # print_all_employee_IDcards()
     
-    idlist = get_all_employee_nums() # This outputs a DataFrame
+    idlist = get_all_employee_nums(data_assets.ID_data) # This outputs a DataFrame
     idlist = idlist["ID"]
     idlist = list(idlist)
     idlist = [int(id) for id in idlist]
@@ -303,7 +301,7 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     template.paste(qr, (left, top, right, bottom))
 
     fontsize = 75
-    font = ImageFont.truetype("../assets/Roboto-Black.ttf", size=fontsize)
+    font = ImageFont.truetype(data_assets.font, size=fontsize)
     draw = ImageDraw.Draw(template)
     if prefix != "11":
         draw.rectangle((bleed, bleed, W-bleed, H-bleed))
@@ -316,11 +314,11 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
                 break
             else:
                 fontsize -= 5
-                font = ImageFont.truetype("../assets/Roboto-Black.ttf", size=fontsize)
+                font = ImageFont.truetype(data_assets.font, size=fontsize)
                 w, h = draw.textsize(msg, font=font)
         draw.text(((W-w)/2, (H-W)/6 + bleed), employee_name, font=font, fill='black')
     fontsize = 75
-    font = ImageFont.truetype("../assets/Roboto-Black.ttf", size=fontsize)
+    font = ImageFont.truetype(data_assets.font, size=fontsize)
     msg = itemtype
     w, h = draw.textsize(msg, font=font)
     draw.text(((W-w)/2, (H-W)/2 + bleed), itemtype, font=font, fill='black')
@@ -382,7 +380,7 @@ def print_IDcard_5digit(idnum):
         generate_qrcode(str(idnum), QRfolder)
 
     # Print the ID card and export it to the IDcardfolder with
-    templatefile = "../assets/Portrait_white_ID.png"
+    templatefile = data_assets.templatefile
     card = generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name)
     IDcardfilename = str(idnum) + itemtype + ".png"
     IDcardpath = IDcardfolder + '/' + IDcardfilename
@@ -816,6 +814,39 @@ def get_all_employee_nums():
     allnums["ID"] = allnums["ID"].str[2:]
     return allnums
 
+def get_shift_lists(IDfilepath):
+    """
+    Returns three lists, containing all 3-digit ID numbers associated with each
+    shift.
+
+    Parameters
+    ----------
+    IDfilepath : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    daylist: list of day shift IDs
+    swinglist: list of swing shift IDs
+    gravelist: list of graveyard shift IDs
+
+    """
+    leads = pd.read_excel(IDfilepath, sheet_name="Personnel-Lead")
+    allnums = leads[~leads["Name"].isnull()]   # Dataframe of just the rows with names assigned to IDs
+    allnums = allnums.drop(columns=["Type", "Date"])
+    allnums["ID"] = allnums["ID"].apply(str)
+    allnums["ID"] = allnums["ID"].str[2:]
+    
+    idlist = list(allnums["ID"])
+    shiftlist = list(allnums["Shift"])
+    
+    daylist =   [int(id) for i,id in enumerate(idlist) if shiftlist[i]=="Day"]
+    swinglist = [int(id) for i,id in enumerate(idlist) if shiftlist[i]=="Swing"]
+    gravelist = [int(id) for i,id in enumerate(idlist) if shiftlist[i]=="Graveyard"]
+    
+    return daylist, swinglist, gravelist
+    
+
 def reassign_employee_num(employee_name, new_desired_num):
     """Take an employee name (assumed to be unique in the list of employee names
     and ID numbers) and reassign them to a new desired ID number. Clear the data
@@ -849,11 +880,7 @@ def rewrite_whole_Excel_sheet(df, sheetnames):
 
 ##### Main function #####
 if __name__ == '__main__':
-    # print("id_generator is being run as the main function")
-    # # allnums = get_all_employee_nums()
-    # print_all_employee_IDcards()
-
-    # print_all_employee_IDcards_PDF()
-    filename = "short_list.pdf"
-    idlist = [123, 777, 666, 222, 1, 5]
-    print_list_employee_IDcards_PDF(idlist, filename)
+    print("id_generator is being run as the main function")
+    allnums = get_all_employee_nums(data_assets.ID_data)
+    
+    print_all_employee_IDcards_PDF()

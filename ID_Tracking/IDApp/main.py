@@ -36,7 +36,8 @@ import datetime as dt
 from dateutil.relativedelta import relativedelta
 
 from libs.id_methods import get_all_employee_nums
-import libs.cycle_time_methods as cycle
+import libs.cycle_time_methods_v2 as cycle
+# import libs.cycle_time_methods as cycle
 from libs import data_assets
 
 Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
@@ -49,6 +50,72 @@ class RootScreen(MDScreen):
 
 
 class HomeScreen(MDScreen):
+    def translate_en(self):
+        app.english = True
+        app.home_title = app.home_title_en
+        app.operator_eval_title = app.operator_eval_title_en
+        app.navigation_title = app.navigation_title_en
+        app.select_operator_btn = app.select_operator_btn_en
+        app.startdate_time_btn = app.startdate_time_btn_en
+        app.enddate_time_btn = app.enddate_time_btn_en
+        app.generate_report_btn = app.generate_report_btn_en
+        app.single_operator_select = app.single_operator_select_en
+        app.dayshift_select = app.dayshift_select_en
+        app.swingshift_select = app.swingshift_select_en
+        app.graveshift_select = app.graveshift_select_en
+        app.alloperators_select = app.alloperators_select_en
+        app.enter_operator_num = app.enter_operator_num_en
+        app.set_btn = app.set_btn_en
+        app.clear_btn = app.clear_btn_en
+        app.cancel_btn = app.cancel_btn_en
+        app.startdate_time_title = app.startdate_time_title_en
+        app.startdate_btn = app.startdate_btn_en
+        app.starttime_btn = app.starttime_btn_en
+        app.enddate_time_title = app.enddate_time_title_en
+        app.enddate_btn = app.enddate_btn_en
+        app.endtime_btn = app.endtime_btn_en
+        app.generating_report_text = app.generating_report_text_en
+        app.interpreting_reports_title = app.interpreting_reports_title_en
+        app.dismiss_btn = app.dismiss_btn_en
+        app.choose_startdate_time_title = app.choose_startdate_time_title_en
+        app.choose_enddate_time_title = app.choose_enddate_time_title_en
+        app.select_operator_title = app.select_operator_title_en
+
+        self.snackbar_show("Language changed to English")
+
+    def translate_esp(self):
+        app.english = False
+        app.home_title = app.home_title_esp
+        app.operator_eval_title = app.operator_eval_title_esp
+        app.navigation_title = app.navigation_title_esp
+        app.select_operator_btn = app.select_operator_btn_esp
+        app.startdate_time_btn = app.startdate_time_btn_esp
+        app.enddate_time_btn = app.enddate_time_btn_esp
+        app.generate_report_btn = app.generate_report_btn_esp
+        app.single_operator_select = app.single_operator_select_esp
+        app.dayshift_select = app.dayshift_select_esp
+        app.swingshift_select = app.swingshift_select_esp
+        app.graveshift_select = app.graveshift_select_esp
+        app.alloperators_select = app.alloperators_select_esp
+        app.enter_operator_num = app.enter_operator_num_esp
+        app.set_btn = app.set_btn_esp
+        app.clear_btn = app.clear_btn_esp
+        app.cancel_btn = app.cancel_btn_esp
+        app.startdate_time_title = app.startdate_time_title_esp
+        app.startdate_btn = app.startdate_btn_esp
+        app.starttime_btn = app.starttime_btn_esp
+        app.enddate_time_title = app.enddate_time_title_esp
+        app.enddate_btn = app.enddate_btn_esp
+        app.endtime_btn = app.endtime_btn_esp
+        app.generating_report_text = app.generating_report_text_esp
+        app.interpreting_reports_title = app.interpreting_reports_title_esp
+        app.dismiss_btn = app.dismiss_btn_esp
+        app.choose_startdate_time_title = app.choose_startdate_time_title_esp
+        app.choose_enddate_time_title = app.choose_enddate_time_title_esp
+        app.select_operator_title = app.select_operator_title_esp
+
+        self.snackbar_show("Idioma cambiado a Espa\u00F1ol")
+
     # Snackbar for showing status messages (better than allocating space to labels)
     def snackbar_show(self, snackbartext):
         self.snackbar = Snackbar(text = snackbartext)
@@ -89,17 +156,41 @@ class OperatorEvaluationScreen(MDScreen):
 
     def update_report_label(self, *args):
         if app.singleoperator:
-            labeltext = "Report will be generated for Operator {}\nStart: {} at {}\nEnd: {} at {}".format(app.OPERATOR_LIST[0], self.startdate, self.t_start, self.enddate, self.t_end)
+            if len(app.OPERATOR_LIST) == 0:
+                if app.english is True:
+                    labeltext = "NO OPERATOR SELECTED!\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+                else:
+                    labeltext = "¡NINGÚN OPERADOR SELECCIONADO!\nInicio: {} a las {}\nTerminación: {} a las {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            else:
+                if app.english is True:
+                    labeltext = "Report will be generated for Operator {}\nStart: {} at {}\nEnd: {} at {}".format(app.OPERATOR_LIST[0], self.startdate, self.t_start, self.enddate, self.t_end)
+                else:
+                    labeltext = "Se generará un informe para el Operador {}\nInicio: {} a las {}\nTerminación: {} a las {}".format(app.OPERATOR_LIST[0], self.startdate, self.t_start, self.enddate, self.t_end)
         elif app.dayshift:
-            labeltext = "Report will be generated for Day Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            if app.english is True:
+                labeltext = "Report will be generated for Day Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            else:
+                labeltext = "Se generará un informe para el turno de día\nInicio: {} a las {}\nTerminación: {} a las {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
         elif app.swingshift:
-            labeltext = "Report will be generated for Swing Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            if app.english is True:
+                labeltext = "Report will be generated for Swing Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            else:
+                labeltext = "Se generará un informe para el turno de turno\nInicio: {} a las {}\nTerminación: {} a las {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
         elif app.graveyardshift:
-            labeltext = "Report will be generated for Graveyard Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            if app.english is True:
+                labeltext = "Report will be generated for Graveyard Shift\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            else:
+                labeltext = "Se generará un informe para el turno de noche\nInicio: {} a las {}\nTerminación: {} a las {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
         elif app.alloperators:
-            labeltext = "Report will be generated for all operators\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            if app.english is True:
+                labeltext = "Report will be generated for all operators\nStart: {} at {}\nEnd: {} at {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
+            else:
+                labeltext = "Se generará un informe para todos los operadores\nInicio: {} a las {}\nTerminación: {} a las {}".format(self.startdate, self.t_start, self.enddate, self.t_end)
         else:
-            raise ValueError("Error with operator selection")
+            if app.english is True:
+                raise ValueError("Error with operator selection")
+            else:
+                raise ValueError("Error con la selección del operador")
 
         self.evaluationparameterlabel.text = labeltext
 
@@ -114,7 +205,7 @@ class OperatorEvaluationScreen(MDScreen):
 
         if not self.select_operator_dialog:
             self.select_operator_dialog = MDDialog(
-                title="Select Operator(s)",
+                title=app.select_operator_title,
                 type="custom",
                 content_cls=OperatorContent(),
                 buttons=[
@@ -125,7 +216,7 @@ class OperatorEvaluationScreen(MDScreen):
                         on_release=self.set_operator_list
                     ),
                     MDFlatButton(
-                        text="CANCEL",
+                        text=app.cancel_btn,
                         font_style="Button",
                         on_release=self.close_select_operator_dialog
                     ),
@@ -200,32 +291,32 @@ class OperatorEvaluationScreen(MDScreen):
 
         if not self.start_time_dialog:
             self.start_time_dialog = MDDialog(
-                title="Choose Start Date & Time",
+                title=app.choose_startdate_time_title,
                 buttons=[
                     MDRaisedButton(
-                        text="Start Date",
+                        text=app.startdate_btn,
                         font_style="Button",
                         on_release=self.show_start_date_picker
                     ),
                     MDRaisedButton(
-                        text="Start Time",
+                        text=app.starttime_btn,
                         font_style="Button",
                         on_release=self.show_start_time_picker
                     ),
                     MDRaisedButton(
-                        text="Set",
+                        text=app.set_btn,
                         font_style="Button",
                         md_bg_color=theme_cls.accent_color,
                         on_release=self.set_start_time_dialog
                     ),
                     MDFlatButton(
-                        text="Clear",
+                        text=app.clear_btn,
                         font_style="Button",
                         theme_text_color="Custom",
                         on_release=self.clear_start_time_dialog
                     ),
                     MDFlatButton(
-                        text="Cancel",
+                        text=app.cancel_btn,
                         font_style="Button",
                         theme_text_color="Custom",
                         on_release=self.cancel_start_time_dialog
@@ -255,11 +346,26 @@ class OperatorEvaluationScreen(MDScreen):
         self.startdate = value
         self.update_report_label()
         print("Starting date is {}, {}".format(self.startdate, type(self.startdate)))
+        if self.startdate < dt.date(2022,2,8):
+            if app.english is True:
+                statustext = "WARNING: Starting dates earlier than Feb 2, 2022 may cause errors."
+            else:
+                statustext = "ADVERTENCIA: Las fechas de inicio anteriores al 2 de febrero de 2022 pueden generar errores."
+            self.snackbar_show(statustext)
 
     def set_start_time_dialog(self, *args):
         self.start_time_dialog.dismiss(force=True)
         if self.t_start is None or self.startdate is None:
-            statustext = "Missing start time or date."
+            if app.english is True:
+                statustext = "Missing start time or date."
+            else:
+                statustext = "Falta la fecha o la hora de inicio."
+            self.snackbar_show(statustext)
+        if self.startdate < dt.date(2022,2,8):
+            if app.english is True:
+                statustext = "WARNING: Starting dates earlier than Feb 2, 2022 may cause errors."
+            else:
+                statustext = "ADVERTENCIA: Las fechas de inicio anteriores al 2 de febrero de 2022 pueden generar errores."
             self.snackbar_show(statustext)
         self.start_time_dialog = None
         print(self.t_start)
@@ -268,14 +374,22 @@ class OperatorEvaluationScreen(MDScreen):
     def clear_start_time_dialog(self, *args):
         self.t_start = None
         self.startdate = None
-        statustext = "STARTING DATE AND TIME CLEARED. Please select a new date and time before generating report."
+        if app.english is True:
+            statustext = "STARTING DATE AND TIME CLEARED. Please select a new date and time before generating report."
+        else:
+            statustext = "FECHA Y HORA DE INICIO LIMPIA. Seleccione una nueva fecha y hora antes de generar el informe."
         self.snackbar_show(statustext)
-        self.start_time_dialog = None
+        # self.start_time_dialog = None
 
     def cancel_start_time_dialog(self, *args):
         self.start_time_dialog.dismiss(force=True)
+        print(self.startdate, self.t_start)
         if not self.t_start or not self.startdate:
-            statustext = "Missing start time or date."
+            print(self.startdate, self.t_start)
+            if app.english is True:
+                statustext = "Missing start time or date."
+            else:
+                statustext = "Falta la fecha o la hora de inicio."
             self.snackbar_show(statustext)
         self.start_time_dialog = None
 
@@ -289,33 +403,33 @@ class OperatorEvaluationScreen(MDScreen):
 
         if not self.end_time_dialog:
             self.end_time_dialog = MDDialog(
-                title="Choose End Date & Time",
+                title=app.choose_enddate_time_title,
                 buttons=[
                     MDRaisedButton(
-                        text="End Date",
+                        text=app.enddate_btn,
                         font_style="Button",
                         on_release=self.show_end_date_picker
                     ),
                     MDRaisedButton(
-                        text="End Time",
+                        text=app.endtime_btn,
                         font_style="Button",
                         on_release=self.show_end_time_picker
                     ),
                     MDRaisedButton(
-                        text="Set",
+                        text=app.set_btn,
                         font_style="Button",
                         md_bg_color=theme_cls.accent_color,
                         on_release=self.set_end_time_dialog
                     ),
                     MDFlatButton(
-                        text="Clear",
+                        text=app.clear_btn,
                         font_style="Button",
                         theme_text_color="Custom",
                         text_color=theme_cls.primary_color,
                         on_release=self.clear_end_time_dialog
                     ),
                     MDFlatButton(
-                        text="Cancel",
+                        text=app.cancel_btn,
                         font_style="Button",
                         theme_text_color="Custom",
                         text_color=theme_cls.primary_color,
@@ -350,7 +464,10 @@ class OperatorEvaluationScreen(MDScreen):
     def set_end_time_dialog(self, *args):
         self.end_time_dialog.dismiss(force=True)
         if not self.t_end:
-            statustext = "MISSING END TIME"
+            if app.english is True:
+                statustext = "MISSING END TIME"
+            else:
+                statustext = "FALTA LA HORA DE FINALIZACIÓN"
             self.snackbar_show(statustext)
         # else:
         #     statustext = "GOOD TO GO"
@@ -361,14 +478,22 @@ class OperatorEvaluationScreen(MDScreen):
     def clear_end_time_dialog(self, *args):
         self.t_end = None
         self.enddate = None
-        statustext = "ENDING DATE AND TIME CLEARED. Please select a new date and time before generating report."
+        if app.english is True:
+            statustext = "ENDING DATE AND TIME CLEARED. Please select a new date and time before generating report."
+        else:
+            statustext = "ENDING DATE AND TIME CLEARED. Please select a new date and time before generating report."
         self.snackbar_show(statustext)
-        self.end_time_dialog = None
+        # self.end_time_dialog = None
 
     def cancel_end_time_dialog(self, *args):
         self.end_time_dialog.dismiss(force=True)
+        print(self.enddate, self.t_end)
         if not self.t_end or not self.enddate:
-            statustext = "MISSING ENDING DATE OR TIME."
+            print(self.enddate, self.t_end)
+            if app.english is True:
+                statustext = "MISSING ENDING DATE OR TIME."
+            else:
+                statustext = "FALTA FECHA U HORA DE FINALIZACIÓN."
             self.snackbar_show(statustext)
         self.end_time_dialog = None
 
@@ -380,7 +505,8 @@ class OperatorEvaluationScreen(MDScreen):
         theme_cls.primary_palette = "Teal"
         theme_cls.primary_hue = "400"
 
-        infotext =  """Operator reports are displayed with four box plots. The first three illustrate the cycle times for the chosen operator as a lead, as an assistant, and with all their times combined. The fourth column contains a plot of all cycle times logged at Rockwell during the period of interest.
+        if app.english is True:
+            infotext =  """Operator reports are displayed with three box plots. The first one illustrates the cycle times for the chosen operator as a lead, the second shows the operator's shift, and the third shows all cycle times at RockWell over the same period.
 
 Compare the medians for each plot to see what an operator averages most of the time. A median below the team's median indicates that the operator averages faster cycle times than the team.
 
@@ -388,16 +514,27 @@ The other main feature to look for is how compact or stretched the box plot is. 
 
 Outlier cases, if they exist, are shown as small circles above or below the box plot. These are cases that should be noted, but can be considered not typical, and in some cases can be ignored. These might happen due to conditions outside the operator's control, such as a bag change, but they can still be due to operator factors.
 
-Box plots are only valid with at least 5 data points. More sample points are better. For a proper evaluation, try to choose an evaluation period with at least 20 sample points for each box plot. The number of samples in each box plot is displayed below the chart on the generated Operator Report.
+Box plots are only valid with at least 5 data points. More sample points are better. For a proper evaluation, try to choose an evaluation period with at least 100 sample points for each box plot. The number of samples in each box plot is displayed below the chart on the generated Operator Report.
+                    """
+        else:
+            infotext =  """Los informes del operador se muestran con tres diagramas de caja. El primero ilustra los tiempos de ciclo para el operador elegido como guía, el segundo muestra el turno del operador y el tercero muestra todos los tiempos de ciclo en RockWell durante el mismo período.
+
+Compare las medianas de cada gráfico para ver cuál es el promedio de un operador la mayor parte del tiempo. Una mediana por debajo de la mediana del equipo indica que el operador promedia tiempos de ciclo más rápidos que el equipo.
+
+La otra característica principal a buscar es qué tan compacto o estirado es el diagrama de caja. Un diagrama de caja que es muy compacto significa que el operador es muy consistente en alcanzar sus tiempos de ciclo, mientras que un diagrama de caja alto o estirado indica un operador que es variable o inconsistente.
+
+Los casos atípicos, si existen, se muestran como pequeños círculos encima o debajo del diagrama de caja. Estos son casos que deben tenerse en cuenta, pero pueden considerarse no típicos y, en algunos casos, pueden ignorarse. Estos pueden ocurrir debido a condiciones fuera del control del operador, como un cambio de bolsa, pero aún pueden deberse a factores del operador.
+
+Los diagramas de caja solo son válidos con al menos 5 puntos de datos. Más puntos de muestra son mejores. Para una evaluación adecuada, intente elegir un período de evaluación con al menos 100 puntos de muestra para cada diagrama de caja. El número de muestras en cada diagrama de caja se muestra debajo del gráfico en el Informe del operador generado.
                     """
 
         if not self.evaluation_info_dialog:
             self.evaluation_info_dialog = MDDialog(
-                title="Interpreting Operator Reports",
+                title=app.interpreting_reports_title,
                 text=infotext,
                 buttons=[
                     MDFlatButton(
-                        text="DISMISS",
+                        text=app.dismiss_btn,
                         font_style="Button",
                         on_release=self.close_evaluation_info_dialog
                     ),
@@ -425,28 +562,25 @@ Box plots are only valid with at least 5 data points. More sample points are bet
         # alloperators = self.select_operator_dialog.content_cls.alloperatorscheck.active
 
         if app.singleoperator:
-            opnum = app.OPERATOR_LIST[0]
-            all_layup, all_close, all_resin, all_cycle = cycle.get_specific_operator_report(opnum, dtstart, dtend)
-            # statustext = "Report successfully generated for Operator {}".format(opnum)
-            # self.snackbar_show(statustext)
+            if len(app.OPERATOR_LIST) > 0:
+                opnum = app.OPERATOR_LIST[0]
+                cycle.get_specific_operator_report(opnum, dtstart, dtend)
+            else:
+                if app.english is True:
+                    statustext = "No operator selected"
+                else:
+                    statustext = "Ningún operador seleccionado"
+                self.snackbar_show(statustext)
         elif app.dayshift:
-            # app.OPERATOR_LIST = cycle.get_operator_list("Day")
-            # self.snackbar_show(app.OPERATOR_LIST)
             cycle.get_operator_report_by_list(app.OPERATOR_LIST, "Day", dtstart, dtend)
         elif app.swingshift:
-            # app.OPERATOR_LIST = cycle.get_operator_list("Swing")
-            # self.snackbar_show(app.OPERATOR_LIST)
             cycle.get_operator_report_by_list(app.OPERATOR_LIST, "Swing", dtstart, dtend)
         elif app.graveyardshift:
-            # app.OPERATOR_LIST = cycle.get_operator_list("Graveyard")
-            # self.snackbar_show(app.OPERATOR_LIST)
             cycle.get_operator_report_by_list(app.OPERATOR_LIST, "Graveyard", dtstart, dtend)
         elif app.alloperators:
-            cycle.analyze_all_molds_api(dtstart, dtend)
-            # statustext = "Report successfully generated for all operators"
-            # self.snackbar_show(statustext)
+            cycle.get_all_operator_reports(dtstart, dtend)
         else:
-            print("Multiple report generation is not yet ready. Thank you for your patience.")
+            print("Error with report generation.")
 
 
 class SettingsScreen(MDScreen):
@@ -486,6 +620,100 @@ class IDApp(MDApp):
     graveyardshift = False
     alloperators = False
 
+    ### Labels in English ###
+    home_title_en = "Home"
+    operator_eval_title_en = "Operator Evaluation"
+    navigation_title_en = "Navigation"
+    select_operator_btn_en = "Select Operator"
+    startdate_time_btn_en = "Starting Date/Time"
+    enddate_time_btn_en = "Ending Date/Time"
+    generate_report_btn_en = "Generate Report"
+    single_operator_select_en = "Single Operator"
+    dayshift_select_en = "Day Shift"
+    swingshift_select_en = "Swing Shift"
+    graveshift_select_en = "Graveyard Shift"
+    alloperators_select_en = "All Operators"
+    enter_operator_num_en = "Enter Operator Number"
+    set_btn_en = "Set"
+    clear_btn_en = "Clear"
+    cancel_btn_en = "Cancel"
+    startdate_time_title_en = "Choose Start Date & Time"
+    startdate_btn_en = "Start Date"
+    starttime_btn_en = "Start Time"
+    enddate_time_title_en = "Choose End Date & Time"
+    enddate_btn_en = "End Date"
+    endtime_btn_en = "End Time"
+    generating_report_text_en = "Generating Report..."
+    interpreting_reports_title_en = "Interpreting Operator Reports"
+    dismiss_btn_en = "Dismiss"
+    choose_startdate_time_title_en = "Choose Start Date & Time"
+    choose_enddate_time_title_en = "Choose End Date & Time"
+    select_operator_title_en = "Select Operator(s)"
+
+
+    ### Labels in Spanish ###
+    home_title_esp = "Inicio"
+    operator_eval_title_esp = "Evaluaci\u00F3n del Operador"
+    navigation_title_esp = "Navegaci\u00F3n"
+    select_operator_btn_esp = "Seleccionar operador"
+    startdate_time_btn_esp = "Fecha/hora de inicio"
+    enddate_time_btn_esp = "Fecha/hora de finalizaci\u00F3n"
+    generate_report_btn_esp = "Generar informe"
+    single_operator_select_esp = "Operador \u00FAnico"
+    dayshift_select_esp = "Turno de dia"
+    swingshift_select_esp = "Turno cambiante"
+    graveshift_select_esp = "Turno de noche"
+    alloperators_select_esp = "Todos los operadores"
+    enter_operator_num_esp = "Ingrese el n\u00FAmero de operador"
+    set_btn_esp = "Colocar"
+    clear_btn_esp = "Limpiar"
+    cancel_btn_esp = "Cancelar"
+    startdate_time_title_esp = "Elija fecha y hora de inicio"
+    startdate_btn_esp = "Fecha de inicio"
+    starttime_btn_esp = "Hora de inicio"
+    enddate_time_title_esp = "Elija la fecha y hora de finalizaci\u00F3n"
+    enddate_btn_esp = "Fecha final"
+    endtime_btn_esp = "Hora de finalizaci\u00F3n"
+    generating_report_text_esp = "Generando informe..."
+    interpreting_reports_title_esp = "Interpretación de los informes del operador"
+    dismiss_btn_esp = "Descartar"
+    choose_startdate_time_title_esp = "Elija fecha y hora de inicio"
+    choose_enddate_time_title_esp = "Elija la fecha y hora de finalización"
+    select_operator_title_esp = "Seleccionar operador(s)"
+
+
+    ### Reference variables for text labels ###
+    home_title = StringProperty(home_title_en)
+    operator_eval_title = StringProperty(operator_eval_title_en)
+    navigation_title = StringProperty(navigation_title_en)
+    select_operator_btn = StringProperty(select_operator_btn_en)
+    startdate_time_btn = StringProperty(startdate_time_btn_en)
+    enddate_time_btn = StringProperty(enddate_time_btn_en)
+    generate_report_btn = StringProperty(generate_report_btn_en)
+    single_operator_select = StringProperty(single_operator_select_en)
+    dayshift_select = StringProperty(dayshift_select_en)
+    swingshift_select = StringProperty(swingshift_select_en)
+    graveshift_select = StringProperty(graveshift_select_en)
+    alloperators_select = StringProperty(alloperators_select_en)
+    enter_operator_num = StringProperty(enter_operator_num_en)
+    set_btn = StringProperty(set_btn_en)
+    clear_btn = StringProperty(clear_btn_en)
+    cancel_btn = StringProperty(cancel_btn_en)
+    startdate_time_title = StringProperty(startdate_time_title_en)
+    startdate_btn = StringProperty(startdate_btn_en)
+    starttime_btn = StringProperty(starttime_btn_en)
+    enddate_time_title = StringProperty(enddate_time_title_en)
+    enddate_btn = StringProperty(enddate_btn_en)
+    endtime_btn = StringProperty(endtime_btn_en)
+    generating_report_text = StringProperty(generating_report_text_en)
+    interpreting_reports_title = StringProperty(interpreting_reports_title_en)
+    dismiss_btn = StringProperty(dismiss_btn_en)
+    choose_startdate_time_title = StringProperty(choose_startdate_time_title_en)
+    choose_enddate_time_title = StringProperty(choose_enddate_time_title_en)
+    select_operator_title = StringProperty(select_operator_title_en)
+
+    english = True
+
     def build(self):
         # App settings
         # self.theme_cls.colors = colors
@@ -494,8 +722,8 @@ class IDApp(MDApp):
         self.theme_cls.primary_hue = "400"
         # self.theme_cls.accent_palette = "Amber"
         self.title = "Rockwell ID & Evaluation Tool"
-        # self.icon = "assets/RWLettermark.png"
-        self.items = ["A", "B", "C", "D", "E"]
+
+        # self.icon = "assets/Boxplot.png"
 
         screen = Builder.load_string(KV)
 
