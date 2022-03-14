@@ -38,7 +38,6 @@ class IDPDF(FPDF):
     def page_body(self, images):
         # Calculate positions of the IDcards on the page
         marginwidth = 0
-        # wcard = 64.77
         wcard = 71
         hcard = 113.6
         wpage = self.WIDTH
@@ -174,6 +173,7 @@ def generate_IDPDF(idlist, filename):
 def print_list_employee_IDcards_PDF(idlist, filename):
     """Take in a list of up to 3 digit integers, print the ID card images, and
     combine them into a named PDF file in the expected location.
+
     Parameters
     ----------
     idlist : TYPE
@@ -197,7 +197,6 @@ def print_all_employee_IDcards_PDF():
     idlist = idlist["ID"]
     idlist = list(idlist)
     idlist = [int(id) for id in idlist]
-    
     filename = "All_Operator_IDs.pdf"
     generate_IDPDF(idlist, filename)
 
@@ -329,10 +328,15 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     return template
 
 
-def print_IDcard_5digit(idnum, IDfilepath, QRfolder, IDcardfolder):
+def print_IDcard_5digit(idnum):
     """Take a given ID number (5-digit integer), find the corresponding name and
     QR code, and produce a printable ID card. Export it to the IDcardfolder.
     """
+    # Set relevant folders
+    IDfilepath = data_assets.ID_data
+    QRfolder = data_assets.QRcodesfolder
+    IDcardfolder = data_assets.IDcardImagesfolder
+    
     # Get the necessary inputs to print_page function
     df = pd.read_excel(IDfilepath, None)
     sheetnames = df.keys()
@@ -388,15 +392,17 @@ def print_IDcard_5digit(idnum, IDfilepath, QRfolder, IDcardfolder):
     # IDcardpath = IDcardfolder + '/' + IDcardfilename
     # pdf.output(IDcardpath, 'F')
 
-def print_IDcard_type_3digit(typestring, id_num, IDfilepath, QRfolder, IDcardfolder):
+def print_IDcard_type_3digit(typestring, id_num):
     """For cases where a card needs to be reprinted, this function takes a
     type string (i.e. "moldbacker" or "purple") and a 3-digit ID number, checks
     against the records in an Excel file, and if the desired ID exists, prints
     the corresponding QR code and ID card
     """
-    typedict = {"purple": 30,
-                "bag": 31,
-                "pictureframe": 32}
+    # Set relevant folders
+    IDfilepath = data_assets.ID_data
+    
+    typedict = {"molddown": 30,
+                "bag": 31}
     prefixes = []
     id_strings = []
     df = pd.read_excel(IDfilepath, None)
@@ -446,12 +452,16 @@ def print_IDcard_type_3digit(typestring, id_num, IDfilepath, QRfolder, IDcardfol
                     id_ints.remove(id)
 
     # If all the ID numbers have been assigned, then print their QR codes
-    list_QR(id_ints, QRfolder)
+    list_QR(id_ints)
     # Print the ID cards once the QR cards are generated
-    list_IDcard(id_ints, IDfilepath, QRfolder, IDcardfolder)
+    list_IDcard(id_ints)
 
-def print_all_employee_IDcards(IDfilepath, QRfolder, IDcardfolder):
-    allnums = get_all_employee_nums(IDfilepath)
+def print_all_employee_IDcards():
+    # Set relevant folders
+    IDfilepath = data_assets.ID_data
+    QRfolder = data_assets.QRcodesfolder
+    
+    allnums = get_all_employee_nums()
     indices = allnums.index
 
     # Load the dataframe with all ID data
@@ -470,30 +480,33 @@ def print_all_employee_IDcards(IDfilepath, QRfolder, IDcardfolder):
                 id_string = str(id_int)
                 # print(id_string)
                 generate_qrcode(id_string, QRfolder)
-                print_IDcard_5digit(id_int, IDfilepath, QRfolder, IDcardfolder)
+                print_IDcard_5digit(id_int)
 
-def list_IDcard(idlist, IDfilepath, QRfolder, IDcardfolder):
+def list_IDcard(idlist):
     """Take a list of ID numbers (full ID with prefixes, as integers) and print
     all of the corresponding ID cards as PDF documents. Only prints ID cards for
     ID numbers that exist in the ID Excel file.
     """
     for id in idlist:
         try:
-            print_IDcard_5digit(id, IDfilepath, QRfolder, IDcardfolder)
+            print_IDcard_5digit(id)
         except Exception as e:
             print(e)
             continue
     
 
-def print_all_ID_by_type(typestring, IDfilepath, QRfolder, IDcardfolder):
+def print_all_ID_by_type(typestring):
     """Choose a category of ID from a list of acceptable strings, and print all
     of ID cards for any assigned ID numbers in that category. Personnel option
     prints all IDs that are associated with personnel (prefixes 10 and 11 as of
     1/12/2022).
     """
-    typedict = {"purple": 30,
+    # Set relevant folders
+    IDfilepath = data_assets.ID_data
+    
+    typedict = {"molddown": 30,
                 "bag": 31,
-                "pictureframe": 32}
+                }
     prefixes = []
     id_strings = []
     df = pd.read_excel(IDfilepath, None)
@@ -525,24 +538,26 @@ def print_all_ID_by_type(typestring, IDfilepath, QRfolder, IDcardfolder):
             if prefixcheck == prefix:
                 # Get list of ID numbers that have been assigned
                 assigned = iddata["ID"].loc[pd.notna(iddata["Date"])].tolist()
-                list_IDcard(assigned, IDfilepath, QRfolder, IDcardfolder)
+                list_IDcard(assigned)
 
-def print_all_IDcards(IDfilepath, QRfolder, IDcardfolder):
+def print_all_IDcards():
     """Single function to update the QR codes and ID cards with all of the
     currently assigned ID numbers for both personnel and equipment.
-    """
-    typekeys = ["personnel", "purple", "bag", "pictureframe"]
+    """    
+    typekeys = ["personnel", "molddown", "bag"]
     for key in typekeys:
-        print_all_ID_by_type(key, IDfilepath, QRfolder, IDcardfolder)
+        print_all_ID_by_type(key)
 
 
-def N_new_equip_ids(n, typestring, IDfilepath, QRfolder, IDcardfolder):
+def N_new_equip_ids(n, typestring):
     """Generate the next n equipment ID numbers, QR codes, and ID cards for the
     chosen equipment type.
     """
-    typedict = {"purple": 30,
-                "bag": 31,
-                "pictureframe": 32}
+    # Set relevant folders
+    IDfilepath = data_assets.ID_data
+    
+    typedict = {"molddown": 30,
+                "bag": 31}
     prefix = None
 
     # id_strings = []
@@ -593,11 +608,11 @@ def N_new_equip_ids(n, typestring, IDfilepath, QRfolder, IDcardfolder):
 
             # print(idlist)
             # Print the QR codes of all the IDs on the list
-            list_QR(idlist, QRfolder)
-            list_IDcard(idlist, IDfilepath, QRfolder, IDcardfolder)
+            list_QR(idlist)
+            list_IDcard(idlist)
 
     # Save the updated data to the Excel ID file
-    rewrite_whole_Excel_sheet(IDfilepath, df, sheetnames)
+    rewrite_whole_Excel_sheet(df, sheetnames)
 
 
 ##### QR code generation methods #####
@@ -626,10 +641,13 @@ def range_QR(typeprefix, idA, idB, path):
     else:
         raise ValueError("idB must be greater than idA")
 
-def list_QR(idlist, QRfolder):
+def list_QR(idlist):
     """Take a list of ID numbers (full ID with prefixes, as integers) and print
     all of the corresponding qr codes.
     """
+    # Set relevant folders
+    QRfolder = data_assets.QRcodesfolder
+    
     for id in idlist:
         id_string = str(id)
         # Sanity check on length of id_string
@@ -659,7 +677,7 @@ def generate_id_string(typeprefix, idnum):
 
 
 ##### Methods for employees to choose or modify their ID number #####
-def assign_employee_nums_from_sheet(IDinputfile, IDfilepath, QRfolder, IDcardfolder):
+def assign_employee_nums_from_sheet():
     """Take an Excel sheet with two columns: Name and 3 digit ID number. Assign
     all of the numbers to employees and generate their QR codes and ID cards.
     Perform checks and catch any numbers that are duplicates in the input file
@@ -673,6 +691,9 @@ def assign_employee_nums_from_sheet(IDinputfile, IDfilepath, QRfolder, IDcardfol
     Returns:
         N/A
     """
+    # Set relevant folders
+    IDinputfile = data_assets.ID_input
+    
     # Load the input workbook, assuming the data is on the first sheet
     df_input = pd.read_excel(IDinputfile)
 
@@ -697,7 +718,7 @@ def assign_employee_nums_from_sheet(IDinputfile, IDfilepath, QRfolder, IDcardfol
         employee_name = df_input.loc[i, "Name"]
 
         try:
-            assign_employee_num(desired_number, employee_name, IDfilepath, QRfolder, IDcardfolder)
+            assign_employee_num(desired_number, employee_name)
         except Exception as e:
             exceptions.append(str(e))
             continue
@@ -708,7 +729,7 @@ def assign_employee_nums_from_sheet(IDinputfile, IDfilepath, QRfolder, IDcardfol
         exceptions_str = exceptions_str + e + "\n"
     print(exceptions_str)
 
-def assign_employee_num(desired_number, employee_name, IDfilepath, QRfolder, IDcardfolder):
+def assign_employee_num(desired_number, employee_name):
     """Allow an employee to pick their own ID number (3 digits). Check against
     an Excel spreadsheet to see if the number is taken. If it's taken, show an
     error message. If it's not taken, then assign the employee's name to the
@@ -723,6 +744,9 @@ def assign_employee_num(desired_number, employee_name, IDfilepath, QRfolder, IDc
     Returns:
         N/A
     """
+    # Set relevant folders
+    IDfilepath = data_assets.ID_data
+    
     # Load the workbook with all sheets (that's what the None flag is for)
     # df is a dictionary of sheet names and dataframes of the sheets
     df = pd.read_excel(IDfilepath, None)
@@ -771,15 +795,18 @@ def assign_employee_num(desired_number, employee_name, IDfilepath, QRfolder, IDc
                 df[sheetname] = iddata
                 print("ID {} assigned to {}".format(num, employee_name))
                 rewrite_whole_Excel_sheet(IDfilepath, df, sheetnames)
-                print_IDcard_5digit(num, IDfilepath, QRfolder, IDcardfolder)
+                print_IDcard_5digit(num)
             else:
                 raise Exception("[ERROR] ID number {} has already been assigned.".format(num))
 
 
-def get_all_employee_nums(IDfilepath):
+def get_all_employee_nums():
     """Returns dataframe with collapsed list of all 3-digit ID numbers currently
     in use for employees only.
     """
+    # Set relevant folders
+    IDfilepath = data_assets.ID_data
+    
     leads = pd.read_excel(IDfilepath, sheet_name="Personnel-Lead")
     allnums = leads[~leads["Name"].isnull()]   # Dataframe of just the rows with names assigned to IDs
     allnums = allnums.drop(columns=["Type", "Date"])
@@ -828,9 +855,12 @@ def reassign_employee_num(employee_name, new_desired_num):
     pass
 
 ##### Convenience methods #####
-def rewrite_whole_Excel_sheet(IDfilepath, df, sheetnames):
+def rewrite_whole_Excel_sheet(df, sheetnames):
     """Convenience function for writing all new data to the whole Excel sheet.
     """
+    # Set relevant folders
+    IDfilepath = data_assets.ID_data
+    
     with pd.ExcelWriter(IDfilepath, engine='xlsxwriter',
                         date_format="yyyy-mm-dd",
                         datetime_format="yyyy-mm-dd") as writer:
