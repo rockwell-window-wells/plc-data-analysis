@@ -8,8 +8,8 @@ import datetime as dt
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-import data_assets
-# from . import data_assets
+# import data_assets
+from . import data_assets
 
 ##### ID card printing class and functions #####
 class IDPDF(FPDF):
@@ -38,8 +38,9 @@ class IDPDF(FPDF):
     def page_body(self, images):
         # Calculate positions of the IDcards on the page
         marginwidth = 0
-        wcard = 64.77
-        hcard = 103.632
+        # wcard = 64.77
+        wcard = 71
+        hcard = 113.6
         wpage = self.WIDTH
         hpage = self.HEIGHT
         
@@ -60,7 +61,7 @@ class IDPDF(FPDF):
         
         # Bottom right
         BRx = TRx
-        BRy = BLy        
+        BRy = BLy
         
         self.set_margins(marginwidth, marginwidth, marginwidth)
         
