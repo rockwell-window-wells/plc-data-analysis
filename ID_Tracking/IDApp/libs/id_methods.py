@@ -19,12 +19,6 @@ class IDPDF(FPDF):
         self.HEIGHT = 297
 
     def header(self):
-        # Custom logo and positioning
-        # self.image(data_assets.fulllogo, 10, 8, 33)
-        # self.set_font('Arial', '', 11)
-        # # self.cell(self.WIDTH - 80)
-        # self.cell(80, 1, 'Remember to print on both sides, flipped along long edge', 0, 0, 'L')
-        # self.ln(20)
         pass
 
     def footer(self):
@@ -847,7 +841,7 @@ def get_shift_lists(IDfilepath):
     return daylist, swinglist, gravelist
     
 
-def reassign_employee_num(employee_name, new_desired_num):
+def reassign_employee_num(oldnum, newnum):
     """Take an employee name (assumed to be unique in the list of employee names
     and ID numbers) and reassign them to a new desired ID number. Clear the data
     for the old number so it becomes available.
@@ -881,6 +875,9 @@ def rewrite_whole_Excel_sheet(df, sheetnames):
 ##### Main function #####
 if __name__ == '__main__':
     print("id_generator is being run as the main function")
-    allnums = get_all_employee_nums(data_assets.ID_data)
+    # allnums = get_all_employee_nums(data_assets.ID_data)
     
-    print_all_employee_IDcards_PDF()
+    # print_all_employee_IDcards_PDF()
+    idlist = [111]
+    filename = "test_id.pdf"
+    print_list_employee_IDcards_PDF(idlist, filename)
