@@ -34,8 +34,9 @@ from os.path import exists
 
 import datetime as dt
 from dateutil.relativedelta import relativedelta
+import pandas as pd
 
-from libs.id_methods import get_all_employee_nums
+from libs import id_methods
 import libs.cycle_time_methods_v2 as cycle
 # import libs.cycle_time_methods as cycle
 from libs import data_assets
@@ -80,6 +81,10 @@ class HomeScreen(MDScreen):
         app.choose_startdate_time_title = app.choose_startdate_time_title_en
         app.choose_enddate_time_title = app.choose_enddate_time_title_en
         app.select_operator_title = app.select_operator_title_en
+        app.operator_ids_title = app.operator_ids_title_en
+        app.add_operator_btn = app.add_operator_btn_en
+        app.enter_id_num = app.enter_id_num_en
+        app.enter_operator_name = app.enter_operator_name_en
 
         self.snackbar_show("Language changed to English")
 
@@ -113,6 +118,10 @@ class HomeScreen(MDScreen):
         app.choose_startdate_time_title = app.choose_startdate_time_title_esp
         app.choose_enddate_time_title = app.choose_enddate_time_title_esp
         app.select_operator_title = app.select_operator_title_esp
+        app.operator_ids_title = app.operator_ids_title_esp
+        app.add_operator_btn = app.add_operator_btn_esp
+        app.enter_id_num = app.enter_id_num_esp
+        app.enter_operator_name = app.enter_operator_name_esp
 
         self.snackbar_show("Idioma cambiado a Espa\u00F1ol")
 
@@ -123,10 +132,92 @@ class HomeScreen(MDScreen):
 
 
 class OperatorIDScreen(MDScreen):
+    shift = None
+
     # Snackbar for showing status messages (better than allocating space to labels)
     def snackbar_show(self, snackbartext):
         self.snackbar = Snackbar(text = snackbartext)
         self.snackbar.open()
+
+    def get_shiftname(self, *args):
+        app.dayshift = self.dayshiftcheck.active
+        app.swingshift = self.swingshiftcheck.active
+        app.graveyardshift = self.graveyardshiftcheck.active
+
+        if app.dayshift:
+            self.shift = "Day"
+        elif app.swingshift:
+            self.shift = "Swing"
+        elif app.graveyardshift:
+            self.shift = "Graveyard"
+        else:
+            self.snackbar_show("[ERROR] Shift selection error")
+
+
+    def assign_employee_num(self, desired_number:str, employee_name:str, shift:str):
+        # Version of id_methods.assign_employee_num that catches errors so they
+        # can be displayed as feedback messages on the app.
+        while True:
+            # Catch cases where the ID number is too many digits
+            if len(desired_number) > 3:
+                statustext = "Desired ID number is too long. Choose one with 3 or fewer digits."
+                self.snackbar_show(statustext)
+                break
+
+            # If the number is good, load the data and either insert the number
+            # if it isn't taken already, or throw an error and break the loop
+            IDfilepath = data_assets.ID_data
+
+            # Load the workbook with all sheets (that's what the None flag is for)
+            # df is a dictionary of sheet names and dataframes of the sheets
+            df = pd.read_excel(IDfilepath, None)
+            sheetnames = df.keys()
+
+            # Iterate through the sheets
+            for sheetname in sheetnames:
+                iddata = df[sheetname]
+
+                # All personnel sheets have a Name column. Equipment sheets don't have
+                # this column, so we use it to catch only the personnel relevant data.
+                if "Name" in iddata:
+                    IDexample = str(iddata.loc[0,"ID"])
+                    prefix = IDexample[0:2]
+
+                    if len(desired_number) == 3:
+                        idnum_str = desired_number
+                    else:
+                        nzeros = 3 - len(desired_number)
+                        idnum_str = nzeros*"0" + desired_number
+
+                    # Combine the prefix and the ID number
+                    num = prefix + idnum_str
+                    num = int(num)
+
+                    # Get the rows in leads and assistants that correspond to the desired number
+                    numind = iddata.index[iddata["ID"] == num]
+                    numind = numind[0]
+
+                    if pd.isna(iddata.loc[numind, "Name"]):
+                        # Update the Name column
+                        iddata.loc[numind, "Name"] = employee_name
+                        # Update the Date column
+                        iddata.loc[numind, "Date"] = dt.date.today()
+                        iddata.loc[numind, "Shift"] = shift
+                        df[sheetname] = iddata
+                        print("ID {} assigned to {}".format(num, employee_name))
+                        id_methods.rewrite_whole_Excel_sheet(df, sheetnames)
+                        id_methods.print_IDcard_5digit(num)
+
+                        statustext = "ID {} assigned to {}".format(desired_number, employee_name)
+                        self.snackbar_show(statustext)
+                    else:
+                        statustext = "[ERROR] ID number {} has already been assigned.".format(desired_number)
+                        self.snackbar_show(statustext)
+                        break
+            break
+
+        id_methods.print_all_employee_IDcards_PDF()
+
 
 class EquipmentIDScreen(MDScreen):
     # Snackbar for showing status messages (better than allocating space to labels)
@@ -134,8 +225,10 @@ class EquipmentIDScreen(MDScreen):
         self.snackbar = Snackbar(text = snackbartext)
         self.snackbar.open()
 
+
 class OperatorContent(MDBoxLayout):
     pass
+
 
 class OperatorEvaluationScreen(MDScreen):
     start_time_dialog = None        # Holding variable for time dialog
@@ -261,7 +354,7 @@ class OperatorEvaluationScreen(MDScreen):
             # directory = 'Z:\\Production\\ID_Tracking\\ID_numbers\\'
             # filepath = directory + "ID_data.xlsx"
             filepath = data_assets.ID_data
-            df = get_all_employee_nums(filepath)
+            df = id_methods.get_all_employee_nums(filepath)
             allnums = list(df["ID"])
             allnums = [int(num) for num in allnums]
             # print(allnums)
@@ -649,6 +742,10 @@ class IDApp(MDApp):
     choose_startdate_time_title_en = "Choose Start Date & Time"
     choose_enddate_time_title_en = "Choose End Date & Time"
     select_operator_title_en = "Select Operator(s)"
+    operator_ids_title_en = "Operator IDs"
+    add_operator_btn_en = "Add Operator"
+    enter_id_num_en = "Enter a number with up to 3 digits"
+    enter_operator_name_en = "Enter operator's name"
 
 
     ### Labels in Spanish ###
@@ -680,6 +777,10 @@ class IDApp(MDApp):
     choose_startdate_time_title_esp = "Elija fecha y hora de inicio"
     choose_enddate_time_title_esp = "Elija la fecha y hora de finalización"
     select_operator_title_esp = "Seleccionar operador(s)"
+    operator_ids_title_esp = "ID de operador"
+    add_operator_btn_esp = "Agregar operador"
+    enter_id_num_esp = "Introduce un número de hasta 3 dígitos"
+    enter_operator_name_esp = "Ingrese el nombre del operador"
 
 
     ### Reference variables for text labels ###
@@ -711,6 +812,10 @@ class IDApp(MDApp):
     choose_startdate_time_title = StringProperty(choose_startdate_time_title_en)
     choose_enddate_time_title = StringProperty(choose_enddate_time_title_en)
     select_operator_title = StringProperty(select_operator_title_en)
+    operator_ids_title = StringProperty(operator_ids_title_en)
+    add_operator_btn = StringProperty(add_operator_btn_en)
+    enter_id_num = StringProperty(enter_id_num_en)
+    enter_operator_name = StringProperty(enter_operator_name_en)
 
     english = True
 

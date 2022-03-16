@@ -50,6 +50,12 @@ KV = '''
 <OperatorIDScreen>:
     name: "operatoridscreen"
     id: operator_id_screen
+    dayshiftcheck: dayshiftcheck
+    swingshiftcheck: swingshiftcheck
+    graveyardshiftcheck: graveyardshiftcheck
+    addoperatornumbertext: addoperatornumbertext
+    addoperatornametext: addoperatornametext
+
     # plotsingle: plotsingle
     # annotatevalues: annotatevalues
     # annotatelines: annotatelines
@@ -65,7 +71,7 @@ KV = '''
 
             MDLabel:
                 id: operatoreidtitle
-                text: "Operator IDs"
+                text: app.operator_ids_title
                 font_style: "H5"
                 pos_hint: {"top": 1.375, "x": 0.01}
 
@@ -74,11 +80,68 @@ KV = '''
         anchor_y: "center"
 
         MDGridLayout:
-            rows: 2
-            columns: 2
-            size_hint: (0.8, 0.8)
+            rows: 4
+            columns: 1
+            size_hint: (0.4, 0.6)
             padding: 20
             spacing: 20
+
+            MDTextField:
+                id: addoperatornumbertext
+                hint_text: app.enter_id_num
+
+            MDTextField:
+                id: addoperatornametext
+                hint_text: app.enter_operator_name
+
+            AnchorLayout:
+                anchor_x: "center"
+                anchor_y: "center"
+
+                MDGridLayout:
+                    rows: 3
+                    columns: 1
+                    size_hint: (0.75, 1)
+                    padding: 20
+                    spacing: 20
+
+                    MDBoxLayout:
+                        orientation: "horizontal"
+                        padding: 10
+                        spacing: 10
+
+                        Check:
+                            id: dayshiftcheck
+                            active: True
+                            pos_hint: {'center_x': 0, 'center_y': 0}
+
+                        MDLabel:
+                            text: app.dayshift_select
+
+                    MDBoxLayout:
+                        orientation: "horizontal"
+                        padding: 10
+                        spacing: 10
+
+                        Check:
+                            id: swingshiftcheck
+                            pos_hint: {'center_x': 0, 'center_y': 0}
+
+                        MDLabel:
+                            text: app.swingshift_select
+
+                    MDBoxLayout:
+                        orientation: "horizontal"
+                        padding: 10
+                        spacing: 10
+
+                        Check:
+                            id: graveyardshiftcheck
+                            pos_hint: {'center_x': 0, 'center_y': 0}
+
+                        MDLabel:
+                            text: app.graveshift_select
+
 
             AnchorLayout:
                 anchor_x: "center"
@@ -86,41 +149,15 @@ KV = '''
 
                 MDRaisedButton:
                     id: addoperator
-                    text: "Add Operator"
+                    text: app.add_operator_btn
                     font_style: "Button"
                     # md_bg_color: app.theme_cls.accent_color
                     # pos_hint: {"top": 0.5, "right": 0.5}
                     elevation: 5
-                    # on_release:
-                        # root.show_select_operator_dialog()
+                    on_release:
+                        root.get_shiftname()
+                        root.assign_employee_num(addoperatornumbertext.text, addoperatornametext.text, root.shift)
 
-            AnchorLayout:
-                anchor_x: "center"
-                anchor_y: "center"
-
-                MDRaisedButton:
-                    id: dummybutton
-                    text: "Dummy Button"
-                    font_style: "Button"
-                    # md_bg_color: app.theme_cls.accent_color
-                    # pos_hint: {"top": 0.5, "right": 0.5}
-                    elevation: 5
-                    # on_release:
-                        # root.show_select_operator_dialog()
-
-            AnchorLayout:
-                anchor_x: "center"
-                anchor_y: "center"
-
-                MDRaisedButton:
-                    id: dummybutton
-                    text: "Dummy Button"
-                    font_style: "Button"
-                    # md_bg_color: app.theme_cls.accent_color
-                    # pos_hint: {"top": 0.5, "right": 0.5}
-                    elevation: 5
-                    # on_release:
-                        # root.show_select_operator_dialog()
 
 <Check@MDCheckbox>:
     group: 'group'
@@ -460,12 +497,12 @@ KV = '''
                     root.nav_drawer.set_state("close")
                     root.screen_manager.current = "homescreen"
 
-            # ItemDrawer:
-            #     text: "Operator ID"
-            #     icon: "account"
-            #     on_release:
-            #         root.nav_drawer.set_state("close")
-            #         root.screen_manager.current = "operatoridscreen"
+            ItemDrawer:
+                text: app.operator_ids_title
+                icon: "account"
+                on_release:
+                    root.nav_drawer.set_state("close")
+                    root.screen_manager.current = "operatoridscreen"
 
             ItemDrawer:
                 text: app.operator_eval_title
@@ -508,7 +545,7 @@ RootScreen:
 
             HomeScreen:
 
-            # OperatorIDScreen:
+            OperatorIDScreen:
 
             OperatorEvaluationScreen:
 

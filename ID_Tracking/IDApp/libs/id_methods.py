@@ -164,6 +164,7 @@ def generate_IDPDF(idlist, filename):
         exportfilepath = exportpath + '\\' + filename + "({}).pdf".format(i)
     pdf.output(exportfilepath, 'F')
 
+
 def print_list_employee_IDcards_PDF(idlist, filename):
     """Take in a list of up to 3 digit integers, print the ID card images, and
     combine them into a named PDF file in the expected location.
@@ -187,12 +188,20 @@ def print_list_employee_IDcards_PDF(idlist, filename):
 def print_all_employee_IDcards_PDF():
     # print_all_employee_IDcards()
     
-    idlist = get_all_employee_nums(data_assets.ID_data) # This outputs a DataFrame
+    idlist = get_all_employee_nums() # This outputs a DataFrame
     idlist = idlist["ID"]
     idlist = list(idlist)
     idlist = [int(id) for id in idlist]
     filename = "All_Operator_IDs.pdf"
+    
+    # Automatically open the file for printing
+    exportpath = data_assets.IDcardPrintsfolder
+    exportfilepath = exportpath + '\\' + filename
+    # Check if the exported PDF file already exists in the export folder
+    if os.path.exists(exportfilepath):
+        os.remove(exportfilepath)
     generate_IDPDF(idlist, filename)
+    os.startfile(exportfilepath)
 
 
 def print_all_equipment_IDcards_PDF():
@@ -210,12 +219,6 @@ def print_all_equipment_IDcards_PDF():
     for typestring in typedict.keys():
         print_all_ID_by_type(typestring)
         
-    
-    
-    
-    
-    
-    
 
 # NOTE: The final version might need to work with image files, in which case
 # these ID printing methods will need to change
@@ -253,21 +256,6 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     template = template.convert('RGB')
 
     qr = Image.open(qrcodepath)
-    # # Change the QR code background from white to slightly gray to match card
-    # qr = qr.convert('RGBA')
-    # data = np.array(qr)
-    # red, green, blue, alpha = data.T
-    # white_areas = (red == 255) & (blue == 255) & (green == 255)
-    # # Red for supervisor
-    # if prefix == "10":
-    #     data[..., :-1][white_areas.T] = redrgb
-    # # Blue for assistant
-    # elif prefix == "11":
-    #     data[..., :-1][white_areas.T] = bluergb
-    # else:
-    #     data[..., :-1][white_areas.T] = whitergb
-    # qr = Image.fromarray(data)
-    # qr = qr.convert('RGB')
 
     # Place QR code on the bottom of portrait card, resized to fit
     qrwidth = qr.size[0]
@@ -698,11 +686,11 @@ def assign_employee_nums_from_sheet():
     numbers = [x for x in numbers if pd.isnull(x) == False and x != 'nan']
 
     n_names = len(names)
-    print(names)
-    print(n_names)
+    # print(names)
+    # print(n_names)
     n_numbers = len(numbers)
-    print(numbers)
-    print(n_numbers)
+    # print(numbers)
+    # print(n_numbers)
     if n_names != n_numbers:
         raise Exception("A name or ID is missing from the input Excel sheet")
 
@@ -722,6 +710,7 @@ def assign_employee_nums_from_sheet():
     for e in exceptions:
         exceptions_str = exceptions_str + e + "\n"
     print(exceptions_str)
+
 
 def assign_employee_num(desired_number, employee_name):
     """Allow an employee to pick their own ID number (3 digits). Check against
@@ -788,7 +777,7 @@ def assign_employee_num(desired_number, employee_name):
                 iddata.loc[numind, "Date"] = dt.date.today()
                 df[sheetname] = iddata
                 print("ID {} assigned to {}".format(num, employee_name))
-                rewrite_whole_Excel_sheet(IDfilepath, df, sheetnames)
+                rewrite_whole_Excel_sheet(df, sheetnames)
                 print_IDcard_5digit(num)
             else:
                 raise Exception("[ERROR] ID number {} has already been assigned.".format(num))
