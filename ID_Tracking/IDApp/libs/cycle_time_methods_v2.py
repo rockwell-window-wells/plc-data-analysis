@@ -15,15 +15,16 @@ import datetime as dt
 import shutil
 from natsort import natsorted
 import matplotlib as mpl
+import pytz
 
 # If running as part of a compiled exe file (i.e. as the finalized ID &
 # Evaluation Tool app), comment out the imports that contain "from . import"
-# import data_assets
-# import id_methods
-# import api_config_vars as api
-from . import data_assets
-from . import id_methods
-from . import api_config_vars as api
+import data_assets
+import id_methods
+import api_config_vars as api
+# from . import data_assets
+# from . import id_methods
+# from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -843,6 +844,23 @@ def load_operator_data(dtstart, dtend):
         DataFrame for calculating "man-minutes" contributed to each cycle time.
 
     """
+    # Adjust dtstart and dtend to Central European Time for API compatibility
+    mtn = pytz.timezone('US/Mountain')
+    # utc = pytz.UTC
+    cet = pytz.timezone('CET')
+    
+    dtstart = mtn.localize(dtstart)
+    dtend = mtn.localize(dtend)
+    
+    dtstart = dtstart.astimezone(cet)
+    dtend = dtend.astimezone(cet)
+    
+    # Subtract an hour from start (weird API behavior adjustment - end time
+    # doesn't appear to be affected by this issue, so it's not a daylight
+    # savings time thing)
+    dtstart = dtstart - dt.timedelta(hours=1)
+    dtend = dtend - dt.timedelta(hours=1)
+    
     # Convert dtstart and dtend from datetimes to formatted strings
     dtstart = dtstart.strftime("%Y-%m-%dT%H:%M:%SZ")
     dtend = dtend.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -1608,16 +1626,16 @@ def plot_man_ratios(df_manminutes):
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,2,21,0,0,0)
+    dtstart = dt.datetime(2022,3,16,6,0,0)
     today = dt.date.today()
-    endtime = dt.time(23,59,59)
+    endtime = dt.time(8,0,0)
     dtend = dt.datetime.combine(today, endtime)
 
-    # df_eval, df_manminutes = load_operator_data(dtstart, dtend)
+    df_eval, df_manminutes = load_operator_data(dtstart, dtend)
     
     # m, b = plot_man_ratios(df_manminutes)
     
-    cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
+    # cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
     
 
     
@@ -1627,7 +1645,7 @@ if __name__ == "__main__":
     
     # # get_all_operator_stats(df_eval)
     
-    # # opnum = 217
-    # # get_single_operator_stats(df_eval, opnum)
+    opnum = 69
+    get_single_operator_stats(df_eval, opnum)
     
     # df_eval = get_operator_report_by_list(operator_list, shift, dtstart, dtend)
