@@ -150,6 +150,7 @@ class OperatorStatsPDF(FPDF):
         self.add_page()
         self.page_body(datestart, dateend, plot, opnum, opname, cycles_logged, medians, averages, shift)
         
+        
 def get_cycles_text(cycle_count):
     """
     Checks the number of cycles logged for each category (Lead, Shift, and
@@ -233,6 +234,7 @@ def generate_operator_PDF(datestart, dateend, plot, opnum, opname, cycles_logged
             i += 1
         exportfilepath = exportpath + '/' + filename + "({}).pdf".format(i)
     pdf.output(exportfilepath, 'F')
+
 
 def merge_operator_PDFs(exportfolder, mergedfilepath):
     """
@@ -570,86 +572,84 @@ def clean_duplicate_times(df):
                 dupinds.append(i)
                 continue
 
-
-
     df = df.drop(dupinds)
     df = df.reset_index(drop=True)
 
     return df
 
 
-def compare_num_ops(df, timestring:str):
-    """
-    Output a dataframe that has three columns: time, measured time of interest
-    (Layup Time, Close Time, Resin Time, or Cycle Time), and the number of
-    operators on the mold for that measured time. Output box plots for the
-    data.
+# def compare_num_ops(df, timestring:str):
+#     """
+#     Output a dataframe that has three columns: time, measured time of interest
+#     (Layup Time, Close Time, Resin Time, or Cycle Time), and the number of
+#     operators on the mold for that measured time. Output box plots for the
+#     data.
 
-    Parameters
-    ----------
-    df : Pandas DataFrame
-        DESCRIPTION.
+#     Parameters
+#     ----------
+#     df : Pandas DataFrame
+#         DESCRIPTION.
 
 
 
-    Returns
-    -------
-    df_num_ops: Pandas DataFrame
-        3 columns: time, measured time of interest, and number of operators
+#     Returns
+#     -------
+#     df_num_ops: Pandas DataFrame
+#         3 columns: time, measured time of interest, and number of operators
 
-    """
-    df_num_ops = df
-    opcounts = []
-    opcount = 0
-    for i in range(len(df_num_ops)):
-        oplist = df_num_ops.iloc[i,2:6]
-        opcount = oplist.astype(bool).sum()
-        opcounts.append(opcount)
+#     """
+#     df_num_ops = df
+#     opcounts = []
+#     opcount = 0
+#     for i in range(len(df_num_ops)):
+#         oplist = df_num_ops.iloc[i,2:6]
+#         opcount = oplist.astype(bool).sum()
+#         opcounts.append(opcount)
 
-    # Add the list of opcounts as a column to df_num_ops
-    df_num_ops["N Operators"] = opcounts
+#     # Add the list of opcounts as a column to df_num_ops
+#     df_num_ops["N Operators"] = opcounts
 
-    # Drop unnecessary columns
-    df_num_ops = df_num_ops.drop(columns=["Lead", "Assistant 1", "Assistant 2", "Assistant 3"])
+#     # Drop unnecessary columns
+#     df_num_ops = df_num_ops.drop(columns=["Lead", "Assistant 1", "Assistant 2", "Assistant 3"])
 
-    # # SORT BY NUM OPS HERE
-    # df_num_ops = df_num_ops.sort_values("N Operators")
-    # df_num_ops = df_num_ops.reset_index(drop=True)
+#     # # SORT BY NUM OPS HERE
+#     # df_num_ops = df_num_ops.sort_values("N Operators")
+#     # df_num_ops = df_num_ops.reset_index(drop=True)
 
-    directory = os.getcwd()
-    sns.set_theme(style="whitegrid")
-    customPalette = sns.light_palette("lightblue", 5)
-    flierprops = dict(marker='o', markerfacecolor='None', markersize=4)
-    ax = sns.boxplot(x="N Operators", y=timestring, data=df_num_ops, flierprops=flierprops, palette=customPalette)
-    plt.title("Comparison of Operators on Mold: {}".format(timestring))
+#     directory = os.getcwd()
+#     sns.set_theme(style="whitegrid")
+#     customPalette = sns.light_palette("lightblue", 5)
+#     flierprops = dict(marker='o', markerfacecolor='None', markersize=4)
+#     ax = sns.boxplot(x="N Operators", y=timestring, data=df_num_ops, flierprops=flierprops, palette=customPalette)
+#     plt.title("Comparison of Operators on Mold: {}".format(timestring))
 
-    # Annotate each boxplot with the number of samples
-    # Calculate number of obs per group & median to position labels
-    medians = df_num_ops.groupby(["N Operators"])[timestring].median().values
-    counts = df_num_ops["N Operators"].value_counts()
-    nobs = []
-    for i in range(5):
-        try:
-            nobs.append(counts[i])
-        except KeyError:
-            continue
-    nobs = [str(x) for x in nobs]
-    nobs = ["n: " + i for i in nobs]
+#     # Annotate each boxplot with the number of samples
+#     # Calculate number of obs per group & median to position labels
+#     medians = df_num_ops.groupby(["N Operators"])[timestring].median().values
+#     counts = df_num_ops["N Operators"].value_counts()
+#     nobs = []
+#     for i in range(5):
+#         try:
+#             nobs.append(counts[i])
+#         except KeyError:
+#             continue
+#     nobs = [str(x) for x in nobs]
+#     nobs = ["n: " + i for i in nobs]
 
-    # Add it to the plot
-    pos = range(len(nobs))
-    for tick,label in zip(pos,ax.get_xticklabels()):
-        ax.text(pos[tick],
-                medians[tick] + 0.03,
-                nobs[tick],
-                horizontalalignment='center',
-                size='x-small',
-                color='k',
-                weight='semibold')
+#     # Add it to the plot
+#     pos = range(len(nobs))
+#     for tick,label in zip(pos,ax.get_xticklabels()):
+#         ax.text(pos[tick],
+#                 medians[tick] + 0.03,
+#                 nobs[tick],
+#                 horizontalalignment='center',
+#                 size='x-small',
+#                 color='k',
+#                 weight='semibold')
 
-    plotname = directory + "\\Operator_Number_Comparison_{}.png".format(timestring.replace(" ","_"))
-    plt.savefig(plotname, dpi=300)
-    plt.close()
+#     plotname = directory + "\\Operator_Number_Comparison_{}.png".format(timestring.replace(" ","_"))
+#     plt.savefig(plotname, dpi=300)
+#     plt.close()
 
 
 def get_specific_operator_report(opnum, dtstart, dtend):
@@ -940,7 +940,6 @@ def load_operator_data(dtstart, dtend):
                 assist3_inds.append(i)
         
         leadIDs = [[] for ind in cycle_inds]
-        # assistIDs = [[] for ind in cycle_inds]
         man_minutes = [[] for ind in cycle_inds]
         
         for i, cyc_ind in enumerate(cycle_inds):
@@ -956,11 +955,8 @@ def load_operator_data(dtstart, dtend):
                 lead_between = between(lead_inds, low, high)
                 leadIDs[i].extend(list_vals(df_cleaned["Lead"], lead_between))
                 assist1_between = between(assist1_inds, low, high)
-                # assistIDs[i].extend(list_vals(df_cleaned["Assistant 1"], assist1_between))
                 assist2_between = between(assist2_inds, low, high)
-                # assistIDs[i].extend(list_vals(df_cleaned["Assistant 2"], assist2_between))
                 assist3_between = between(assist3_inds, low, high)
-                # assistIDs[i].extend(list_vals(df_cleaned["Assistant 3"], assist3_between))
                 
                 for j,idx in enumerate(lead_between):
                     curr_id = df_cleaned["Lead"][idx]
@@ -1500,31 +1496,54 @@ def filter_outlier_cycles(dtstart, dtend):
 
     Parameters
     ----------
-    dtstart : TYPE
-        DESCRIPTION.
-    dtend : TYPE
-        DESCRIPTION.
+    dtstart : datetime.datetime
+        Starting date and time for the period of interest.
+    dtend : datetime.datetime
+        Ending date and time for the period of interest.
 
     Returns
     -------
-    all_outliers : TYPE
-        DESCRIPTION.
-    brown_outliers : TYPE
-        DESCRIPTION.
-    purple_outliers : TYPE
-        DESCRIPTION.
-    red_outliers : TYPE
-        DESCRIPTION.
-    pink_outliers : TYPE
-        DESCRIPTION.
-    orange_outliers : TYPE
-        DESCRIPTION.
-    green_outliers : TYPE
-        DESCRIPTION.
+    all_outliers : Pandas DataFrame
+        DataFrame of all identified outliers in the dataset when looking at the
+        time period as a whole (not daily, as in the cycle_time_over_time
+        function).
+        Columns:
+            time: datetime.datetime of when the cycle was logged
+            Day: Integer day number (0 being Monday)
+            First Monday Part: Integer indicator of whether the cycle time was
+                from the first part on a mold on a Monday (0 or 1)
+            Cycle Time: Float number of minutes in the cycle
+            Lead: List of float ID numbers
+            Shift: List of string shift names for operators that participated
+                as lead on the cycle
+    brown_outliers : Pandas DataFrame
+        DataFrame of all identified outliers for the brown mold. A subset of
+        the data in all_outliers.
+        Columns: Same as all_outliers.
+    purple_outliers : Pandas DataFrame
+        DataFrame of all identified outliers for the purple mold. A subset of
+        the data in all_outliers.
+        Columns: Same as all_outliers.
+    red_outliers : Pandas DataFrame
+        DataFrame of all identified outliers for the red mold. A subset of
+        the data in all_outliers.
+        Columns: Same as all_outliers.
+    pink_outliers : Pandas DataFrame
+        DataFrame of all identified outliers for the pink mold. A subset of
+        the data in all_outliers.
+        Columns: Same as all_outliers.
+    orange_outliers : Pandas DataFrame
+        DataFrame of all identified outliers for the orange mold. A subset of
+        the data in all_outliers.
+        Columns: Same as all_outliers.
+    green_outliers : Pandas DataFrame
+        DataFrame of all identified outliers for the green mold. A subset of
+        the data in all_outliers.
+        Columns: Same as all_outliers.
 
     """
     # Load all operator data to determine what times the outliers took place
-    all_cycle = load_operator_data(dtstart, dtend)[3]
+    all_cycle = load_operator_data(dtstart, dtend)[0]
     
     stats = boxplot_stats(all_cycle["Cycle Time"])
     stats = stats[0]
@@ -1599,6 +1618,30 @@ def filter_outlier_cycles(dtstart, dtend):
         
         
 def plot_man_ratios(df_manminutes):
+    """
+    Function for interpreting man-minutes on the mold as an effective number
+    of people. For example, 3 people may have helped during a given cycle.
+    Operator 1 worked for the full cycle time, Operator 2 worked for the full
+    cycle time, and Operator 3 worked for half the cycle time. The effective
+    number of people for that cycle would be 2.5. This type of analysis should
+    be tempered by how well operators accurately punch in and out of the molds.
+
+    Parameters
+    ----------
+    df_manminutes : Pandas DataFrame
+        DataFrame essentially the same as df_eval, but with Man-Minutes and 
+        Man Ratio columns added in.
+
+    Returns
+    -------
+    m : float
+        Slope value of the linear best-fit line to the scatterplot of man ratio
+        and cycle time.
+    b : float
+        Offset value of the linear best-fit line to the scatterplot of man
+        ratio and cycle time.
+
+    """
     mpl.rcParams['figure.dpi'] = 300
     man_minutes = list(df_manminutes["Man-Minutes"])
     man_ratios = list(df_manminutes["Man Ratio"])
@@ -1626,14 +1669,16 @@ def plot_man_ratios(df_manminutes):
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,3,16,6,0,0)
+    dtstart = dt.datetime(2022,2,21,0,0,0)
     today = dt.date.today()
-    endtime = dt.time(8,0,0)
+    endtime = dt.time(23,59,59)
     dtend = dt.datetime.combine(today, endtime)
 
     df_eval, df_manminutes = load_operator_data(dtstart, dtend)
     
-    # m, b = plot_man_ratios(df_manminutes)
+    m, b = plot_man_ratios(df_manminutes)
+    
+    all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers = filter_outlier_cycles(dtstart, dtend)
     
     # cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
     
@@ -1645,7 +1690,7 @@ if __name__ == "__main__":
     
     # # get_all_operator_stats(df_eval)
     
-    opnum = 69
-    get_single_operator_stats(df_eval, opnum)
+    # opnum = 69
+    # get_single_operator_stats(df_eval, opnum)
     
     # df_eval = get_operator_report_by_list(operator_list, shift, dtstart, dtend)
