@@ -6,4 +6,4 @@
 *.pdf
 *.ico
 *.docx
-api_config_vars.py
+ID_tracking\IDApp\libs\api_config_vars.py
