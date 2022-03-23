@@ -332,8 +332,11 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
     # Get list of operator numbers on each shift by checking Excel data
     IDfilepath = data_assets.ID_data
     daylist, swinglist, gravelist = id_methods.get_shift_lists(IDfilepath)
+    
+    noperators = len(operator_list)
 
-    for operator in operator_list:
+    for i,operator in enumerate(operator_list):
+        print("\n{}% complete".format(np.around(i*100/noperators, 2)))
         # Get all rows where the current operator is in the lead list
         df_lead = df[pd.DataFrame(df.Lead.tolist()).isin([operator]).any(1).values]
         
@@ -393,6 +396,7 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
             exportpath = data_assets.pdftempfolder
             opname = lookup_operator_name(operator, data_assets.ID_data)
             generate_operator_PDF(startdate, enddate, plotname, operator, opname, cycles_logged, medians, averages, operator_shift, filename, exportpath)
+            
 
 
     if shift is None and len(operator_list) > 1:
@@ -415,7 +419,9 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
     for file in files_in_directory:
         path_to_file = os.path.join(directory, file)
         os.remove(path_to_file)
-        
+    
+    print("\n100.0% complete")
+    
     # Automatically open the merged file from its new location
     os.system(dest)
 
@@ -1669,9 +1675,9 @@ def plot_man_ratios(df_manminutes):
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,2,21,0,0,0)
+    dtstart = dt.datetime(2022,2,18,0,0,0)
     enddate = dt.date.today()
-    enddate = dt.date(2022,3,17)
+    # enddate = dt.date(2022,3,17)
     endtime = dt.time(23,59,59)
     dtend = dt.datetime.combine(enddate, endtime)
 
@@ -1701,11 +1707,12 @@ if __name__ == "__main__":
     
 
     
-    # operator_list = [217, 254, 666]
+    operator_list = [69, 111, 217, 254, 666]
     # shift = None
     # # get_operator_stats_by_list(df_eval, operator_list, shift=None)
     
     df_eval, df_manminutes = load_operator_data(dtstart, dtend)
+    # get_operator_stats_by_list(df_eval, operator_list)
     get_all_operator_stats(df_eval)
     
     # opnum = 69
