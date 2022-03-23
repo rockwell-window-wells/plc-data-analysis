@@ -19,12 +19,12 @@ import pytz
 
 # If running as part of a compiled exe file (i.e. as the finalized ID &
 # Evaluation Tool app), comment out the imports that contain "from . import"
-import data_assets
-import id_methods
-import api_config_vars as api
-# from . import data_assets
-# from . import id_methods
-# from . import api_config_vars as api
+# import data_assets
+# import id_methods
+# import api_config_vars as api
+from . import data_assets
+from . import id_methods
+from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -287,7 +287,7 @@ def get_all_operator_stats(df):
     """
     # Get operator list
     IDfilepath = data_assets.ID_data
-    allnums = id_methods.get_all_employee_nums(IDfilepath)
+    allnums = id_methods.get_all_employee_nums()
     operator_list = list(allnums["ID"])
     operator_list = [int(id) for id in operator_list]
     
@@ -1670,15 +1670,32 @@ def plot_man_ratios(df_manminutes):
 
 if __name__ == "__main__":
     dtstart = dt.datetime(2022,2,21,0,0,0)
-    today = dt.date.today()
+    enddate = dt.date.today()
+    enddate = dt.date(2022,3,17)
     endtime = dt.time(23,59,59)
-    dtend = dt.datetime.combine(today, endtime)
+    dtend = dt.datetime.combine(enddate, endtime)
 
-    df_eval, df_manminutes = load_operator_data(dtstart, dtend)
+    # ndays = 21
+    # enddate = dt.date.today()
+    # endtime = dt.time(23,59,59)
+    # dtend = dt.datetime.combine(enddate, endtime)
+    # startdate = dt.date.today()
+    # starttime = dt.time(0,0,0)
+    # dtstart = dt.datetime.combine(startdate, starttime)
     
-    m, b = plot_man_ratios(df_manminutes)
+    # for i in range(0,ndays):
+    #     df_eval, df_manminutes = load_operator_data(dtstart, dtend)
     
-    all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers = filter_outlier_cycles(dtstart, dtend)
+    #     m, b = plot_man_ratios(df_manminutes)
+    #     print("m = {} for {} days".format(m, i+1))
+    #     print("b = {} for {} days".format(b, i+1))
+    #     print("")
+        
+    #     # Adjust start date
+    #     startdate -= dt.timedelta(days=1)
+    #     dtstart = dt.datetime.combine(startdate, starttime)
+    
+    # all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers = filter_outlier_cycles(dtstart, dtend)
     
     # cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
     
@@ -1688,7 +1705,8 @@ if __name__ == "__main__":
     # shift = None
     # # get_operator_stats_by_list(df_eval, operator_list, shift=None)
     
-    # # get_all_operator_stats(df_eval)
+    df_eval, df_manminutes = load_operator_data(dtstart, dtend)
+    get_all_operator_stats(df_eval)
     
     # opnum = 69
     # get_single_operator_stats(df_eval, opnum)
