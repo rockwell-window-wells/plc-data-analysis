@@ -1,15 +1,15 @@
 import pandas as pd
 import qrcode
 import os
-from stat import S_IREAD, S_IRGRP, S_IROTH, S_IWUSR
+# from stat import S_IREAD, S_IRGRP, S_IROTH, S_IWUSR
 from fpdf import FPDF
-from openpyxl import load_workbook
+# from openpyxl import load_workbook
 import datetime as dt
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-import data_assets
-# from . import data_assets
+# import data_assets
+from . import data_assets
 
 ##### ID card printing class and functions #####
 class IDPDF(FPDF):
