@@ -354,11 +354,11 @@ class OperatorEvaluationScreen(MDScreen):
             # directory = 'Z:\\Production\\ID_Tracking\\ID_numbers\\'
             # filepath = directory + "ID_data.xlsx"
             filepath = data_assets.ID_data
-            df = id_methods.get_all_employee_nums(filepath)
+            df = id_methods.get_all_employee_nums()
             allnums = list(df["ID"])
             allnums = [int(num) for num in allnums]
-            # print(allnums)
             app.OPERATOR_LIST = allnums
+            print(app.OPERATOR_LIST)
             self.update_report_label()
         else:
             print("ERROR IN OPERATOR SELECTION")
