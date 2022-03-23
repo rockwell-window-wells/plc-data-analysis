@@ -7,3 +7,4 @@
 *.ico
 *.docx
 api_config_vars.py
+api_config_vars_resin.py
