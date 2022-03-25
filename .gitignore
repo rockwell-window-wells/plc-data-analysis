@@ -8,3 +8,14 @@
 *.docx
 api_config_vars.py
 api_config_vars_resin.py
+*.toc
+*.zip
+*.pyz
+*.pkg
+*.manifest
+*.html
+*.lnk
+*.exe
+ID_Tracking/IDApp/build/main/warn-main.txt
+ID_Tracking/accesstokenlist_test.py
+*.spec
