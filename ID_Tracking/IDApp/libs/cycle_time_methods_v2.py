@@ -340,6 +340,17 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
         # Get all rows where the current operator is in the lead list
         df_lead = df[pd.DataFrame(df.Lead.tolist()).isin([operator]).any(1).values]
         
+        opdate = id_methods.get_id_assign_date(IDfilepath, operator)
+        
+        # Filter out dates before the operator's ID number was assigned
+        datelist = df_lead["time"].tolist()
+        for i in range(len(datelist)):
+            datelist[i] = datelist[i].to_pydatetime()
+            datelist[i] = datelist[i].date()
+        
+        filtered_dates_indices = [i for i,date in enumerate(datelist) if date>=opdate]
+        df_lead = df_lead.iloc[filtered_dates_indices]
+        
         # Get all rows for the current operator's shift
         operator_shift = None
         if operator in daylist:
@@ -1706,7 +1717,7 @@ if __name__ == "__main__":
     
 
     
-    operator_list = [666]
+    operator_list = [999]
     # shift = None
     # # get_operator_stats_by_list(df_eval, operator_list, shift=None)
     

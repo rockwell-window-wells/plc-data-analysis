@@ -797,6 +797,7 @@ def get_all_employee_nums():
     allnums["ID"] = allnums["ID"].str[2:]
     return allnums
 
+
 def get_shift_lists(IDfilepath):
     """
     Returns three lists, containing all 3-digit ID numbers associated with each
@@ -828,6 +829,38 @@ def get_shift_lists(IDfilepath):
     gravelist = [int(id) for i,id in enumerate(idlist) if shiftlist[i]=="Graveyard"]
     
     return daylist, swinglist, gravelist
+
+
+def get_id_assign_date(IDfilepath, idnum):
+    """
+    Look up the date when a chosen idnum was assigned.
+
+    Parameters
+    ----------
+    IDfilepath : str
+        DESCRIPTION.
+    idnum : int
+        1 to 3-digit integer of the desired operator number.
+
+    Returns
+    -------
+    opdate : datetime date
+        The date on which the chosen idnum was assigned (listed in the Excel
+        file located at IDfilepath.
+
+    """
+    leads = pd.read_excel(IDfilepath, sheet_name="Personnel-Lead")
+    allnums = leads[~leads["Name"].isnull()]
+    allnums["ID"] = allnums["ID"].apply(str)
+    allnums["ID"] = allnums["ID"].str[2:]
+    allnums["ID"] = allnums["ID"].apply(int)
+    
+    oprow = allnums.loc[allnums["ID"] == idnum]
+    opdate = oprow["Date"].iloc[0]
+    opdate = opdate.to_pydatetime()
+    opdate = opdate.date()
+    
+    return opdate
     
 
 def reassign_employee_num(oldnum, newnum):
