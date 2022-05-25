@@ -19,12 +19,12 @@ import pytz
 
 # If running as part of a compiled exe file (i.e. as the finalized ID &
 # Evaluation Tool app), comment out the imports that contain "from . import"
-# import data_assets
-# import id_methods
-# import api_config_vars as api
-from . import data_assets
-from . import id_methods
-from . import api_config_vars as api
+import data_assets
+import id_methods
+import api_config_vars as api
+# from . import data_assets
+# from . import id_methods
+# from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -1209,7 +1209,8 @@ def load_operator_data(dtstart, dtend):
             
         for i,minutes_list in enumerate(man_minutes):
             man_minutes[i] = sum(minutes_list)
-            
+        
+        # Catch whether the part is the first part on a Monday
         cycle_times = list(df_cleaned["Cycle Time"][cycle_inds])
         datetimes = list(df_cleaned["time"][cycle_inds])
         weekdays = [date.weekday() for date in datetimes]
@@ -1239,8 +1240,6 @@ def load_operator_data(dtstart, dtend):
                     pass
                 else:
                     raise ValueError("ID not recognized as part of a shift")
-            
-        
         
         # Create DataFrame for evaluations for current mold
         data_eval = {"time": datetimes, "Day": weekdays,
@@ -1675,7 +1674,7 @@ def plot_man_ratios(df_manminutes):
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,2,18,0,0,0)
+    dtstart = dt.datetime(2022,2,21,0,0,0)
     enddate = dt.date.today()
     # enddate = dt.date(2022,3,17)
     endtime = dt.time(23,59,59)
@@ -1707,13 +1706,13 @@ if __name__ == "__main__":
     
 
     
-    operator_list = [69, 111, 217, 254, 666]
+    operator_list = [666]
     # shift = None
     # # get_operator_stats_by_list(df_eval, operator_list, shift=None)
     
     df_eval, df_manminutes = load_operator_data(dtstart, dtend)
-    # get_operator_stats_by_list(df_eval, operator_list)
-    get_all_operator_stats(df_eval)
+    get_operator_stats_by_list(df_eval, operator_list)
+    # get_all_operator_stats(df_eval)
     
     # opnum = 69
     # get_single_operator_stats(df_eval, opnum)

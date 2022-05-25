@@ -225,12 +225,15 @@ def organize_bag_data(dtstart, dtend):
 
 def correlate_bag_cycles(df_equip_bag):
     """
-    
+    Display the correlation relationship between cycle time and bag usage
+    parameters (days in use and number of cycles in use). Generates two plots,
+    with linear fit lines drawn.
 
     Parameters
     ----------
-    df_equip_bag : TYPE
-        DESCRIPTION.
+    df_equip_bag : Pandas DataFrame
+        The output of organize_bag_data(), which has columns Cycle Time, Bag,
+        Bag Days, and Bag Cycles.
 
     Returns
     -------
@@ -241,21 +244,21 @@ def correlate_bag_cycles(df_equip_bag):
     cycletimes = df_equip_bag["Cycle Time"]
     bagcycles = df_equip_bag["Bag Cycles"]
     
-    fig1,ax1 = plt.subplots()
+    fig1,ax1 = plt.subplots(dpi=300)
     sns.set_theme(style="whitegrid")
-    sns.regplot(x=bagdays, y=cycletimes, color='b')
+    sns.regplot(x=bagdays, y=cycletimes, color='b', line_kws={"color": "red"})
     ax1.set_title("Bag Age Trends")
     
-    fig2,ax2 = plt.subplots()
+    fig2,ax2 = plt.subplots(dpi=300)
     sns.set_theme(style="whitegrid")
-    sns.regplot(x=bagcycles, y=cycletimes, color='b')
+    sns.regplot(x=bagcycles, y=cycletimes, color='b', line_kws={"color": "red"})
     ax2.set_title("Bag Usage Trends")
     
 
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,3,16,0,0,0)
+    dtstart = dt.datetime(2022,3,25,16,0,0)
     enddate = dt.date.today()
     # enddate = dt.date(2022,3,17)
     endtime = dt.time(23,59,59)
