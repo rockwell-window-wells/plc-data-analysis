@@ -16,6 +16,8 @@ import seaborn as sns
 
 from cycle_time_methods_v2 import between, closest_before
 
+from . import data_assets
+
 
 def load_bag_data_single_mold(dtstart, dtend, moldcolor):
     """

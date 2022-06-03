@@ -363,12 +363,110 @@ KV = '''
 <EquipmentIDScreen>:
     name: "equipmentidscreen"
     id: equipment_id_screen
+    num_equip_cards: num_equip_cards
+    bagcheck: bagcheck
+    purplecheck: purplecheck
+    pictureframecheck: pictureframecheck
+        
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: 10
+        spacing: 10
 
-    MDLabel:
-        id: equipmentidscreenlabel
-        text: "This is the equipment ID screen"
-        font_style: "H5"
-        # pos_hint: {"top": 0.6, "x": 0.01}
+        MDFloatLayout:
+
+            MDLabel:
+                id: equipmentidscreenlabel
+                text: app.equipment_title
+                font_style: "H5"
+                pos_hint: {"top": 1.375, "x": 0.01}
+                
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: 10
+        spacing: 10
+
+        AnchorLayout:
+            anchor_x: "center"
+            anchor_y: "center"
+
+            MDGridLayout:
+                rows: 5
+                size_hint: (0.4, 0.4)
+                padding: 20
+                spacing: 50
+
+                AnchorLayout:
+                    anchor_x: "center"
+                    anchor_y: "center"
+                        
+                    MDBoxLayout:
+                        orientation: "horizontal"
+                        padding: 10
+                        spacing: 10
+  
+                        Check:
+                            id: purplecheck
+                            active: True
+                            pos_hint: {'center_x': 0, 'center_y': 0}
+  
+                        MDLabel:
+                            text: app.purple_select
+                AnchorLayout:
+                    anchor_x: "center"
+                    anchor_y: "center"
+                    
+                    MDBoxLayout:
+                        orientation: "horizontal"
+                        padding: 10
+                        spacing: 10
+  
+                        Check:
+                            id: bagcheck
+                            active: True
+                            pos_hint: {'center_x': 0, 'center_y': 0}
+  
+                        MDLabel:
+                            text: app.bag_select
+                AnchorLayout:
+                    anchor_x: "center"
+                    anchor_y: "center"
+                    
+                    MDBoxLayout:
+                        orientation: "horizontal"
+                        padding: 10
+                        spacing: 10
+  
+                        Check:
+                            id: pictureframecheck
+                            active: True
+                            pos_hint: {'center_x': 0, 'center_y': 0}
+  
+                        MDLabel:
+                            text: app.pictureframe_select  
+                        
+                AnchorLayout:
+                    anchor_x: "center"
+                    anchor_y: "center"
+                    
+                    MDTextField:
+                        id: num_equip_cards
+                        hint_text: app.num_equip_cards_text
+                        pos_hint: {"bottom": 0.35}
+                    
+                AnchorLayout:
+                    anchor_x: "center"
+                    anchor_y: "center"
+                    
+                    MDRaisedButton:
+                        id: print_equip_ids
+                        text: app.print_equip_ids_btn
+                        font_style: "Button"
+                        # md_bg_color: app.theme_cls.accent_color
+                        # pos_hint: {"top": 0.5, "right": 0.5}
+                        elevation: 5
+                        on_release:
+                            root.set_N_equipment_IDs()
 
 
 <SettingsScreen>:
@@ -511,12 +609,12 @@ KV = '''
                     root.nav_drawer.set_state("close")
                     root.screen_manager.current = "operatorevaluationscreen"
 
-            # ItemDrawer:
-            #     text: "Equipment ID"
-            #     icon: "tools"
-            #     on_release:
-            #         root.nav_drawer.set_state("close")
-            #         root.screen_manager.current = "equipmentidscreen"
+            ItemDrawer:
+                text: "Equipment ID"
+                icon: "tools"
+                on_release:
+                    root.nav_drawer.set_state("close")
+                    root.screen_manager.current = "equipmentidscreen"
             #
             # ItemDrawer:
             #     text: "Settings"
@@ -549,7 +647,7 @@ RootScreen:
 
             OperatorEvaluationScreen:
 
-            # EquipmentIDScreen:
+            EquipmentIDScreen:
             #
             # SettingsScreen:
 

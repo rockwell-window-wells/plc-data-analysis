@@ -19,12 +19,12 @@ import pytz
 
 # If running as part of a compiled exe file (i.e. as the finalized ID &
 # Evaluation Tool app), comment out the imports that contain "from . import"
-import data_assets
-import id_methods
-import api_config_vars as api
-# from . import data_assets
-# from . import id_methods
-# from . import api_config_vars as api
+# import data_assets
+# import id_methods
+# import api_config_vars as api
+from . import data_assets
+from . import id_methods
+from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):

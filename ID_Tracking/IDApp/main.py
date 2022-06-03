@@ -85,6 +85,12 @@ class HomeScreen(MDScreen):
         app.add_operator_btn = app.add_operator_btn_en
         app.enter_id_num = app.enter_id_num_en
         app.enter_operator_name = app.enter_operator_name_en
+        app.equipment_title = app.equipment_title_en
+        app.purple_select = app.purple_select_en
+        app.bag_select = app.bag_select_en
+        app.pictureframe_select = app.pictureframe_select_en
+        app.num_equip_cards_text = app.num_equip_cards_text_en
+        app.print_equip_ids_btn = app.print_equip_ids_btn_en
 
         self.snackbar_show("Language changed to English")
 
@@ -122,6 +128,12 @@ class HomeScreen(MDScreen):
         app.add_operator_btn = app.add_operator_btn_esp
         app.enter_id_num = app.enter_id_num_esp
         app.enter_operator_name = app.enter_operator_name_esp
+        app.equipment_title = app.equipment_title_esp
+        app.purple_select = app.purple_select_esp
+        app.bag_select = app.bag_select_esp
+        app.pictureframe_select = app.pictureframe_select_esp
+        app.num_equip_cards_text = app.num_equip_cards_text_esp
+        app.print_equip_ids_btn = app.print_equip_ids_btn_esp
 
         self.snackbar_show("Idioma cambiado a Espa\u00F1ol")
 
@@ -220,10 +232,25 @@ class OperatorIDScreen(MDScreen):
 
 
 class EquipmentIDScreen(MDScreen):
+    N_IDs = None
     # Snackbar for showing status messages (better than allocating space to labels)
     def snackbar_show(self, snackbartext):
         self.snackbar = Snackbar(text = snackbartext)
         self.snackbar.open()
+
+    def set_N_equipment_IDs(self, *args):
+        self.N_IDs = self.num_equip_cards.text
+        if self.purplecheck.active is True:
+            typestring = "purple"
+        elif self.bagcheck.active is True:
+            typestring = "bag"
+        elif self.pictureframecheck.active is True:
+            typestring = "pictureframe"
+        else:
+            raise ValueError("Invalid typestring")
+        id_methods.N_new_equip_ids(int(self.N_IDs), typestring)
+        print("{} new {} IDs printed".format(self.N_IDs, typestring))
+        id_methods.get_most_recent_equipment_IDcards_PDF(typestring)
 
 
 class OperatorContent(MDBoxLayout):
@@ -746,6 +773,12 @@ class IDApp(MDApp):
     add_operator_btn_en = "Add Operator"
     enter_id_num_en = "Enter a number with up to 3 digits"
     enter_operator_name_en = "Enter operator's name"
+    equipment_title_en = "Equipment IDs"
+    purple_select_en = "Purple"
+    bag_select_en = "Bag"
+    pictureframe_select_en = "Picture Frame"
+    num_equip_cards_text_en = "Enter the number of new equipment IDs to generate."
+    print_equip_ids_btn_en = "Print Equipment IDs"
 
 
     ### Labels in Spanish ###
@@ -781,6 +814,12 @@ class IDApp(MDApp):
     add_operator_btn_esp = "Agregar operador"
     enter_id_num_esp = "Introduce un número de hasta 3 dígitos"
     enter_operator_name_esp = "Ingrese el nombre del operador"
+    equipment_title_esp = "ID de equipo"
+    purple_select_esp = "Purple"
+    bag_select_esp = "Bag"
+    pictureframe_select_esp = "Picture Frame"
+    num_equip_cards_text_esp = "Ingrese el número de ID de nuevos equipos para generar."
+    print_equip_ids_btn_esp = "Imprimir IDs de equipos"
 
 
     ### Reference variables for text labels ###
@@ -816,6 +855,12 @@ class IDApp(MDApp):
     add_operator_btn = StringProperty(add_operator_btn_en)
     enter_id_num = StringProperty(enter_id_num_en)
     enter_operator_name = StringProperty(enter_operator_name_en)
+    equipment_title = StringProperty(equipment_title_en)
+    purple_select = StringProperty(purple_select_en)
+    bag_select = StringProperty(bag_select_en)
+    pictureframe_select = StringProperty(pictureframe_select_en)
+    num_equip_cards_text = StringProperty(num_equip_cards_text_en)
+    print_equip_ids_btn = StringProperty(print_equip_ids_btn_en)
 
     english = True
 
