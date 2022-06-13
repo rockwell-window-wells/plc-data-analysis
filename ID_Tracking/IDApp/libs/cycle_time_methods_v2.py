@@ -172,9 +172,9 @@ def get_cycles_text(cycle_count):
     thresh = 100
     
     if cycle_count < thresh:
-        cycles_text = "{}     Choose longer evaluation period".format(cycle_count)
+        cycles_text = "Choose longer evaluation period"
     elif cycle_count >= thresh:
-        cycles_text = "{}     OK for evaluation".format(cycle_count)
+        cycles_text = "OK for evaluation"
         
     return cycles_text
             
