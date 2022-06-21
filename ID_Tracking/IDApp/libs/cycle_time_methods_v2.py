@@ -19,12 +19,12 @@ import pytz
 
 # If running as part of a compiled exe file (i.e. as the finalized ID &
 # Evaluation Tool app), comment out the imports that contain "from . import"
-# import data_assets
-# import id_methods
-# import api_config_vars as api
-from . import data_assets
-from . import id_methods
-from . import api_config_vars as api
+import data_assets
+import id_methods
+import api_config_vars as api
+# from . import data_assets
+# from . import id_methods
+# from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -51,7 +51,7 @@ class OperatorStatsPDF(FPDF):
         # Define the text inputs that are needed to produce the report
         datetext = "Evaluation Period:"
         dateval = "{} to {}".format(str(datestart), str(dateend))
-        
+
         leadcyclestext = "Lead Cycles:"
         leadcyclesval = get_cycles_text(cycles_logged[0])
         shiftcyclestext = "Shift Cycles:"
@@ -61,7 +61,7 @@ class OperatorStatsPDF(FPDF):
         nametext = "Operator Name:"
         numtext = "Operator Number:"
         shifttext = "Shift:"
-        
+
         leadmed = medians[0]
         shiftmed = medians[1]
         companymed = medians[2]
@@ -77,7 +77,7 @@ class OperatorStatsPDF(FPDF):
         else:
             shiftmedval = "{} min".format(shiftmed)
         companymedval = "{} min".format(companymed)
-        
+
         leadavg = averages[0]
         shiftavg = averages[1]
         companyavg = averages[2]
@@ -105,7 +105,7 @@ class OperatorStatsPDF(FPDF):
         cellwidth = round(maxtxtwidth/5)*5
         if cellwidth < maxtxtwidth:
             cellwidth += 5
-        
+
         # Add the images and text to the report
         self.set_margins(25, 25, 25)
 
@@ -149,8 +149,8 @@ class OperatorStatsPDF(FPDF):
         # Generates the report
         self.add_page()
         self.page_body(datestart, dateend, plot, opnum, opname, cycles_logged, medians, averages, shift)
-        
-        
+
+
 def get_cycles_text(cycle_count):
     """
     Checks the number of cycles logged for each category (Lead, Shift, and
@@ -169,15 +169,15 @@ def get_cycles_text(cycle_count):
         statements about whether the number is sufficient for evaluation.
 
     """
-    thresh = 100
-    
+    thresh = 50
+
     if cycle_count < thresh:
         cycles_text = "Choose longer evaluation period"
     elif cycle_count >= thresh:
         cycles_text = "OK for evaluation"
-        
+
     return cycles_text
-            
+
 
 def generate_operator_PDF(datestart, dateend, plot, opnum, opname, cycles_logged, medians, averages, shift, filename, exportpath):
     """
@@ -207,7 +207,7 @@ def generate_operator_PDF(datestart, dateend, plot, opnum, opname, cycles_logged
     averages : list with length 3
         A list of floats that correspond to the average cycle time logged by
         the operator as lead, by the shift as a whole, and by the company as a
-        whole.        
+        whole.
     shift : str
         String from one of the following options: "Day", "Swing", "Graveyard",
         or "N/A". Does not check that this is true. This is simply a text input
@@ -290,7 +290,7 @@ def get_all_operator_stats(df):
     allnums = id_methods.get_all_employee_nums()
     operator_list = list(allnums["ID"])
     operator_list = [int(id) for id in operator_list]
-    
+
     get_operator_stats_by_list(df, operator_list, "all")
 
 
@@ -301,7 +301,7 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
     reports for all operators in operator_list, and combine appropriately
     with a name indicated by the shift tag. Automatically opens the final PDF
     report when ready.
-    
+
     Parameters
     ----------
     df : Pandas DataFrame
@@ -324,33 +324,33 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
 
     startdate = df["time"].iloc[0].date()
     enddate = df["time"].iloc[-1].date()
-    
+
     timestring = "Cycle Time"
 
     directory = data_assets.pdftempfolder
-    
+
     # Get list of operator numbers on each shift by checking Excel data
     IDfilepath = data_assets.ID_data
     daylist, swinglist, gravelist = id_methods.get_shift_lists(IDfilepath)
-    
+
     noperators = len(operator_list)
 
     for i,operator in enumerate(operator_list):
         print("\n{}% complete".format(np.around(i*100/noperators, 2)))
         # Get all rows where the current operator is in the lead list
         df_lead = df[pd.DataFrame(df.Lead.tolist()).isin([operator]).any(1).values]
-        
+
         opdate = id_methods.get_id_assign_date(IDfilepath, operator)
-        
+
         # Filter out dates before the operator's ID number was assigned
         datelist = df_lead["time"].tolist()
         for i in range(len(datelist)):
             datelist[i] = datelist[i].to_pydatetime()
             datelist[i] = datelist[i].date()
-        
+
         filtered_dates_indices = [i for i,date in enumerate(datelist) if date>=opdate]
         df_lead = df_lead.iloc[filtered_dates_indices]
-        
+
         # Get all rows for the current operator's shift
         operator_shift = None
         if operator in daylist:
@@ -361,9 +361,9 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
             operator_shift = "Graveyard"
         else:
             operator_shift = "N/A"
-            
+
         df_shift = df[pd.DataFrame(df.Shift.tolist()).isin([operator_shift]).any(1).values]
-        
+
         # Remove rows where it's the first part on a Monday
         df_lead = df_lead[df_lead["First Monday Part"] != 1]
         df_shift = df_shift[df_shift["First Monday Part"] != 1]
@@ -393,12 +393,12 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
             cycles_logged.append(operator_compare[lead_col].count())
             cycles_logged.append(operator_compare[shift_col].count())
             cycles_logged.append(operator_compare[company_col].count())
-            
+
             leadmed = np.around(operator_compare[lead_col].median(),1)
             shiftmed = np.around(operator_compare[shift_col].median(),1)
             companymed = np.around(operator_compare[company_col].median(),1)
             medians = [leadmed, shiftmed, companymed]
-            
+
             leadavg = np.around(operator_compare[lead_col].mean(),1)
             shiftavg = np.around(operator_compare[shift_col].mean(),1)
             companyavg = np.around(operator_compare[company_col].mean(),1)
@@ -407,7 +407,7 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
             exportpath = data_assets.pdftempfolder
             opname = lookup_operator_name(operator, data_assets.ID_data)
             generate_operator_PDF(startdate, enddate, plotname, operator, opname, cycles_logged, medians, averages, operator_shift, filename, exportpath)
-            
+
 
 
     if shift is None and len(operator_list) > 1:
@@ -420,7 +420,7 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
         mergedfilepath = data_assets.pdftempfolder + "\\" + filename
     else:
         mergefile, mergedfilepath = merge_by_shift(startdate, enddate, shift, exportpath)
-        
+
     # Copy merged file into Operator_Reports folder
     dest = data_assets.pdfexportfolder + "\\" + mergefile
     shutil.copyfile(mergedfilepath, dest)
@@ -430,9 +430,9 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
     for file in files_in_directory:
         path_to_file = os.path.join(directory, file)
         os.remove(path_to_file)
-    
+
     print("\n100.0% complete")
-    
+
     # Automatically open the merged file from its new location
     os.system(dest)
 
@@ -482,7 +482,7 @@ def merge_by_shift(startdate, enddate, shift, exportpath):
 
     mergedfilepath = data_assets.pdftempfolder + "\\" + mergefile
     merge_operator_PDFs(exportpath, mergedfilepath)
-    
+
     return mergefile, mergedfilepath
 
 
@@ -722,13 +722,13 @@ def get_operator_report_by_list(operator_list, shift, dtstart, dtend):
         DataFrame containing the data that went into the reports.
 
     """
-    df_eval = load_operator_data(dtstart, dtend)[0]   
-    
+    df_eval = load_operator_data(dtstart, dtend)[0]
+
     # Remove faulty duplicates
     df_eval = clean_duplicate_times(df_eval)
-    
+
     get_operator_stats_by_list(df_eval, operator_list, shift)
-    
+
     return df_eval
 
 
@@ -818,14 +818,14 @@ def load_operator_data_single_mold(dtstart, dtend, moldcolor):
         # print("Carriage return found at the end of column name")
         lastcolnew = lastcolold[0:-1]
         df = df.rename(columns={lastcolold: lastcolnew})
-    
+
     # Convert to the relevant data types
     for i,col in enumerate(df.columns):
         if col == "time":
             df[col] = pd.to_datetime(df[col])
         else:
             df[col] = df[col].astype(float)
-    
+
     # Fix issue where some data is read in from the day before the date of
     # dtstart. Get rid of rows with a date earlier than daystart.
     dtstart = dt.datetime.strptime(dtstart, "%Y-%m-%dT%H:%M:%SZ")
@@ -865,30 +865,30 @@ def load_operator_data(dtstart, dtend):
     mtn = pytz.timezone('US/Mountain')
     # utc = pytz.UTC
     cet = pytz.timezone('CET')
-    
+
     dtstart = mtn.localize(dtstart)
     dtend = mtn.localize(dtend)
-    
+
     dtstart = dtstart.astimezone(cet)
     dtend = dtend.astimezone(cet)
-    
+
     # Subtract an hour from start (weird API behavior adjustment - end time
     # doesn't appear to be affected by this issue, so it's not a daylight
     # savings time thing)
     dtstart = dtstart - dt.timedelta(hours=1)
     dtend = dtend - dt.timedelta(hours=1)
-    
+
     # Convert dtstart and dtend from datetimes to formatted strings
     dtstart = dtstart.strftime("%Y-%m-%dT%H:%M:%SZ")
     dtend = dtend.strftime("%Y-%m-%dT%H:%M:%SZ")
-    
+
     # all_man_ratios = []
     # all_cycle_times = []
-    
+
     # Get list of operator numbers on each shift by checking Excel data
     IDfilepath = data_assets.ID_data
     daylist, swinglist, gravelist = id_methods.get_shift_lists(IDfilepath)
-    
+
     df_eval = pd.DataFrame()
     df_manminutes = pd.DataFrame()
 
@@ -914,73 +914,73 @@ def load_operator_data(dtstart, dtend):
 
         df_cleaned = df_sorted.drop(df_sorted.index[nan_indices])
         df_cleaned = df_cleaned.reset_index(drop=True)
-        
+
         # Make a new dataframe with only time, Cycle Time, LeadIDs,
         # AssistantIDs, LeadTimes, AssistantTimes columns. LeadTimes and
         # AssistantTimes columns are the individual elapsed times for each
         # operator on the mold. LeadIDs and AssistantIDs columns use a list
         # of the operator numbers instead of single values.
-        
+
         # Find the indices where there is a cycle time.
         cycle_inds = []
         not_nan_series = df_cleaned["Cycle Time"].notnull()
         for i in range(len(not_nan_series)):
             if not_nan_series.iloc[i] == True:
                 cycle_inds.append(i)
-                
+
         # Find the indices where there is a lead login
         lead_inds = []
         not_nan_series = df_cleaned["Lead"].notnull()
         for i in range(len(not_nan_series)):
             if not_nan_series.iloc[i] == True:
                 lead_inds.append(i)
-                
+
         # Find the indices where there is an assistant 1 login
         assist1_inds = []
         not_nan_series = df_cleaned["Assistant 1"].notnull()
         for i in range(len(not_nan_series)):
             if not_nan_series.iloc[i] == True:
                 assist1_inds.append(i)
-                
+
         # Find the indices where there is an assistant 2 login
         assist2_inds = []
         not_nan_series = df_cleaned["Assistant 2"].notnull()
         for i in range(len(not_nan_series)):
             if not_nan_series.iloc[i] == True:
                 assist2_inds.append(i)
-                
+
         # Find the indices where there is an assistant 1 login
         assist3_inds = []
         not_nan_series = df_cleaned["Assistant 3"].notnull()
         for i in range(len(not_nan_series)):
             if not_nan_series.iloc[i] == True:
                 assist3_inds.append(i)
-        
+
         leadIDs = [[] for ind in cycle_inds]
         man_minutes = [[] for ind in cycle_inds]
-        
+
         for i, cyc_ind in enumerate(cycle_inds):
             #### Get the lists of IDs associated with each cycle time ####
-            
+
             # If no one clocked in exactly at the same time as the cycle time
-            # was logged, get the closest previous ID number for each role and 
+            # was logged, get the closest previous ID number for each role and
             # add the ID number to the appropriate list.
             if i == 0:
                 low = 0
                 high = cyc_ind
-                
+
                 lead_between = between(lead_inds, low, high)
                 leadIDs[i].extend(list_vals(df_cleaned["Lead"], lead_between))
                 assist1_between = between(assist1_inds, low, high)
                 assist2_between = between(assist2_inds, low, high)
                 assist3_between = between(assist3_inds, low, high)
-                
+
                 for j,idx in enumerate(lead_between):
                     curr_id = df_cleaned["Lead"][idx]
                     if j == 0:
                         if curr_id == 0:
                             continue
-                        datetime_start = df_cleaned["time"][0]                    
+                        datetime_start = df_cleaned["time"][0]
                     else:
                         prev_id = df_cleaned["Lead"][lead_between[j-1]]
                         if prev_id == 0:
@@ -989,7 +989,7 @@ def load_operator_data(dtstart, dtend):
                     datetime_end = df_cleaned["time"][idx]
                     minutes = minutes_diff(datetime_start, datetime_end)
                     man_minutes[i].append(minutes)
-                    
+
                     # If at the end of the list, get the time between the last
                     # login (if the ID isn't zero) and the logged cycle time
                     if j == len(lead_between)-1:
@@ -998,7 +998,7 @@ def load_operator_data(dtstart, dtend):
                             datetime_end = df_cleaned["time"][cyc_ind]
                             minutes = minutes_diff(datetime_start, datetime_end)
                             man_minutes[i].append(minutes)
-                    
+
                 for j,idx in enumerate(assist1_between):
                     curr_id = df_cleaned["Assistant 1"][idx]
                     if j == 0:
@@ -1013,7 +1013,7 @@ def load_operator_data(dtstart, dtend):
                     datetime_end = df_cleaned["time"][idx]
                     minutes = minutes_diff(datetime_start, datetime_end)
                     man_minutes[i].append(minutes)
-                    
+
                     # If at the end of the list, get the time between the last
                     # login (if the ID isn't zero) and the logged cycle time
                     if j == len(assist1_between)-1:
@@ -1022,7 +1022,7 @@ def load_operator_data(dtstart, dtend):
                             datetime_end = df_cleaned["time"][cyc_ind]
                             minutes = minutes_diff(datetime_start, datetime_end)
                             man_minutes[i].append(minutes)
-                    
+
                 for j,idx in enumerate(assist2_between):
                     curr_id = df_cleaned["Assistant 2"][idx]
                     if j == 0:
@@ -1037,7 +1037,7 @@ def load_operator_data(dtstart, dtend):
                     datetime_end = df_cleaned["time"][idx]
                     minutes = minutes_diff(datetime_start, datetime_end)
                     man_minutes[i].append(minutes)
-                     
+
                     # If at the end of the list, get the time between the last
                     # login (if the ID isn't zero) and the logged cycle time
                     if j == len(assist2_between)-1:
@@ -1046,7 +1046,7 @@ def load_operator_data(dtstart, dtend):
                             datetime_end = df_cleaned["time"][cyc_ind]
                             minutes = minutes_diff(datetime_start, datetime_end)
                             man_minutes[i].append(minutes)
-                        
+
                 for j,idx in enumerate(assist3_between):
                     curr_id = df_cleaned["Assistant 3"][idx]
                     if j == 0:
@@ -1061,7 +1061,7 @@ def load_operator_data(dtstart, dtend):
                     datetime_end = df_cleaned["time"][idx]
                     minutes = minutes_diff(datetime_start, datetime_end)
                     man_minutes[i].append(minutes)
-                     
+
                     # If at the end of the list, get the time between the last
                     # login (if the ID isn't zero) and the logged cycle time
                     if j == len(assist3_between)-1:
@@ -1070,24 +1070,24 @@ def load_operator_data(dtstart, dtend):
                             datetime_end = df_cleaned["time"][cyc_ind]
                             minutes = minutes_diff(datetime_start, datetime_end)
                             man_minutes[i].append(minutes)
-                        
+
             else:
                 # If someone was already logged in before the cycle started,
                 # count them.
                 input_idx = cycle_inds[i-1]
                 idx = closest_before(input_idx, lead_inds)
                 leadIDs[i].append(df_cleaned["Lead"][idx])
-                
+
                 # Get the IDs logged during the cycle
                 low = cycle_inds[i-1]
                 high = cyc_ind
-                
+
                 lead_between = between(lead_inds, low, high)
                 leadIDs[i].extend(list_vals(df_cleaned["Lead"], lead_between))
                 assist1_between = between(assist1_inds, low, high)
                 assist2_between = between(assist2_inds, low, high)
                 assist3_between = between(assist3_inds, low, high)
-                
+
                 for j,idx in enumerate(lead_between):
                     if j == 0:
                         prev_idx = closest_before(idx, lead_inds)
@@ -1103,7 +1103,7 @@ def load_operator_data(dtstart, dtend):
                     datetime_end = df_cleaned["time"][idx]
                     minutes = minutes_diff(datetime_start, datetime_end)
                     man_minutes[i].append(minutes)
-                    
+
                     # If at the end of the list, get the time between the last
                     # login (if the ID isn't zero) and the logged cycle time
                     if j == len(lead_between)-1:
@@ -1112,7 +1112,7 @@ def load_operator_data(dtstart, dtend):
                             datetime_end = df_cleaned["time"][cyc_ind]
                             minutes = minutes_diff(datetime_start, datetime_end)
                             man_minutes[i].append(minutes)
-                    
+
                 for j,idx in enumerate(assist1_between):
                     if j == 0:
                         prev_idx = closest_before(idx, assist1_inds)
@@ -1128,7 +1128,7 @@ def load_operator_data(dtstart, dtend):
                     datetime_end = df_cleaned["time"][idx]
                     minutes = minutes_diff(datetime_start, datetime_end)
                     man_minutes[i].append(minutes)
-                    
+
                     # If at the end of the list, get the time between the last
                     # login (if the ID isn't zero) and the logged cycle time
                     if j == len(assist1_between)-1:
@@ -1137,7 +1137,7 @@ def load_operator_data(dtstart, dtend):
                             datetime_end = df_cleaned["time"][cyc_ind]
                             minutes = minutes_diff(datetime_start, datetime_end)
                             man_minutes[i].append(minutes)
-                        
+
                 for j,idx in enumerate(assist2_between):
                     if j == 0:
                         prev_idx = closest_before(idx, assist2_inds)
@@ -1153,7 +1153,7 @@ def load_operator_data(dtstart, dtend):
                     datetime_end = df_cleaned["time"][idx]
                     minutes = minutes_diff(datetime_start, datetime_end)
                     man_minutes[i].append(minutes)
-                    
+
                     # If at the end of the list, get the time between the last
                     # login (if the ID isn't zero) and the logged cycle time
                     if j == len(assist2_between)-1:
@@ -1162,7 +1162,7 @@ def load_operator_data(dtstart, dtend):
                             datetime_end = df_cleaned["time"][cyc_ind]
                             minutes = minutes_diff(datetime_start, datetime_end)
                             man_minutes[i].append(minutes)
-                    
+
                 for j,idx in enumerate(assist3_between):
                     if j == 0:
                         prev_idx = closest_before(idx, assist3_inds)
@@ -1178,7 +1178,7 @@ def load_operator_data(dtstart, dtend):
                     datetime_end = df_cleaned["time"][idx]
                     minutes = minutes_diff(datetime_start, datetime_end)
                     man_minutes[i].append(minutes)
-                    
+
                     # If at the end of the list, get the time between the last
                     # login (if the ID isn't zero) and the logged cycle time
                     if j == len(assist3_between)-1:
@@ -1187,40 +1187,40 @@ def load_operator_data(dtstart, dtend):
                             datetime_end = df_cleaned["time"][cyc_ind]
                             minutes = minutes_diff(datetime_start, datetime_end)
                             man_minutes[i].append(minutes)
-            
-            
+
+
         # Get the unique IDs for each cycle time
         for i in range(len(leadIDs)):
             # Get unique lead IDs
             IDs = leadIDs[i]    # list of IDs
             IDs = list(np.unique(IDs))
-            
+
             # Remove zeros for ID numbers
             if len(IDs) == 1 and IDs[0] == 0:
                 pass
             else:
                 IDs = [id for id in IDs if id != 0]
-            
+
             if len(IDs) == 0:
                 IDs = [0.0]
-                
+
             leadIDs[i] = IDs
-            
+
             # # Get unique assistant IDs
             # IDs = assistIDs[i]
             # IDs = list(np.unique(IDs))
             # assistIDs[i] = IDs
-            
+
         # Find all instances of ID 2 and change to 999 (special case where
         # an operator changed numbers -- don't do this again!)
         for idlist in leadIDs:
             for i,id_int in enumerate(idlist):
                 if id_int == 2.0:
                     idlist[i] = 999.0
-            
+
         for i,minutes_list in enumerate(man_minutes):
             man_minutes[i] = sum(minutes_list)
-        
+
         # Catch whether the part is the first part on a Monday
         cycle_times = list(df_cleaned["Cycle Time"][cycle_inds])
         datetimes = list(df_cleaned["time"][cycle_inds])
@@ -1236,7 +1236,7 @@ def load_operator_data(dtstart, dtend):
                 firstflags.append(1)
             else:
                 firstflags.append(0)
-                
+
         shifts = []
         for i in range(len(leadIDs)):
             shifts.append([])
@@ -1251,29 +1251,29 @@ def load_operator_data(dtstart, dtend):
                     pass
                 else:
                     raise ValueError("ID not recognized as part of a shift")
-        
+
         # Create DataFrame for evaluations for current mold
         data_eval = {"time": datetimes, "Day": weekdays,
                      "First Monday Part": firstflags, "Cycle Time": cycle_times,
                      "Lead": leadIDs, "Shift": shifts
                      }
-        
+
         df_eval_mold = pd.DataFrame(data=data_eval)
-        
+
         # Create DataFrame for evaluating man-minutes and cycle times
         man_ratios = []
         for i in range(len(man_minutes)):
             ratio = man_minutes[i] / cycle_times[i]
             man_ratios.append(ratio)
-            
+
         data_manminutes_mold = {"time": datetimes, "Day": weekdays,
                            "First Monday Part": firstflags, "Cycle Time": cycle_times,
                            "Shift": shifts, "Man-Minutes": man_minutes,
                            "Man Ratio": man_ratios
                            }
-        
+
         df_manminutes_mold = pd.DataFrame(data=data_manminutes_mold)
-        
+
         # Append mold data to larger DataFrame for all data
         df_eval = pd.concat([df_eval, df_eval_mold], ignore_index=True)
         df_manminutes = pd.concat([df_manminutes, df_manminutes_mold], ignore_index=True)
@@ -1328,11 +1328,40 @@ def closest_before(input_idx, input_list):
 
     """
     input_array = np.asarray(input_list)
-    prev_array = input_array[input_array < input_idx]
+    prev_array = input_array[input_array <= input_idx]
     if len(prev_array) == 0:
         prev_idx = input_array[0]
     else:
         prev_idx = prev_array.max()
+    return prev_idx
+
+
+def closest_idx(input_idx, input_list):
+    """
+    Takes a chosen index and compares against a list of indices, input_list.
+    Finds the closest index value to the chosen input_idx value.
+
+    Parameters
+    ----------
+    input_idx : int
+        The reference index value against which the function will compare.
+    input_list : list of ints
+        A list of integers that are indices. Assumed to be a list in ascending
+        order, with no repeated values. (Ex: [3,6,10,22])
+
+    Returns
+    -------
+    prev_idx : int
+        The value from input_list that is the closest value to
+        input_idx. If input_idx = 20 and input_list = [3,6,10,22], then
+        closest_idx will be 22. If input_idx = 20 and input_list = [3,6,19,22],
+        then closest_idx will be 19.
+
+    """
+    diffs = [np.abs(x-input_idx) for x in input_list]
+    m = min(diffs)
+    idx = diffs.index(m)
+    prev_idx = input_list[idx]
     return prev_idx
 
 # def closest_after(input_idx, input_list):
@@ -1342,7 +1371,7 @@ def closest_before(input_idx, input_list):
 
 def list_vals(df_col, idx_list):
     """
-    Takes a Pandas DataFrame column, turns it into a list, and outputs only 
+    Takes a Pandas DataFrame column, turns it into a list, and outputs only
     the elements of that list indicated by a list of indices found in idx_list.
 
     Parameters
@@ -1350,7 +1379,7 @@ def list_vals(df_col, idx_list):
     df_col : column of a Pandas DataFrame (called as df["col_name"])
         Any column of a Pandas DataFrame. Doesn't assume a type of data.
     idx_list : list of ints
-        
+
 
     Returns
     -------
@@ -1411,7 +1440,7 @@ def get_operator_list(shiftstr):
     ids = [str(id) for id in ids]
     ids = [id[2:] for id in ids]
     operator_list = [int(id) for id in ids]
-    
+
     return operator_list
 
 
@@ -1442,21 +1471,21 @@ def cycle_time_over_time(dtstart, dtend):
 
     """
     df_eval = load_operator_data(dtstart, dtend)[0]
-    
+
     cycles = df_eval
-    
+
     # Sort by time column
     cycles = cycles.sort_values(by="time", axis=0)
     # Reindex
     cycles = cycles.reset_index(drop=True)
     cycles["Date"] = pd.to_datetime(cycles["time"]).dt.date
     cycles = cycles[["Date", "Cycle Time"]]
-    
+
     fig,ax=plt.subplots(dpi=300)
     medians = cycles.groupby(["Date"])["Cycle Time"].median()
     dates = cycles["Date"].unique()
     dates_str = [str(day) for day in dates]
-    
+
     # Reorganize data for boxplot property calculation
     whiskers_hi = []
     whiskers_lo = []
@@ -1466,28 +1495,28 @@ def cycle_time_over_time(dtstart, dtend):
         cycle_data = list(df_day["Cycle Time"])
         stats = boxplot_stats(cycle_data)
         stats = stats[0]
-        
+
         whishi = stats["whishi"]
         whislo = stats["whislo"]
         fliers = stats["fliers"]
         whiskers_hi.append(whishi)
         whiskers_lo.append(whislo)
-        outliers.append(fliers)    
-    
+        outliers.append(fliers)
+
     # Skip labels so there are 5 at most on the plot, for readability
     labelskip = 0
     dateticks = dates_str
     while len(dateticks) > 5:
         labelskip += 1
         dateticks = dates_str[::labelskip]
-        
+
     datelabels = []
     for i,day in enumerate(dates_str):
         if day in dateticks:
             datelabels.append(day)
         else:
             datelabels.append("")
-    
+
     # Make the plot
     sns.set_theme(style="ticks")
     sns.lineplot(x=dates, y=medians, linewidth=3)
@@ -1498,11 +1527,11 @@ def cycle_time_over_time(dtstart, dtend):
         if len(fliers) > 0:
             outlier_dates = [dates[i]] * len(fliers)
             sns.scatterplot(x=outlier_dates, y=fliers, color='b', marker='o', alpha=0.5, s=20)
-    
+
     plt.xticks(dates, datelabels, rotation=90)
     plt.xlabel("Date")
     plt.title("Cycle Time Variability")
-    
+
     return cycles, medians, dates
 
 
@@ -1560,30 +1589,30 @@ def filter_outlier_cycles(dtstart, dtend):
     """
     # Load all operator data to determine what times the outliers took place
     all_cycle = load_operator_data(dtstart, dtend)[0]
-    
+
     stats = boxplot_stats(all_cycle["Cycle Time"])
     stats = stats[0]
     outliers = stats["fliers"]
     whisker_hi = stats["whishi"]
     whisker_lo = stats["whislo"]
-    
+
     all_outliers = all_cycle.loc[(all_cycle["Cycle Time"]>whisker_hi) | (all_cycle["Cycle Time"]<whisker_lo)]
     all_outliers = all_outliers.reset_index(drop=True)
-    
-    # Load each dataframe by mold to check for outlier matches and 
+
+    # Load each dataframe by mold to check for outlier matches and
     brown_outliers  = pd.DataFrame()
     purple_outliers = pd.DataFrame()
     red_outliers    = pd.DataFrame()
     pink_outliers   = pd.DataFrame()
     orange_outliers = pd.DataFrame()
     green_outliers  = pd.DataFrame()
-    
+
     # Convert dtstart and dtend from datetimes to formatted strings
     dtstart = dtstart.strftime("%Y-%m-%dT%H:%M:%SZ")
     dtend = dtend.strftime("%Y-%m-%dT%H:%M:%SZ")
-    
+
     matchcount = 0
-    
+
     for moldcolor in api.molds:
         df_raw = load_operator_data_single_mold(dtstart, dtend, moldcolor)
 
@@ -1605,12 +1634,12 @@ def filter_outlier_cycles(dtstart, dtend):
                                             nan_indices.append(i)
 
         df_cleaned = df_sorted.drop(df_sorted.index[nan_indices])
-        
+
         df_cycles = df_cleaned[~df_cleaned["Cycle Time"].isnull()]
-        
+
         df_cycles = df_cycles.reset_index(drop=True)
         df_cycles = df_cycles.drop(["Layup Time", "Close Time", "Resin Time", "Lead", "Assistant 1", "Assistant 2", "Assistant 3"], axis=1)
-        
+
         # Get the rows that match outliers in all_outliers
         for ind_all in all_outliers.index:
             for ind_mold in df_cycles.index:
@@ -1631,8 +1660,8 @@ def filter_outlier_cycles(dtstart, dtend):
                         green_outliers = green_outliers.append(outlierrow, ignore_index=True)
 
     return all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers
-        
-        
+
+
 def plot_man_ratios(df_manminutes):
     """
     Function for interpreting man-minutes on the mold as an effective number
@@ -1645,7 +1674,7 @@ def plot_man_ratios(df_manminutes):
     Parameters
     ----------
     df_manminutes : Pandas DataFrame
-        DataFrame essentially the same as df_eval, but with Man-Minutes and 
+        DataFrame essentially the same as df_eval, but with Man-Minutes and
         Man Ratio columns added in.
 
     Returns
@@ -1662,19 +1691,19 @@ def plot_man_ratios(df_manminutes):
     man_minutes = list(df_manminutes["Man-Minutes"])
     man_ratios = list(df_manminutes["Man Ratio"])
     cycle_times= list(df_manminutes["Cycle Time"])
-    
+
     reject_inds = []
     for i in range(len(man_minutes)):
         if man_minutes[i] == 0.0 or man_ratios[i] > 4 or man_ratios[i] < 1:
             reject_inds.append(i)
-            
+
     man_minutes = [i for j,i in enumerate(man_minutes) if j not in reject_inds]
     man_ratios = [i for j,i in enumerate(man_ratios) if j not in reject_inds]
     cycle_times = [i for j,i in enumerate(cycle_times) if j not in reject_inds]
-    
+
     m, b = np.polyfit(man_ratios, cycle_times, 1)
     x = np.asarray(man_ratios)
-    
+
     plt.scatter(man_ratios, cycle_times)
     plt.plot(x, m*x+b, 'r')
     plt.title("Effectiveness of N operators on Mold")
@@ -1698,34 +1727,34 @@ if __name__ == "__main__":
     # startdate = dt.date.today()
     # starttime = dt.time(0,0,0)
     # dtstart = dt.datetime.combine(startdate, starttime)
-    
+
     # for i in range(0,ndays):
     #     df_eval, df_manminutes = load_operator_data(dtstart, dtend)
-    
+
     #     m, b = plot_man_ratios(df_manminutes)
     #     print("m = {} for {} days".format(m, i+1))
     #     print("b = {} for {} days".format(b, i+1))
     #     print("")
-        
+
     #     # Adjust start date
     #     startdate -= dt.timedelta(days=1)
     #     dtstart = dt.datetime.combine(startdate, starttime)
-    
-    # all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers = filter_outlier_cycles(dtstart, dtend)
-    
-    # cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
-    
 
-    
+    # all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers = filter_outlier_cycles(dtstart, dtend)
+
+    # cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
+
+
+
     operator_list = [999]
     # shift = None
     # # get_operator_stats_by_list(df_eval, operator_list, shift=None)
-    
+
     df_eval, df_manminutes = load_operator_data(dtstart, dtend)
     get_operator_stats_by_list(df_eval, operator_list)
     # get_all_operator_stats(df_eval)
-    
+
     # opnum = 69
     # get_single_operator_stats(df_eval, opnum)
-    
+
     # df_eval = get_operator_report_by_list(operator_list, shift, dtstart, dtend)
