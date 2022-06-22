@@ -16,11 +16,11 @@ data = pd.read_excel(datafile, sheet_name="Results")
 # Drop comment column
 data = data.drop(["Unnamed: 13"], axis=1)
 
-# Drop incomplete rows
-data = data.drop([10,11,12,13,14,15,16,17,18,19])
+# # Drop incomplete rows
+# data = data.drop([10,11,12,13,14,15,16,17,18,19])
 
 # Set a specific case full part time to 20 minutes based on comment (didn't fill)
-data.at[1,"Full Part (min)"] = 20
+# data.at[1,"Full Part (min)"] = 20
 
 
 ### Ambient Temperature ###
@@ -178,7 +178,7 @@ else:
     print("Statistical difference: NO")
 
 
-### Time to full part ###
+### Time to full cure ###
 # Filter data and load into lists
 nofiller_cure = list(data["Full Cure (min)"].where(data["Filler"] == 0.0))
 nofiller_cure = [x for x in nofiller_cure if np.isnan(x) == False]
