@@ -428,9 +428,85 @@ def stdev_over_time(df_equip_bag, sweepwindow):
     sns.set_theme(style="whitegrid")
     sns.scatterplot(x=bagcycles_nonsat, y=cycletimes_nonsat, color='b', alpha=0.5)
     sns.lineplot(x=sweep_plot_cycles, y=stdev_sweep, color='r')
+    ax1.set_title("Standard deviation - sweep window of {}".format(sweepwindow))
     
     return sweep_plot_cycles
+
+
+def avg_over_time(df_equip_bag, sweepwindow):
     
+    non_saturated = df_equip_bag.loc[df_equip_bag["Saturated Time"] == False]
+    
+    # bagdays_nonsat = non_saturated["Bag Days"]
+    cycletimes_nonsat = non_saturated["Cycle Time"]
+    bagcycles_nonsat = non_saturated["Bag Cycles"]
+    
+    sweep_plot_start = int(sweepwindow) + int(bagcycles_nonsat.min())
+    sweep_plot_end = int(bagcycles_nonsat.max())
+    sweep_plot_cycles = list(range(sweep_plot_start, sweep_plot_end+1))
+    
+    # sweep_plot_start_cycle = int(bagcycles_nonsat.min() + sweepwindow/2)
+    
+    
+    # sweep_plot_cycles = list(df_equip_bag["Bag Cycles"].iloc[sweep_plot_indices])
+    
+    avg_sweep = []
+    for i,idx in enumerate(sweep_plot_cycles):
+        sweep_start = idx - int(sweepwindow)
+        sweep_end = sweep_start + sweepwindow
+        sweep_indices = list(range(sweep_start, sweep_end+1))
+        
+        avg = np.mean(df_equip_bag["Cycle Time"].iloc[sweep_indices])
+        avg_sweep.append(avg)
+    
+    fig1,ax1 = plt.subplots(dpi=300)
+    sns.set_theme(style="whitegrid")
+    sns.scatterplot(x=bagcycles_nonsat, y=cycletimes_nonsat, color='b', alpha=0.5)
+    sns.lineplot(x=sweep_plot_cycles, y=avg_sweep, color='r')
+    ax1.set_title("Mean cycle time - sweep window of {}".format(sweepwindow))
+    
+    return sweep_plot_cycles
+
+
+def boxplot_over_time(df_equip_bag, window_size):
+    
+    max_cycles = df_equip_bag["Bag Cycles"].max()
+    
+    boundary_vals = [0]
+    while max(boundary_vals) < max_cycles:
+        lastval = boundary_vals[-1]
+        nextval = lastval + window_size
+        boundary_vals.append(nextval)
+        # print(boundary_vals)
+    
+    
+    window_cycles_list = []
+    labels_list = []
+    for i,bound in enumerate(boundary_vals):
+        if i == len(boundary_vals)-1:
+            continue
+        lower_bounded = df_equip_bag.loc[df_equip_bag["Bag Cycles"] >= bound]
+        fully_bounded = lower_bounded.loc[lower_bounded["Bag Cycles"] < boundary_vals[i+1]]
+        window_cycle_times = list(fully_bounded["Cycle Time"])
+        colname = "{} to {}".format(bound, boundary_vals[i+1]-1)
+        for j,cyc in enumerate(window_cycle_times):
+            window_cycles_list.append(cyc)
+            labels_list.append(colname)
+        # df_cyc[colname] = window_cycles
+    
+    data = {"Cycle Bounds": labels_list, "Cycle Time": window_cycles_list}
+    
+    df_cyc = pd.DataFrame(data)
+    
+    unique_labels = np.unique(df_cyc["Cycle Bounds"])
+    
+    fig,ax = plt.subplots(dpi=300)
+    sns.set_theme(style="whitegrid")
+    customPalette = sns.light_palette("lightblue", len(unique_labels))
+    flierprops = dict(marker='o', markerfacecolor='None', markersize=4)    
+    sns.boxplot(x='Cycle Bounds', y='Cycle Time', data=df_cyc, flierprops=flierprops, palette=customPalette)
+    ax.set_xticklabels(ax.get_xticklabels(),rotation=45)
+        
 
 
 if __name__ == "__main__":
@@ -446,5 +522,7 @@ if __name__ == "__main__":
     # correlate_bag_cycles(df_equip)
     
     
-    sweepwindow = 50
-    sweep_plot_cycles = stdev_over_time(df_equip, sweepwindow)
+    sweepwindow = 100
+    # stdev_over_time(df_equip, sweepwindow)
+    # avg_over_time(df_equip, sweepwindow)
+    boxplot_over_time(df_equip, sweepwindow)
