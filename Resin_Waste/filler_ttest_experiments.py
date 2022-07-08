@@ -8,10 +8,12 @@ Created on Thu Jun  9 13:56:53 2022
 import pandas as pd
 import numpy as np
 from scipy import stats
+import statsmodels.stats.api as sms
 
 # Load and prepare data
-datafile = "Z:/Research & Development/Resin Experiments/Filler Randomized Study.xlsx"
-data = pd.read_excel(datafile, sheet_name="Results")
+datafile = "Z:/Current Projects/RockWell Profitability/Resin Controlled Experiments.xlsx"
+# datafile = "Z:/Research & Development/Resin Experiments/Filler Randomized Study.xlsx"
+data = pd.read_excel(datafile, sheet_name="Results_Low_Catalyst")
 
 # Drop comment column
 data = data.drop(["Unnamed: 13"], axis=1)
@@ -50,6 +52,15 @@ print("Variance ratio = {}".format(var_ratio_amb))
 print("statistic={}, pvalue={}".format(amb_results.statistic, amb_results.pvalue))
 if amb_results.pvalue < 0.05:
     print("Statistical difference: YES")
+    
+    # If there is a statistical difference, calculate and print the 95%
+    # confidence intervals on the means, and then the difference in the
+    # measured means
+    cm = sms.CompareMeans(sms.DescrStatsW(nofiller_amb), sms.DescrStatsW(filler_amb))
+    if equal_variance == True:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
+    else:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
 else:
     print("Statistical difference: NO")
 
@@ -81,6 +92,15 @@ print("Variance ratio = {}".format(var_ratio_mold))
 print("statistic={}, pvalue={}".format(mold_results.statistic, mold_results.pvalue))
 if mold_results.pvalue < 0.05:
     print("Statistical difference: YES")
+    
+    # If there is a statistical difference, calculate and print the 95%
+    # confidence intervals on the means, and then the difference in the
+    # measured means
+    cm = sms.CompareMeans(sms.DescrStatsW(nofiller_mold), sms.DescrStatsW(filler_mold))
+    if equal_variance == True:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
+    else:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
 else:
     print("Statistical difference: NO")
     
@@ -112,6 +132,15 @@ print("Variance ratio = {}".format(var_ratio_flange))
 print("statistic={}, pvalue={}".format(flange_results.statistic, flange_results.pvalue))
 if flange_results.pvalue < 0.05:
     print("Statistical difference: YES")
+    
+    # If there is a statistical difference, calculate and print the 95%
+    # confidence intervals on the means, and then the difference in the
+    # measured means
+    cm = sms.CompareMeans(sms.DescrStatsW(nofiller_flange), sms.DescrStatsW(filler_flange))
+    if equal_variance == True:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
+    else:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
 else:
     print("Statistical difference: NO")
 
@@ -143,6 +172,15 @@ print("Variance ratio = {}".format(var_ratio_bucket))
 print("statistic={}, pvalue={}".format(bucket_results.statistic, bucket_results.pvalue))
 if bucket_results.pvalue < 0.05:
     print("Statistical difference: YES")
+    
+    # If there is a statistical difference, calculate and print the 95%
+    # confidence intervals on the means, and then the difference in the
+    # measured means
+    cm = sms.CompareMeans(sms.DescrStatsW(nofiller_bucket), sms.DescrStatsW(filler_bucket))
+    if equal_variance == True:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
+    else:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
 else:
     print("Statistical difference: NO")
 
@@ -174,6 +212,15 @@ print("Variance ratio = {}".format(var_ratio_full))
 print("statistic={}, pvalue={}".format(full_results.statistic, full_results.pvalue))
 if full_results.pvalue < 0.05:
     print("Statistical difference: YES")
+    
+    # If there is a statistical difference, calculate and print the 95%
+    # confidence intervals on the means, and then the difference in the
+    # measured means
+    cm = sms.CompareMeans(sms.DescrStatsW(nofiller_full), sms.DescrStatsW(filler_full))
+    if equal_variance == True:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
+    else:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
 else:
     print("Statistical difference: NO")
 
@@ -205,6 +252,15 @@ print("Variance ratio = {}".format(var_ratio_cure))
 print("statistic={}, pvalue={}".format(cure_results.statistic, cure_results.pvalue))
 if cure_results.pvalue < 0.05:
     print("Statistical difference: YES")
+    
+    # If there is a statistical difference, calculate and print the 95%
+    # confidence intervals on the means, and then the difference in the
+    # measured means
+    cm = sms.CompareMeans(sms.DescrStatsW(nofiller_cure), sms.DescrStatsW(filler_cure))
+    if equal_variance == True:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
+    else:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
 else:
     print("Statistical difference: NO")
 
@@ -233,6 +289,15 @@ print("Variance ratio = {}".format(var_ratio_white))
 print("statistic={}, pvalue={}".format(white_results.statistic, white_results.pvalue))
 if white_results.pvalue < 0.05:
     print("Statistical difference: YES")
+    
+    # If there is a statistical difference, calculate and print the 95%
+    # confidence intervals on the means, and then the difference in the
+    # measured means
+    cm = sms.CompareMeans(sms.DescrStatsW(nofiller_white), sms.DescrStatsW(filler_white))
+    if equal_variance == True:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
+    else:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
 else:
     print("Statistical difference: NO")
 
