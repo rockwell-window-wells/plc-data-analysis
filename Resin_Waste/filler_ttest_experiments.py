@@ -13,10 +13,13 @@ import statsmodels.stats.api as sms
 # Load and prepare data
 datafile = "Z:/Current Projects/RockWell Profitability/Resin Controlled Experiments.xlsx"
 # datafile = "Z:/Research & Development/Resin Experiments/Filler Randomized Study.xlsx"
-data = pd.read_excel(datafile, sheet_name="Results_Low_Catalyst")
+
+# data = pd.read_excel(datafile, sheet_name="Results_Filler_Low_Catalyst")
+data = pd.read_excel(datafile, sheet_name="Results_Filler_Extra_Low_Cat")
+
 
 # Drop comment column
-data = data.drop(["Unnamed: 13"], axis=1)
+# data = data.drop(["Unnamed: 13"], axis=1)
 
 # # Drop incomplete rows
 # data = data.drop([10,11,12,13,14,15,16,17,18,19])
@@ -97,6 +100,45 @@ if mold_results.pvalue < 0.05:
     # confidence intervals on the means, and then the difference in the
     # measured means
     cm = sms.CompareMeans(sms.DescrStatsW(nofiller_mold), sms.DescrStatsW(filler_mold))
+    if equal_variance == True:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
+    else:
+        print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
+else:
+    print("Statistical difference: NO")
+    
+### Purple Length to 72 Mark ###
+# Filter data and load into lists
+nofiller_purple = list(data["Purple 72 Mark Length (in)"].where(data["Filler"] == 0.0))
+nofiller_purple = [x for x in nofiller_purple if np.isnan(x) == False]
+filler_purple = list(data["Purple 72 Mark Length (in)"].where(data["Filler"] == 0.1))
+filler_purple = [x for x in filler_purple if np.isnan(x) == False]
+
+# Compute variance, run t-tests, and print results
+nofiller_purple_var = np.var(nofiller_purple)
+filler_purple_var = np.var(filler_purple)
+
+if nofiller_purple_var/filler_purple_var < 1:
+    var_ratio_purple = filler_purple_var/nofiller_purple_var
+else:
+    var_ratio_purple = nofiller_purple_var/filler_purple_var
+    
+if var_ratio_purple < 4:
+    equal_variance = True
+else:
+    equal_variance = False
+    
+purple_results = stats.ttest_ind(nofiller_purple, filler_purple, equal_var=equal_variance)
+print("\nPurple Length:")
+print("Variance ratio = {}".format(var_ratio_purple))
+print("statistic={}, pvalue={}".format(purple_results.statistic, purple_results.pvalue))
+if purple_results.pvalue < 0.05:
+    print("Statistical difference: YES")
+    
+    # If there is a statistical difference, calculate and print the 95%
+    # confidence intervals on the means, and then the difference in the
+    # measured means
+    cm = sms.CompareMeans(sms.DescrStatsW(nofiller_purple), sms.DescrStatsW(filler_purple))
     if equal_variance == True:
         print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
     else:

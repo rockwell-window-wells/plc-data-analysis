@@ -94,10 +94,9 @@ for column_str in column_list:
             print("Statistical difference: YES")
             cm = sms.CompareMeans(sms.DescrStatsW(halfway[column_str]), sms.DescrStatsW(top[column_str]))
             if equal_variance:
-                print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
+                print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
             else:
-                print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
-                
+                print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))         
         else:
             print("Statistical difference: NO")
         
@@ -106,9 +105,9 @@ for column_str in column_list:
             print("Statistical difference: YES")
             cm = sms.CompareMeans(sms.DescrStatsW(halfway[column_str]), sms.DescrStatsW(bottom[column_str]))
             if equal_variance:
-                print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
+                print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
             else:
-                print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
+                print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
         else:
             print("Statistical difference: NO")
         
@@ -117,8 +116,8 @@ for column_str in column_list:
             print("Statistical difference: YES")
             cm = sms.CompareMeans(sms.DescrStatsW(top[column_str]), sms.DescrStatsW(bottom[column_str]))
             if equal_variance:
-                print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
+                print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
             else:
-                print("Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
+                print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
         else:
             print("Statistical difference: NO")
