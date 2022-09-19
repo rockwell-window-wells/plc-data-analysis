@@ -48,19 +48,24 @@ def find_stat_difference_2group(A, B, column_str):
         print("Statistical difference: NO")
 
 
-def check_variance_equality(A, B, C, column_str):
+def getCombinations(seq):
+    combinations = list()
+    for i in range(0,len(seq)):
+        for j in range(i+1,len(seq)):
+            combinations.append([seq[i],seq[j]])
+    return combinations
+
+
+def check_variance_equality(df_features, column_str):
     # Compute variances
-    A_var = np.var(A[column_str])
-    B_var = np.var(B[column_str])
-    C_var = np.var(C[column_str])
+    var_list = [np.var(df_feature[column_str]) for df_feature in df_features]
     
     # Compare variances
-    var_list = [A_var, B_var, C_var]
     var_list.sort(reverse=True)
     
-    var_ratios = [var_list[0]/var_list[1],
-                  var_list[0]/var_list[2],
-                  var_list[1]/var_list[2]]
+    var_combinations = getCombinations(var_list)
+    
+    var_ratios = [combo[0]/combo[1] if combo[1] != 0 else 0 for combo in var_combinations]
     
     if any(ratio > 4 for ratio in var_ratios):
         equal_variance = False
@@ -70,14 +75,15 @@ def check_variance_equality(A, B, C, column_str):
     return equal_variance
 
 
-def oneway_anova(A, B, C, column_str):
-    equal_variance = check_variance_equality(A, B, C, column_str)
+def oneway_anova(df_features, column_str):
+    equal_variance = check_variance_equality(df_features, column_str)
     print("\n\n########################")
     print("{}".format(column_str))
     print("########################")
     if equal_variance:
         print("\nOne-way ANOVA:")
-        results = stats.f_oneway(A[column_str], B[column_str], C[column_str])
+        results = stats.f_oneway(*(df_feature[column_str] for df_feature in df_features))
+        # results = stats.f_oneway(A[column_str], B[column_str], C[column_str])
         print("P-value:\t{}".format(results.pvalue))
         if results.pvalue < 0.05:
             print("Statistical difference: YES")
@@ -89,8 +95,8 @@ def oneway_anova(A, B, C, column_str):
     return equal_variance
 
 
-def combination_ttests(A, B, C, column_str, feature_vals):
-    equal_variance = oneway_anova(A, B, C, column_str)
+def combination_ttests(df_features, column_str, feature_vals):
+    equal_variance = oneway_anova(df_features, column_str)
     if equal_variance is False:
         # # Plot histograms of the values of interest
         # plt.hist(A[column_str], alpha=0.5, label=str(feature_vals[0]), color='r')
@@ -102,42 +108,22 @@ def combination_ttests(A, B, C, column_str, feature_vals):
         
         # Perform combinations of t-tests that don't require equal variance
         print("Performing Welch's t-test for unequal variance...")
-        A_B = stats.ttest_ind(A[column_str], B[column_str], equal_var=equal_variance)
-        A_C = stats.ttest_ind(A[column_str], C[column_str], equal_var=equal_variance)
-        B_C = stats.ttest_ind(B[column_str], C[column_str], equal_var=equal_variance)
+        df_feature_combos = getCombinations(df_features)
+        feature_val_combos = getCombinations(feature_vals)
         
-        print("\n{} vs. {}:\tpvalue={}".format(feature_vals[0], feature_vals[1], A_B.pvalue))
-        if A_B.pvalue < 0.05:
-            print("Statistical difference: YES")
-            cm = sms.CompareMeans(sms.DescrStatsW(A[column_str]), sms.DescrStatsW(B[column_str]))
-            if equal_variance:
-                print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
-            else:
-                print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))         
-        else:
-            print("Statistical difference: NO")
+        ttest_results = [stats.ttest_ind(combo[0][column_str], combo[1][column_str], equal_var=equal_variance) for combo in df_feature_combos]
         
-        print("\n{} vs. {}:\tpvalue={}".format(feature_vals[0], feature_vals[2], A_C.pvalue))
-        if A_C.pvalue < 0.05:
-            print("Statistical difference: YES")
-            cm = sms.CompareMeans(sms.DescrStatsW(A[column_str]), sms.DescrStatsW(C[column_str]))
-            if equal_variance:
-                print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
+        for i,combo in enumerate(df_feature_combos):
+            print("\n{} vs. {}:\tpvalue={}".format(feature_val_combos[i][0], feature_val_combos[i][1], ttest_results[i].pvalue))
+            if ttest_results[i].pvalue < 0.05:
+                print("Statistical difference: YES")
+                cm = sms.CompareMeans(sms.DescrStatsW(combo[0][column_str]), sms.DescrStatsW(combo[1][column_str]))
+                if equal_variance:
+                    print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
+                else:
+                    print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))         
             else:
-                print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
-        else:
-            print("Statistical difference: NO")
-        
-        print("\n{} vs. {}:\tpvalue={}".format(feature_vals[1], feature_vals[2], B_C.pvalue))
-        if B_C.pvalue < 0.05:
-            print("Statistical difference: YES")
-            cm = sms.CompareMeans(sms.DescrStatsW(B[column_str]), sms.DescrStatsW(C[column_str]))
-            if equal_variance:
-                print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='pooled')))
-            else:
-                print("95% Confidence interval on mean diff: {}".format(cm.tconfint_diff(usevar='unequal')))
-        else:
-            print("Statistical difference: NO")    
+                print("Statistical difference: NO")  
     
     
 if __name__ == "__main__":
@@ -155,7 +141,8 @@ if __name__ == "__main__":
     # sheet = "Results_Tee"
     # sheet = "Results_Clean_Feed_Lines"
     # sheet = "Results_20_Minute_Layup"
-    sheet = "Results_Resin_Regression (2)"
+    # sheet = "Results_Resin_Regression (2)"
+    sheet = "Results_Hose_Size_Actual_Resin"
     data = pd.read_excel(datafile, sheet_name=sheet)
     
     # Remove any unnamed columns
@@ -173,34 +160,8 @@ if __name__ == "__main__":
     feature_vals = list(data[feature].unique())
     n_feature_vals = len(feature_vals)
     
-    if n_feature_vals == 2:
-        A = data.where(data[feature] == feature_vals[0])
-        B = data.where(data[feature] == feature_vals[1])
-        
-        A = A.dropna(axis=0)
-        B = B.dropna(axis=0)
-        
-    elif n_feature_vals == 3:
-        A = data.where(data[feature] == feature_vals[0])
-        B = data.where(data[feature] == feature_vals[1])
-        C = data.where(data[feature] == feature_vals[2])
-        
-        A = A.dropna(axis=0)
-        B = B.dropna(axis=0)
-        C = C.dropna(axis=0)
-    
-    elif n_feature_vals == 4:
-        A = data.where(data[feature] == feature_vals[0])
-        B = data.where(data[feature] == feature_vals[1])
-        C = data.where(data[feature] == feature_vals[2])
-        D = data.where(data[feature] == feature_vals[3])
-        
-        A = A.dropna(axis=0)
-        B = B.dropna(axis=0)
-        C = C.dropna(axis=0)
-        D = D.dropna(axis=0)
-    else:
-        raise ValueError("ERROR: Wrong number of features")
+    df_features = [data.where(data[feature] == feature_val) for feature_val in feature_vals]
+    df_features = [df_feature.dropna(axis=0) for df_feature in df_features]
     
     print("##############################")
     print("Sheet:\t{}".format(sheet))
@@ -212,6 +173,6 @@ if __name__ == "__main__":
         
     for column_str in column_list:
         if n_feature_vals == 2:
-            find_stat_difference_2group(A, B, column_str)
+            find_stat_difference_2group(df_features[0], df_features[1], column_str)
         else:
-            combination_ttests(A, B, C, column_str, feature_vals)
+            combination_ttests(df_features, column_str, feature_vals)
