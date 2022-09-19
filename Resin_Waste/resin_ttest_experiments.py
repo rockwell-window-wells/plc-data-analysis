@@ -143,18 +143,29 @@ def combination_ttests(A, B, C, column_str, feature_vals):
 if __name__ == "__main__":
     # Load and prepare data
     datafile = "Z:/Current Projects/RockWell Profitability/Resin Controlled Experiments.xlsx"
-    sheet = "Results_Filler_Low_Catalyst"
+    # sheet = "Results_Filler_Low_Catalyst"
     # sheet = "Results_Filler_Extra_Low_Cat"
     # sheet = "Results_Filler_Extra_Low_Cat_2"
     # sheet = "Results_Feed_Hose_Size"
     # sheet = "Results_Feed_Hose_Size_2"
     # sheet = "Results_Diaper_Placement"
     # sheet = "Results_Hose_Number"
-    data = pd.read_excel(datafile, sheet_name=sheet)    
+    # sheet = "Results_Cooling"
+    # sheet = "Results_Cooling_2"
+    # sheet = "Results_Tee"
+    # sheet = "Results_Clean_Feed_Lines"
+    # sheet = "Results_20_Minute_Layup"
+    sheet = "Results_Resin_Regression (2)"
+    data = pd.read_excel(datafile, sheet_name=sheet)
+    
+    # Remove any unnamed columns
+    data = data[data.columns.drop(list(data.filter(regex='Unnamed')))]
     
     column_list = list(data.columns)
-    feature = column_list.pop(1)
-    del column_list[0]
+    # feature = column_list.pop(1)
+    # del column_list[0]
+    feature = column_list.pop(0)
+    
     column_list.remove("Resin Amt. (lbs)")
     column_list.remove("Catalyst Amt. (mL)")
     
@@ -177,6 +188,17 @@ if __name__ == "__main__":
         A = A.dropna(axis=0)
         B = B.dropna(axis=0)
         C = C.dropna(axis=0)
+    
+    elif n_feature_vals == 4:
+        A = data.where(data[feature] == feature_vals[0])
+        B = data.where(data[feature] == feature_vals[1])
+        C = data.where(data[feature] == feature_vals[2])
+        D = data.where(data[feature] == feature_vals[3])
+        
+        A = A.dropna(axis=0)
+        B = B.dropna(axis=0)
+        C = C.dropna(axis=0)
+        D = D.dropna(axis=0)
     else:
         raise ValueError("ERROR: Wrong number of features")
     
