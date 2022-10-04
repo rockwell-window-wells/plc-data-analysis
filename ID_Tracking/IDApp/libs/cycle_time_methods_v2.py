@@ -1714,7 +1714,7 @@ def plot_man_ratios(df_manminutes):
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,2,21,0,0,0)
+    dtstart = dt.datetime(2022,7,1,0,0,0)
     enddate = dt.date.today()
     # enddate = dt.date(2022,3,17)
     endtime = dt.time(23,59,59)
@@ -1746,7 +1746,7 @@ if __name__ == "__main__":
 
 
 
-    operator_list = [999]
+    operator_list = [666]
     # shift = None
     # # get_operator_stats_by_list(df_eval, operator_list, shift=None)
 

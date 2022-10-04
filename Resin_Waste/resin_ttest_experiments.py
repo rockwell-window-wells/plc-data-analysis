@@ -134,15 +134,17 @@ if __name__ == "__main__":
     # sheet = "Results_Filler_Extra_Low_Cat_2"
     # sheet = "Results_Feed_Hose_Size"
     # sheet = "Results_Feed_Hose_Size_2"
+    # sheet = "Results_Feed_Hose_Size_3"
     # sheet = "Results_Diaper_Placement"
     # sheet = "Results_Hose_Number"
     # sheet = "Results_Cooling"
     # sheet = "Results_Cooling_2"
     # sheet = "Results_Tee"
     # sheet = "Results_Clean_Feed_Lines"
-    # sheet = "Results_20_Minute_Layup"
+    sheet = "Results_20_Minute_Layup"
     # sheet = "Results_Resin_Regression (2)"
-    sheet = "Results_Hose_Size_Actual_Resin"
+    # sheet = "Results_Resin_Regression (3)"
+    # sheet = "Results_Hose_Size_Actual_Resin"
     data = pd.read_excel(datafile, sheet_name=sheet)
     
     # Remove any unnamed columns

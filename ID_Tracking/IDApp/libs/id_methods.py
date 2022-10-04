@@ -386,8 +386,9 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
 
     redrgb = (255, 64, 64)
     bluergb = (97, 171, 255)
-    whitergb = (255, 255, 255)
-    equiprgb = (236, 232, 26)
+    whitergb = (250, 250, 250)
+    purplergb = (209, 153, 255)
+    bagrgb = (236, 232, 26)
 
     # Change the template from white to slightly gray for visibility
     template = template.convert('RGBA')
@@ -398,11 +399,16 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     if prefix == "10":
         data[..., :-1][white_areas.T] = redrgb
     # Blue for assistant
-    elif  prefix == "11":
+    elif prefix == "11":
         data[..., :-1][white_areas.T] = bluergb
+    # Purple for purple
+    elif prefix == "30":
+        data[..., :-1][white_areas.T] = purplergb
+    # Yellow for bag
+    elif prefix == "31":
+        data[..., :-1][white_areas.T] = bagrgb        
     else:
-        data[..., :-1][white_areas.T] = equiprgb
-        # data[..., :-1][white_areas.T] = whitergb
+        data[..., :-1][white_areas.T] = whitergb
     template = Image.fromarray(data)
     template = template.convert('RGB')
 

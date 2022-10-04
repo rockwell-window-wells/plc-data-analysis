@@ -106,9 +106,9 @@ def clean_single_mold_data(single_mold_data):
                     if np.isnan(df_sorted["Cycle Time"].iloc[i]):
                         if np.isnan(df_sorted["Leak Time"].iloc[i]):
                             if np.isnan(df_sorted["Leak Count"].iloc[i]):
-                                if np.isnan(df_sorted["Bag ID"].iloc[i]):
+                                if np.isnan(df_sorted["Bag"].iloc[i]):
                                     if np.isnan(df_sorted["Bag Days"].iloc[i]):
-                                        if np.isnan(df_sorted["Bag Count"].iloc[i]):
+                                        if np.isnan(df_sorted["Bag Cycles"].iloc[i]):
                                             nan_indices.append(i)
 
     df_cleaned = df_sorted.drop(df_sorted.index[nan_indices])
@@ -161,7 +161,7 @@ def clean_single_mold_data(single_mold_data):
 
     # Find the indices where there is an assistant 1 number
     bagid_inds = []
-    not_nan_series = df_cleaned["Bag ID"].notnull()
+    not_nan_series = df_cleaned["Bag"].notnull()
     for i in range(len(not_nan_series)):
         if not_nan_series.iloc[i] == True:
             bagid_inds.append(i)
@@ -177,7 +177,7 @@ def clean_single_mold_data(single_mold_data):
 
     # Find the indices where there is an assistant 3 number
     bagcount_inds = []
-    not_nan_series = df_cleaned["Bag Count"].notnull()
+    not_nan_series = df_cleaned["Bag Cycles"].notnull()
     for i in range(len(not_nan_series)):
         if not_nan_series.iloc[i] == True:
             bagcount_inds.append(i)
@@ -248,11 +248,11 @@ def align_bag_times(df_cleaned, datetimes, timestring, time_inds, measured_times
         # Determine the closest previous index in the Lead column that contains a
         # lead number
         bagid_idx = get_closest_ID(ind, bagid_inds)
-        bagids.append(df_cleaned["Bag ID"].iloc[bagid_idx])
+        bagids.append(df_cleaned["Bag"].iloc[bagid_idx])
         bagday_idx = get_closest_ID(ind, bagday_inds)
         bagdays.append(df_cleaned["Bag Days"].iloc[bagday_idx])
         bagcount_idx = get_closest_ID(ind, bagcount_inds)
-        bagcounts.append(df_cleaned["Bag Count"].iloc[bagcount_idx])
+        bagcounts.append(df_cleaned["Bag Cycles"].iloc[bagcount_idx])
     
     bagids = [int(x) for x in bagids]
     bagdays = [int(x) for x in bagdays]
@@ -268,8 +268,8 @@ def align_bag_times(df_cleaned, datetimes, timestring, time_inds, measured_times
 
     # Combine data
     aligned_data = {"time": datetimes, timestring: measured_times,
-                    "Bag ID": bagids, "Bag Days": bagdays,
-                    "Bag Count": bagcounts}
+                    "Bag": bagids, "Bag Days": bagdays,
+                    "Bag Cycles": bagcounts}
     df_aligned = pd.DataFrame.from_dict(aligned_data)
 
     return df_aligned
@@ -326,19 +326,19 @@ def analyze_all_molds(mold_data_folder):
     plt.savefig(plotname, dpi=300)
     plt.close()
     
-    sns.regplot(x=df_layup["Bag Count"], y=df_layup["Layup Time"])
+    sns.regplot(x=df_layup["Bag Cycles"], y=df_layup["Layup Time"])
     plotname = "Layup_Bag_Count_Correlation.png"
     plt.savefig(plotname, dpi=300)
     plt.close()
-    sns.regplot(x=df_close["Bag Count"], y=df_close["Close Time"])
+    sns.regplot(x=df_close["Bag Cycles"], y=df_close["Close Time"])
     plotname = "Close_Bag_Count_Correlation.png"
     plt.savefig(plotname, dpi=300)
     plt.close()
-    sns.regplot(x=df_resin["Bag Count"], y=df_resin["Resin Time"])
+    sns.regplot(x=df_resin["Bag Cycles"], y=df_resin["Resin Time"])
     plotname = "Resin_Bag_Count_Correlation.png"
     plt.savefig(plotname, dpi=300)
     plt.close()
-    sns.regplot(x=df_cycle["Bag Count"], y=df_cycle["Cycle Time"])
+    sns.regplot(x=df_cycle["Bag Cycles"], y=df_cycle["Cycle Time"])
     plotname = "Cycle_Bag_Count_Correlation.png"
     plt.savefig(plotname, dpi=300)
     plt.close()
@@ -349,7 +349,7 @@ def analyze_all_molds(mold_data_folder):
 if __name__ == "__main__":
     datafolder = os.getcwd()
     datafolder = datafolder + "\\testdata\\"
-    datafile = datafolder + "red-mold_red-mold-stats_2022-02-14T07-39-00_2022-02-15T07-38-59.csv"
+    datafile = datafolder + "pink-mold_pink-mold-stats_2022-07-16T00-00-00_2022-08-08T23-59-59.csv"
     df_layup, df_close, df_resin, df_cycle = clean_single_mold_data(datafile)
         
     datafolder = os.getcwd()
