@@ -19,12 +19,12 @@ import pytz
 
 # If running as part of a compiled exe file (i.e. as the finalized ID &
 # Evaluation Tool app), comment out the imports that contain "from . import"
-import data_assets
-import id_methods
-import api_config_vars as api
-# from . import data_assets
-# from . import id_methods
-# from . import api_config_vars as api
+# import data_assets
+# import id_methods
+# import api_config_vars as api
+from . import data_assets
+from . import id_methods
+from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -169,7 +169,7 @@ def get_cycles_text(cycle_count):
         statements about whether the number is sufficient for evaluation.
 
     """
-    thresh = 50
+    thresh = 20
 
     if cycle_count < thresh:
         cycles_text = "Choose longer evaluation period"
@@ -339,17 +339,38 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
         print("\n{}% complete".format(np.around(i*100/noperators, 2)))
         # Get all rows where the current operator is in the lead list
         df_lead = df[pd.DataFrame(df.Lead.tolist()).isin([operator]).any(1).values]
+        df_layup = df[pd.DataFrame(df["Layup Leads"].tolist()).isin([operator]).any(1).values]
+        df_close = df[pd.DataFrame(df["Close Leads"].tolist()).isin([operator]).any(1).values]
+        df_resin = df[pd.DataFrame(df["Resin Leads"].tolist()).isin([operator]).any(1).values]
 
         opdate = id_methods.get_id_assign_date(IDfilepath, operator)
 
         # Filter out dates before the operator's ID number was assigned
-        datelist = df_lead["time"].tolist()
-        for i in range(len(datelist)):
-            datelist[i] = datelist[i].to_pydatetime()
-            datelist[i] = datelist[i].date()
-
-        filtered_dates_indices = [i for i,date in enumerate(datelist) if date>=opdate]
-        df_lead = df_lead.iloc[filtered_dates_indices]
+        datelist_lead = df_lead["time"].tolist()
+        datelist_layup = df_layup["time"].tolist()
+        datelist_close = df_close["time"].tolist()
+        datelist_resin = df_resin["time"].tolist()
+        for i in range(len(datelist_lead)):
+            datelist_lead[i] = datelist_lead[i].to_pydatetime()
+            datelist_lead[i] = datelist_lead[i].date()
+        for i in range(len(datelist_layup)):
+            datelist_layup[i] = datelist_layup[i].to_pydatetime()
+            datelist_layup[i] = datelist_layup[i].date()
+        for i in range(len(datelist_close)):
+            datelist_close[i] = datelist_close[i].to_pydatetime()
+            datelist_close[i] = datelist_close[i].date()
+        for i in range(len(datelist_resin)):
+            datelist_resin[i] = datelist_resin[i].to_pydatetime()
+            datelist_resin[i] = datelist_resin[i].date()
+            
+        filtered_dates_indices_lead = [i for i,date in enumerate(datelist_lead) if date>=opdate]
+        filtered_dates_indices_layup = [i for i,date in enumerate(datelist_layup) if date>=opdate]
+        filtered_dates_indices_close = [i for i,date in enumerate(datelist_close) if date>=opdate]
+        filtered_dates_indices_resin = [i for i,date in enumerate(datelist_resin) if date>=opdate]
+        df_lead = df_lead.iloc[filtered_dates_indices_lead]
+        df_layup = df_layup.iloc[filtered_dates_indices_layup]
+        df_close = df_close.iloc[filtered_dates_indices_close]
+        df_resin = df_resin.iloc[filtered_dates_indices_resin]
 
         # Get all rows for the current operator's shift
         operator_shift = None
@@ -366,17 +387,30 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
 
         # Remove rows where it's the first part on a Monday
         df_lead = df_lead[df_lead["First Monday Part"] != 1]
+        df_layup = df_layup[df_layup["First Monday Part"] != 1]
+        df_close = df_close[df_close["First Monday Part"] != 1]
+        df_resin = df_resin[df_resin["First Monday Part"] != 1]
         df_shift = df_shift[df_shift["First Monday Part"] != 1]
         df_company = df[df["First Monday Part"] != 1]
 
         # Compare the current operator against all cycle times
         lead_col = "Lead"
+        # layup_col = "Layup Leads"
+        # close_col = "Close Leads"
+        # resin_col = "Resin Leads"
         shift_col = "Shift"
         company_col = "RockWell"
         operator_compare = pd.DataFrame()
         operator_compare = pd.concat([operator_compare, df_lead[timestring].rename(lead_col)], axis=1)
-        operator_compare = pd.concat([operator_compare, df_shift[timestring].rename("Shift")], axis=1)
-        operator_compare = pd.concat([operator_compare, df_company[timestring].rename("RockWell")], axis=1)
+        operator_compare = pd.concat([operator_compare, df_shift[timestring].rename(shift_col)], axis=1)
+        operator_compare = pd.concat([operator_compare, df_company[timestring].rename(company_col)], axis=1)
+        
+        # layup_compare = pd.DataFrame()
+        # layup_compare = pd.concat([layup_compare, df_layup["Layup Time"].rename(lead_col)], axis=1)
+        # layup_compare = pd.concat([layup_compare, df_shift["Layup Time"].rename(shift_col)], axis=1)
+        # layup_compare = pd.concat([layup_compare, df_company["Layup Time"].rename(company_col)], axis=1)
+        
+        
 
         sns.set_theme(style="whitegrid")
         customPalette = sns.light_palette("lightblue", 3)
@@ -920,13 +954,54 @@ def load_operator_data(dtstart, dtend):
         # AssistantTimes columns are the individual elapsed times for each
         # operator on the mold. LeadIDs and AssistantIDs columns use a list
         # of the operator numbers instead of single values.
+        
+        stage_inds, layup_inds, close_inds, resin_inds, cycle_inds = associate_cycle_stages(df_cleaned)
+        
+        # # Find the indices where there is a layup time.
+        # layup_inds = []
+        # not_nan_series = df_cleaned["Layup Time"].notnull()
+        # for i in range(len(not_nan_series)):
+        #     if not_nan_series.iloc[i] == True:
+        #         layup_inds.append(i)
+        # # Get rid of indices that point to a zero layup time
+        # layup_inds_cleaned = []
+        # for ind in layup_inds:
+        #     if df_cleaned["Layup Time"].iloc[ind] != 0:
+        #         layup_inds_cleaned.append(ind)
+        # layup_inds = layup_inds_cleaned.copy()
+        
+        # # Find the indices where there is a close time.
+        # close_inds = []
+        # not_nan_series = df_cleaned["Close Time"].notnull()
+        # for i in range(len(not_nan_series)):
+        #     if not_nan_series.iloc[i] == True:
+        #         close_inds.append(i)
+        # # Get rid of indices that point to a zero close time
+        # close_inds_cleaned = []
+        # for ind in close_inds:
+        #     if df_cleaned["Close Time"].iloc[ind] != 0:
+        #         close_inds_cleaned.append(ind)
+        # close_inds = close_inds_cleaned.copy()
+        
+        # # Find the indices where there is a resin time.
+        # resin_inds = []
+        # not_nan_series = df_cleaned["Resin Time"].notnull()
+        # for i in range(len(not_nan_series)):
+        #     if not_nan_series.iloc[i] == True:
+        #         resin_inds.append(i)
+        # # Get rid of indices that point to a zero resin time
+        # resin_inds_cleaned = []
+        # for ind in resin_inds:
+        #     if df_cleaned["Resin Time"].iloc[ind] != 0:
+        #         resin_inds_cleaned.append(ind)
+        # resin_inds = resin_inds_cleaned.copy()
 
-        # Find the indices where there is a cycle time.
-        cycle_inds = []
-        not_nan_series = df_cleaned["Cycle Time"].notnull()
-        for i in range(len(not_nan_series)):
-            if not_nan_series.iloc[i] == True:
-                cycle_inds.append(i)
+        # # Find the indices where there is a cycle time.
+        # cycle_inds = []
+        # not_nan_series = df_cleaned["Cycle Time"].notnull()
+        # for i in range(len(not_nan_series)):
+        #     if not_nan_series.iloc[i] == True:
+        #         cycle_inds.append(i)
 
         # Find the indices where there is a lead login
         lead_inds = []
@@ -1222,6 +1297,9 @@ def load_operator_data(dtstart, dtend):
             man_minutes[i] = sum(minutes_list)
 
         # Catch whether the part is the first part on a Monday
+        layup_times = list(df_cleaned["Layup Time"][layup_inds])
+        close_times = list(df_cleaned["Close Time"][close_inds])
+        resin_times = list(df_cleaned["Resin Time"][resin_inds])
         cycle_times = list(df_cleaned["Cycle Time"][cycle_inds])
         datetimes = list(df_cleaned["time"][cycle_inds])
         weekdays = [date.weekday() for date in datetimes]
@@ -1237,25 +1315,54 @@ def load_operator_data(dtstart, dtend):
             else:
                 firstflags.append(0)
 
+        # shifts = []
+        # for i in range(len(leadIDs)):
+        #     shifts.append([])
+        #     for j in range(len(leadIDs[i])):
+        #         if leadIDs[i][j] in daylist:
+        #             shifts[i].append("Day")
+        #         elif leadIDs[i][j] in swinglist:
+        #             shifts[i].append("Swing")
+        #         elif leadIDs[i][j] in gravelist:
+        #             shifts[i].append("Graveyard")
+        #         elif leadIDs[i][j] == 0:
+        #             pass
+        #         else:
+        #             raise ValueError("ID not recognized as part of a shift")
+        
+            
+        # Add data for showing which stages should be counted for each operator,
+        # as well as whether the cycle time should be counted.
+        layupIDs, closeIDs, resinIDs, cycleIDs = count_stages_for_operator(df_cleaned, stage_inds, leadIDs)
+        
         shifts = []
-        for i in range(len(leadIDs)):
+        for i in range(len(cycleIDs)):
             shifts.append([])
-            for j in range(len(leadIDs[i])):
-                if leadIDs[i][j] in daylist:
+            for j in range(len(cycleIDs[i])):
+                if cycleIDs[i][j] in daylist:
                     shifts[i].append("Day")
-                elif leadIDs[i][j] in swinglist:
+                elif cycleIDs[i][j] in swinglist:
                     shifts[i].append("Swing")
-                elif leadIDs[i][j] in gravelist:
+                elif cycleIDs[i][j] in gravelist:
                     shifts[i].append("Graveyard")
-                elif leadIDs[i][j] == 0:
+                elif cycleIDs[i][j] == 0:
                     pass
                 else:
                     raise ValueError("ID not recognized as part of a shift")
+        
+        
+        
+        
+        
 
         # Create DataFrame for evaluations for current mold
         data_eval = {"time": datetimes, "Day": weekdays,
-                     "First Monday Part": firstflags, "Cycle Time": cycle_times,
-                     "Lead": leadIDs, "Shift": shifts
+                     "First Monday Part": firstflags, 
+                     "Layup Time": layup_times, "Close Time": close_times,
+                     "Resin Time": resin_times, "Cycle Time": cycle_times,
+                     "Lead": cycleIDs, "Shift": shifts,
+                     "Layup Leads": layupIDs, "Close Leads": closeIDs,
+                     "Resin Leads": resinIDs
                      }
 
         df_eval_mold = pd.DataFrame(data=data_eval)
@@ -1267,7 +1374,9 @@ def load_operator_data(dtstart, dtend):
             man_ratios.append(ratio)
 
         data_manminutes_mold = {"time": datetimes, "Day": weekdays,
-                           "First Monday Part": firstflags, "Cycle Time": cycle_times,
+                           "First Monday Part": firstflags, 
+                           "Layup Time": layup_times, "Close Time": close_times,
+                           "Resin Time": resin_times, "Cycle Time": cycle_times,
                            "Shift": shifts, "Man-Minutes": man_minutes,
                            "Man Ratio": man_ratios
                            }
@@ -1279,6 +1388,296 @@ def load_operator_data(dtstart, dtend):
         df_manminutes = pd.concat([df_manminutes, df_manminutes_mold], ignore_index=True)
 
     return df_eval, df_manminutes
+
+
+def associate_cycle_stages(df_cleaned):
+    # Get a list of lists of indices for which stage times are closest to a
+    # given cycle time
+    # Find the indices where there is a layup time.
+    layup_inds = []
+    not_nan_series = df_cleaned["Layup Time"].notnull()
+    for i in range(len(not_nan_series)):
+        if not_nan_series.iloc[i] == True:
+            layup_inds.append(i)
+    # Get rid of indices that point to a zero layup time
+    layup_inds_cleaned = []
+    for ind in layup_inds:
+        if df_cleaned["Layup Time"].iloc[ind] != 0:
+            layup_inds_cleaned.append(ind)
+    layup_inds = layup_inds_cleaned.copy()
+    
+    # Find the indices where there is a close time.
+    close_inds = []
+    not_nan_series = df_cleaned["Close Time"].notnull()
+    for i in range(len(not_nan_series)):
+        if not_nan_series.iloc[i] == True:
+            close_inds.append(i)
+    # Get rid of indices that point to a zero close time
+    close_inds_cleaned = []
+    for ind in close_inds:
+        if df_cleaned["Close Time"].iloc[ind] != 0:
+            close_inds_cleaned.append(ind)
+    close_inds = close_inds_cleaned.copy()
+    
+    # Find the indices where there is a resin time.
+    resin_inds = []
+    not_nan_series = df_cleaned["Resin Time"].notnull()
+    for i in range(len(not_nan_series)):
+        if not_nan_series.iloc[i] == True:
+            resin_inds.append(i)
+    # Get rid of indices that point to a zero resin time
+    resin_inds_cleaned = []
+    for ind in resin_inds:
+        if df_cleaned["Resin Time"].iloc[ind] != 0:
+            resin_inds_cleaned.append(ind)
+    resin_inds = resin_inds_cleaned.copy()
+
+    # Find the indices where there is a cycle time.
+    cycle_inds = []
+    not_nan_series = df_cleaned["Cycle Time"].notnull()
+    for i in range(len(not_nan_series)):
+        if not_nan_series.iloc[i] == True:
+            cycle_inds.append(i)
+    
+    ind_sets = []
+    layup_filtered = []
+    close_filtered = []
+    resin_filtered = []
+    for ind in cycle_inds:
+        closest_layup = closest_before(ind, layup_inds)
+        closest_close = closest_before(ind, close_inds)
+        closest_resin = closest_before(ind, resin_inds)
+        layup_filtered.append(closest_layup)
+        close_filtered.append(closest_close)
+        resin_filtered.append(closest_resin)
+        ind_sets.append([closest_layup, closest_close, closest_resin, ind])
+        
+    layup_inds = layup_filtered.copy()
+    close_inds = close_filtered.copy()
+    resin_inds = resin_filtered.copy()
+        
+    return ind_sets, layup_inds, close_inds, resin_inds, cycle_inds
+
+
+def count_stages_for_operator(df_cleaned, ind_sets, leadIDs):
+    # Make a list of dictionaries that tell which stages should be counted
+    # for a given operator (see line 1301 above for location where this should
+    # be used)
+    
+    stages_counted = []
+    count_whole_cycle = []
+    for i in range(len(ind_sets)):
+        layup_ind = ind_sets[i][0]
+        close_ind = ind_sets[i][1]
+        resin_ind = ind_sets[i][2]
+        cycle_ind = ind_sets[i][3]
+           
+        cycle_finish = df_cleaned["time"].iloc[cycle_ind]
+        layup_duration = 60.0 * df_cleaned["Layup Time"].iloc[layup_ind]
+        close_duration = 60.0 * df_cleaned["Close Time"].iloc[close_ind]
+        resin_duration = 60.0 * df_cleaned["Resin Time"].iloc[resin_ind]
+        layup_finish = cycle_finish - dt.timedelta(seconds=resin_duration) - dt.timedelta(seconds=close_duration)
+        close_start = layup_finish
+        close_finish = cycle_finish - dt.timedelta(seconds=resin_duration)
+        resin_start = close_finish
+        layup_start = cycle_finish - dt.timedelta(seconds=resin_duration) - dt.timedelta(seconds=close_duration) - dt.timedelta(seconds=layup_duration)
+        
+        # Find the index with the closest value to layup_start's time
+        closest_layup_idx = (np.abs(df_cleaned["time"] - layup_start)).idxmin()
+        ref_idx = closest_layup_idx
+        while ref_idx > -1:
+            if np.isnan(df_cleaned["Lead"].iloc[ref_idx]) == False:
+                closest_before_operator = ref_idx
+                break
+            else:
+                ref_idx -= 1
+        if ref_idx == -1:
+            closest_before_operator = closest_layup_idx
+        all_IDs = [[int(closest_before_operator), df_cleaned["Lead"].iloc[int(closest_before_operator)]]]
+        
+        # Find the lead IDs and indices that need to be taken into account when
+        # finding who clocked in and out and when
+        for j in range(closest_layup_idx, cycle_ind+1):
+            if np.isnan(df_cleaned["Lead"].iloc[j]) == False:
+                all_IDs.append([j, df_cleaned["Lead"].iloc[j]])
+
+        
+        all_IDs_changes_only = []
+        for j in range(len(all_IDs)):
+            if j == 0:
+                all_IDs_changes_only.append(all_IDs[j])
+            else:
+                if all_IDs[j][1] == all_IDs[j-1][1]:
+                    continue
+                else:
+                    all_IDs_changes_only.append(all_IDs[j])
+        
+        # Determine which operators were present for which stages
+        
+        # print("Something to pause on")
+        
+        # Special case where operator is clocked in the whole time
+        # leads_in_range = [ID[1] for ID in all_IDs]
+        stages_on_cycle = []
+        if len(all_IDs_changes_only) == 1:
+            operator_on_layup = True
+            operator_on_close = True
+            operator_on_resin = True
+            cycles_dict = {"Lead": all_IDs_changes_only[0][1],
+                           "Layup": operator_on_layup,
+                           "Close": operator_on_close,
+                           "Resin": operator_on_resin}
+            # stages_counted.append([cycles_dict])
+            stages_on_cycle.append(cycles_dict)
+            count_whole_cycle.append([True])
+            
+        
+        # if len(list(set(leads_in_range))) == 1:
+        #     operator_on_layup = True
+        #     operator_on_close = True
+        #     operator_on_resin = True
+        #     cycles_dict = {"Layup": operator_on_layup,
+        #                    "Close": operator_on_close,
+        #                    "Resin": operator_on_resin}
+        #     stages_counted.append([cycles_dict])
+        #     count_whole_cycle.append([True])
+        
+        # All other cases involving more than one lead operator
+        else:
+            # stages_on_cycle = []
+            for k in range(len(all_IDs_changes_only)):
+                op_clock_in = df_cleaned.loc[all_IDs_changes_only[k][0], "time"]
+                if k == len(all_IDs_changes_only)-1:
+                    op_clock_out = df_cleaned.loc[cycle_ind, "time"]
+                else:
+                    op_clock_out = df_cleaned.loc[all_IDs_changes_only[k+1][0], "time"]
+                    
+                if op_clock_in < layup_finish:
+                    operator_on_layup = True
+                else:
+                    operator_on_layup = False
+                    
+                if op_clock_in < close_finish and op_clock_out > layup_finish:
+                    operator_on_close = True
+                else:
+                    operator_on_close = False
+                    
+                if op_clock_in < cycle_finish and op_clock_out > close_finish:
+                    operator_on_resin = True
+                else:
+                    operator_on_resin = False
+                
+                
+                cycles_dict = {"Lead": all_IDs_changes_only[k][1],
+                               "Layup": operator_on_layup,
+                               "Close": operator_on_close,
+                               "Resin": operator_on_resin}
+                
+                stages_on_cycle.append(cycles_dict)
+                
+            # count_whole_cycle.append([False])
+            
+        stages_counted.append(stages_on_cycle)
+        
+        
+    # Create columns for IDs that were present during each cycle stage
+    layupIDs = [[] for row in stages_counted]
+    closeIDs = [[] for row in stages_counted]
+    resinIDs = [[] for row in stages_counted]
+    
+    for i,row in enumerate(stages_counted):
+        # List operators who helped with layup
+        for stage_dict in row:
+            if stage_dict["Layup"] == True:
+                layupIDs[i].append(stage_dict["Lead"])
+            if stage_dict["Close"] == True:
+                closeIDs[i].append(stage_dict["Lead"])
+            if stage_dict["Resin"] == True:
+                resinIDs[i].append(stage_dict["Lead"])
+                
+        layupIDs[i] = list(np.unique(layupIDs[i]))
+        closeIDs[i] = list(np.unique(closeIDs[i]))
+        resinIDs[i] = list(np.unique(resinIDs[i]))
+    
+    cycleIDs = [[] for row in stages_counted]
+    for i,row in enumerate(stages_counted):
+        for stage_dict in row:
+            leadnum = stage_dict["Lead"]
+            if leadnum in layupIDs[i] and leadnum in closeIDs[i] and leadnum in resinIDs[i]:
+                cycleIDs[i].append(leadnum)
+        
+        # Some cases can arise where neither the 0 or a real lead ID was
+        # present during the whole cycle. In this case, len(cycleIDs[i]) == 0
+        if len(cycleIDs[i]) == 0:
+            cycleIDs[i] = 0.0
+                
+        cycleIDs[i] = list(np.unique(cycleIDs[i]))
+        
+    
+    # print("done")
+        
+        
+    return layupIDs, closeIDs, resinIDs, cycleIDs
+            
+            
+            # for operator in 
+            
+            
+            # for j in range(len(all_IDs)):
+            #     if j == 0:
+            #         # if all_IDs[j][1] == all_IDs[j+1][1]:
+            #         op_clock_in = df_cleaned["time"].iloc[all_IDs[j][0]]
+            #     if all_IDs[j][1] == all_IDs[j-1][1]:    # Skip consecutive repetitions of the same ID number
+            #         continue
+            
+        
+        
+        
+#         stages_on_cycle = []
+#         for operator in leadIDs[i]:
+#             # Determine when the operator signed in, and if it occurred during
+#             # any of the stages for the current cycle
+            
+            
+#             for k in range(closest_layup_idx, cycle_ind+1):
+#                 pass
+                
+                
+                
+#                 if operator in df_cleaned["Lead"].iloc[k]:
+#                     pass
+                    
+            
+#             # Create flags for each stage to show if the current operator was
+#             # working for that stage            
+#             if op_clock_in < layup_finish:
+#                 operator_on_layup = True
+#             if op_clock_in < close_finish and op_clock_out > layup_finish:
+#                 operator_on_close = True
+#             if op_clock_in < cycle_finish and op_clock_out > close_finish:
+#                 operator_on_resin = True
+            
+            
+#             cycles_dict = {"Layup": operator_on_layup,
+#                             "Close": operator_on_close,
+#                             "Resin": operator_on_resin}
+            
+#             stages_on_cycle.append(cycles_dict)
+        
+#         stages_counted.append(stages_on_cycle)
+        
+        
+        
+#     return stages_counted, count_cycle
+
+
+
+
+
+# def closest_operator_before(input_idx, input_list, operator_num):
+#     found = False
+#     while found == False:
+        
 
 
 def between(l1, low, high):
