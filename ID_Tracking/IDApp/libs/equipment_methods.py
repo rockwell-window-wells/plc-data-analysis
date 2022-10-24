@@ -519,7 +519,7 @@ if __name__ == "__main__":
     # df = load_bag_data_single_mold(dtstart, dtend, "Purple")
     df_equip = organize_bag_data(dtstart, dtend)
     
-    # correlate_bag_cycles(df_equip)
+    correlate_bag_cycles(df_equip)
     
     
     sweepwindow = 100
