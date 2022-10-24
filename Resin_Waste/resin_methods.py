@@ -113,18 +113,29 @@ def load_resin_data_single_plc(dtstart, dtend, resincolor):
     
     # Find outliers in excess resin, using updated excess resin weight column
     outlier_bool = []
-    Q1 = df[colname].quantile(0.25)
-    Q3 = df[colname].quantile(0.75)
-    IQR = Q3 - Q1
+    # Threshold Outlier Detection Method
+    upperlim = 10
+    lowerlim = -3
     for i in range(len(df)):
-        if df.loc[i,colname] < (Q1-1.5*IQR) or df.loc[i,colname] > (Q3+1.5*IQR):
+        if df.loc[i,colname] > upperlim or df.loc[i,colname] < lowerlim:
             outlier_bool.append(True)
         else:
             outlier_bool.append(False)
+    
+    
+    # # IQR Outlier Detection Method
+    # Q1 = df[colname].quantile(0.25)
+    # Q3 = df[colname].quantile(0.75)
+    # IQR = Q3 - Q1
+    # for i in range(len(df)):
+    #     if df.loc[i,colname] < (Q1-1.5*IQR) or df.loc[i,colname] > (Q3+1.5*IQR):
+    #         outlier_bool.append(True)
+    #     else:
+    #         outlier_bool.append(False)
             
     df["Outlier"] = outlier_bool
     
-    df_no_outliers = df[~((df[colname]<(Q1-1.5*IQR)) | (df[colname]>(Q3+1.5*IQR)))]
+    df_no_outliers = df[df["Outlier"] == False]
     
     n_outliers = len(df) - len(df_no_outliers)
     
@@ -143,6 +154,19 @@ def load_resin_data_single_plc(dtstart, dtend, resincolor):
             
     df["Excess Resin - Median Imputed"] = impute_median
     df["Excess Resin - Mean Imputed"] = impute_mean
+    
+    
+    # # Print mean, median, and standard deviations for outliers and no outliers
+    # print("\n####################")
+    # print(resincolor)
+    # print("####################")
+    # print("Raw:")
+    # print("Mean:\t{}".format(np.mean(df[colname])))
+    # print("Std Dev:\t{}".format(np.std(df[colname])))
+    # print("Imputed:")
+    # print("Mean:\t{}".format(np.mean(df["Excess Resin - Median Imputed"])))
+    # print("Std Dev:\t{}".format(np.std(df["Excess Resin - Median Imputed"])))
+    
             
     return df, df_no_outliers, n_outliers, median_excess
 
@@ -271,8 +295,8 @@ def resin_over_time(df, resincolor):
     
 
 if __name__ == "__main__":
-    months = [4,5,6,7,8,9]
-    lastdays = [30,31,30,31,31,30]
+    months = [4,5,6,7,8,9,10]
+    lastdays = [30,31,30,31,31,30,31]
     
     tot_excess_raw = []
     tot_excess_filtered = []
@@ -280,6 +304,10 @@ if __name__ == "__main__":
     avg_excess_raw = []
     avg_excess_filtered = []
     avg_excess_impute = []
+    
+    tot_resin_measured = []
+    tot_resin_measured_gray = []
+    tot_resin_measured_tan = []
     
     for idx,month in enumerate(months):
         dtstart = dt.datetime(2022,month,1,0,0,0)
@@ -299,6 +327,7 @@ if __name__ == "__main__":
         n_outliers_all = []
         
         resincolors = ["Tan", "Gray"]
+        temptotal = 0
         for i,resincolor in enumerate(resincolors):
             df, df_no_outliers, n_outliers, median_excess = load_resin_data_single_plc(dtstart, dtend, resincolor)
             n_outliers_all.append(n_outliers)
@@ -321,6 +350,19 @@ if __name__ == "__main__":
             n_over.append(len(df_over) + len(df_additional)) # Assumes any time you get additional resin it's going over the amount specified
             # over_pct.append(100.0 * n_over/len(df_parts)
             
+            # Get total resin for the month
+            total_col = resincolor + " - Resin Weight"
+            temptotal += np.sum(df[total_col])
+            if resincolor == "Tan":
+                tot_resin_measured_tan.append(np.sum(df[total_col]))
+            else:
+                tot_resin_measured_gray.append(np.sum(df[total_col]))
+            
+            # Histogram
+            plt.figure(dpi=200)
+            sns.histplot(data=df, x=excess_col, hue="Outlier")
+            plt.title("{} - {}".format(resincolor, dt.date(2022,month,1).strftime("%B")))
+            
         
         print("\n##############################")
         if monthstart == monthend:
@@ -337,6 +379,7 @@ if __name__ == "__main__":
         print("\nEstimated Parts Using Excess Resin:\t{} ({}%)".format(sum(n_over), np.around(over_pct,1)))
         print("Median Excesses Used for Imputing:\t{}".format({"Tan": median_excesses[0], "Gray": median_excesses[1]}))
         print("N Outliers in Raw Data:\t{}".format(sum(n_outliers_all)))
+        print("{}% Outliers in Raw Data".format(np.around((100*sum(n_outliers_all)/sum(n_parts)),1)))
         
         print("\nTotal Tan Parts:\t{}".format(n_parts[0]))
         print("Total Gray Parts:\t{}".format(n_parts[1]))
@@ -347,19 +390,40 @@ if __name__ == "__main__":
         avg_excess_raw.append(np.around(sum(total_excess_resin_raw)/sum(n_parts), 2))
         avg_excess_filtered.append(np.around(sum(total_excess_resin_filtered)/sum(n_parts), 2))
         avg_excess_impute.append(np.around(sum(total_excess_resin_imputed)/sum(n_parts), 2))
+        tot_resin_measured.append(temptotal)
         
     # Plot totals and averages per month over time
+    monthlabels = [dt.date(2022,month,1).strftime("%B") for month in months]
     plt.figure(dpi=300)
-    plt.plot(months,tot_excess_raw,label="Total Excess Resin (Raw)")
-    plt.plot(months,tot_excess_filtered,label="Total Excess Resin (Outlier-Filtered)")
-    plt.plot(months,tot_excess_impute,label="Total Excess Resin (Imputed)")
+    plt.plot(monthlabels,tot_excess_raw,label="Total Excess Resin (Raw)")
+    plt.plot(monthlabels,tot_excess_filtered,label="Total Excess Resin (Outlier-Filtered)")
+    plt.plot(monthlabels,tot_excess_impute,label="Total Excess Resin (Imputed)")
     plt.title("Total Excess Resin By Month")
+    plt.ylabel("Resin (lbs)")
+    plt.rc('legend',fontsize='x-small')
     plt.legend()
     
     plt.figure(dpi=300)
-    plt.plot(months,avg_excess_raw,label="Average Excess Resin (Raw)")
-    plt.plot(months,avg_excess_filtered,label="Average Excess Resin (Outlier-Filtered)")
-    plt.plot(months,avg_excess_impute,label="Average Excess Resin (Imputed)")
+    plt.plot(monthlabels,avg_excess_raw,label="Average Excess Resin (Raw)")
+    plt.plot(monthlabels,avg_excess_filtered,label="Average Excess Resin (Outlier-Filtered)")
+    plt.plot(monthlabels,avg_excess_impute,label="Average Excess Resin (Imputed)")
     plt.title("Average Excess Resin Per Part By Month")
+    plt.ylabel("Resin (lbs)")
+    plt.legend()
+    
+    plt.figure(dpi=300)
+    plt.plot(monthlabels,tot_resin_measured,label="Total Resin Measured")
+    plt.plot(monthlabels,tot_resin_measured_gray,label="Gray Resin Measured")
+    plt.plot(monthlabels,tot_resin_measured_tan,label="Tan Resin Measured")
+    google_part_counts = np.asarray([1032, 460, 720, 676, 634, 352])
+    netsuite_part_counts = np.asarray([1305, 554, 790, 777, 772, 555])
+    avg_part_wt_google = 50.0
+    avg_part_wt_netsuite = 50.0
+    google_estimate_resin = list(avg_part_wt_google*google_part_counts)
+    netsuite_estimate_resin = list(avg_part_wt_netsuite*netsuite_part_counts)    
+    plt.plot(monthlabels[:-1], google_estimate_resin, label="Google * {} lbs".format(avg_part_wt_google))
+    plt.plot(monthlabels[:-1], netsuite_estimate_resin, label="Netsuite * {} lbs".format(avg_part_wt_netsuite))
+    plt.title("Total Measured Resin By Month")
+    plt.ylabel("Resin (lbs)")
     plt.legend()
     
