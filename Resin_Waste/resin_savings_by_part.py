@@ -60,7 +60,7 @@ parts_sold = {
     "Cascade 80": 8    
     }
 
-resin_cost_lb = 2.60
+resin_cost_lb = 2.62
 
 cost_savings = {key:np.around(parts_sold[key]*resin_saved[key]*resin_cost_lb, 2) for (key,value) in parts_sold.items()}
 
@@ -77,7 +77,7 @@ for key in cost_savings.keys():
     
 avg_part_savings = total_cost_savings / total_parts
 
-print("Savings results:")
+print("Savings results for using {} lbs less than SOP:".format(pounds_less))
 print("Total parts:\t{}".format(total_parts))
 print("Total savings:\t${}".format(np.around(total_cost_savings,2)))
 print("Average savings per part:\t${}".format(avg_part_savings))
