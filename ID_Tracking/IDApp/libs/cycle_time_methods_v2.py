@@ -1384,6 +1384,12 @@ def associate_cycle_stages(df_cleaned):
     for i in range(len(not_nan_series)):
         if not_nan_series.iloc[i] == True:
             cycle_inds.append(i)
+    # Get rid of indices that point to a zero cycle time
+    cycle_inds_cleaned = []
+    for ind in cycle_inds:
+        if df_cleaned["Cycle Time"].iloc[ind] != 0:
+            cycle_inds_cleaned.append(ind)
+    cycle_inds = cycle_inds_cleaned.copy()
     
     ind_sets = []
     layup_filtered = []
@@ -1993,7 +1999,7 @@ def plot_man_ratios(df_manminutes):
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,4,1,0,0,0)
+    dtstart = dt.datetime(2022,10,24,0,0,0)
     enddate = dt.date.today()
     # enddate = dt.date(2022,3,17)
     endtime = dt.time(23,59,59)
@@ -2025,7 +2031,7 @@ if __name__ == "__main__":
 
 
 
-    operator_list = [123]
+    operator_list = [666]
     # shift = None
     # # get_operator_stats_by_list(df_eval, operator_list, shift=None)
 
