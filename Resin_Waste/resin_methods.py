@@ -368,10 +368,10 @@ def monthly_resin_use(startdate, enddate=dt.date.today()):
             else:
                 tot_resin_measured_gray.append(np.sum(df[total_col]))
             
-            # Histogram
-            plt.figure(dpi=200)
-            sns.histplot(data=df, x=excess_col, hue="Outlier")
-            plt.title("{} - {}".format(resincolor, dt.date(2022,month,1).strftime("%B")))
+            # # Histogram
+            # plt.figure(dpi=200)
+            # sns.histplot(data=df, x=excess_col, hue="Outlier")
+            # plt.title("{} - {}".format(resincolor, dt.date(2022,month,1).strftime("%B %Y")))
             
         
         print("\n##############################")
@@ -406,7 +406,7 @@ def monthly_resin_use(startdate, enddate=dt.date.today()):
     # monthlabels = [dt.date(2022,month,1).strftime("%B") for month in months]
     monthlabels = []
     for i in range(len(months)):
-        monthlabels.append(dt.date(years[i],months[i],1).strftime("%B"))
+        monthlabels.append(dt.date(years[i],months[i],1).strftime("%B %Y"))
     plt.figure(dpi=300)
     plt.plot(monthlabels,tot_excess_raw,label="Total Excess Resin (Raw)")
     plt.plot(monthlabels,tot_excess_filtered,label="Total Excess Resin (Outlier-Filtered)")
@@ -414,6 +414,7 @@ def monthly_resin_use(startdate, enddate=dt.date.today()):
     plt.title("Total Excess Resin By Month")
     plt.ylabel("Resin (lbs)")
     plt.rc('legend',fontsize='x-small')
+    plt.xticks(rotation=45)
     plt.legend()
     
     plt.figure(dpi=300)
@@ -422,12 +423,14 @@ def monthly_resin_use(startdate, enddate=dt.date.today()):
     plt.plot(monthlabels,avg_excess_impute,label="Average Excess Resin (Imputed)")
     plt.title("Average Excess Resin Per Part By Month")
     plt.ylabel("Resin (lbs)")
+    plt.xticks(rotation=45)
     plt.legend()
     
     plt.figure(dpi=300)
     plt.plot(monthlabels,tot_resin_measured,label="Total Resin Measured")
     plt.plot(monthlabels,tot_resin_measured_gray,label="Gray Resin Measured")
     plt.plot(monthlabels,tot_resin_measured_tan,label="Tan Resin Measured")
+    plt.xticks(rotation=45)
     # google_part_counts = np.asarray([1032, 460, 720, 676, 634, 352])
     # netsuite_part_counts = np.asarray([1305, 554, 790, 777, 772, 555])
     # avg_part_wt_google = 50.0

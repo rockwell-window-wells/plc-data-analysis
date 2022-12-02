@@ -8,8 +8,8 @@ import datetime as dt
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-# import data_assets
-from . import data_assets
+import data_assets
+# from . import data_assets
 
 ##### ID card printing class and functions #####
 class IDPDF(FPDF):

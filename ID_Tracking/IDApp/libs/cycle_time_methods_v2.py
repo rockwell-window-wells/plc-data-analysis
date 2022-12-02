@@ -16,15 +16,17 @@ import shutil
 from natsort import natsorted
 import matplotlib as mpl
 import pytz
+from itertools import groupby
+from bisect import bisect_left
 
 # If running as part of a compiled exe file (i.e. as the finalized ID &
 # Evaluation Tool app), comment out the imports that contain "from . import"
-# import data_assets
-# import id_methods
-# import api_config_vars as api
-from . import data_assets
-from . import id_methods
-from . import api_config_vars as api
+import data_assets
+import id_methods
+import api_config_vars as api
+# from . import data_assets
+# from . import id_methods
+# from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -1276,6 +1278,12 @@ def load_operator_data(dtstart, dtend):
         layup_threshold = 275
         layup_saturated = [True if time >= layup_threshold else False for time in layup_times]
         
+        close_threshold = 90
+        close_saturated = [True if time >= close_threshold else False for time in close_times]
+        
+        resin_threshold = 180
+        resin_saturated = [True if time >= resin_threshold else False for time in resin_times]
+        
             
         # Add data for showing which stages should be counted for each operator,
         # as well as whether the cycle time should be counted.
@@ -1308,7 +1316,10 @@ def load_operator_data(dtstart, dtend):
                      "Resin Time": resin_times, "Cycle Time": cycle_times,
                      "Lead": cycleIDs, "Shift": shifts,
                      "Layup Leads": layupIDs, "Close Leads": closeIDs,
-                     "Resin Leads": resinIDs, "Layup Saturated": layup_saturated
+                     "Resin Leads": resinIDs,
+                     "Layup Saturated": layup_saturated,
+                     "Close Saturated": close_saturated,
+                     "Resin Saturated": resin_saturated
                      }
 
         df_eval_mold = pd.DataFrame(data=data_eval)
@@ -1351,6 +1362,7 @@ def associate_cycle_stages(df_cleaned):
         if df_cleaned["Layup Time"].iloc[ind] != 0:
             layup_inds_cleaned.append(ind)
     layup_inds = layup_inds_cleaned.copy()
+    layup_inds = [i[0] for i in groupby(layup_inds)]
     
     # Find the indices where there is a close time.
     close_inds = []
@@ -1364,6 +1376,7 @@ def associate_cycle_stages(df_cleaned):
         if df_cleaned["Close Time"].iloc[ind] != 0:
             close_inds_cleaned.append(ind)
     close_inds = close_inds_cleaned.copy()
+    close_inds = [i[0] for i in groupby(close_inds)]
     
     # Find the indices where there is a resin time.
     resin_inds = []
@@ -1377,6 +1390,7 @@ def associate_cycle_stages(df_cleaned):
         if df_cleaned["Resin Time"].iloc[ind] != 0:
             resin_inds_cleaned.append(ind)
     resin_inds = resin_inds_cleaned.copy()
+    resin_inds = [i[0] for i in groupby(resin_inds)]
 
     # Find the indices where there is a cycle time.
     cycle_inds = []
@@ -1390,15 +1404,29 @@ def associate_cycle_stages(df_cleaned):
         if df_cleaned["Cycle Time"].iloc[ind] != 0:
             cycle_inds_cleaned.append(ind)
     cycle_inds = cycle_inds_cleaned.copy()
+    cycle_inds = [i[0] for i in groupby(cycle_inds)]
     
     ind_sets = []
     layup_filtered = []
     close_filtered = []
     resin_filtered = []
     for ind in cycle_inds:
-        closest_layup = closest_before(ind, layup_inds)
-        closest_close = closest_before(ind, close_inds)
-        closest_resin = closest_before(ind, resin_inds)
+        # closest_layup = closest_before(ind, layup_inds)
+        # closest_close = closest_before(ind, close_inds)
+        # closest_resin = closest_before(ind, resin_inds)
+        
+        ##################################################################################################################
+        # Catch cases where the closest index before gives the wrong supporting
+        # data
+        # A better strategy might be looking at the timestamp for the cycle time
+        # and choosing the closest time to that timestamp. Cycles have to differ
+        # by a good deal of time so this would probably be reliable.
+        ##################################################################################################################
+        
+        closest_layup = closest_by_timestamp(ind, layup_inds, df_cleaned)
+        closest_close = closest_by_timestamp(ind, close_inds, df_cleaned)
+        closest_resin = closest_by_timestamp(ind, resin_inds, df_cleaned)
+        
         layup_filtered.append(closest_layup)
         close_filtered.append(closest_close)
         resin_filtered.append(closest_resin)
@@ -1621,6 +1649,48 @@ def closest_before(input_idx, input_list):
     return prev_idx
 
 
+def closest_by_timestamp(input_idx, input_list, df_cleaned):
+    """
+    Get the closest index to a given cycle time based on the timestamp.
+
+    Parameters
+    ----------
+    input_idx : int
+        DESCRIPTION.
+    input_list : list of ints
+        DESCRIPTION.
+    df_cleaned : DataFrame
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
+    input_timestamp = df_cleaned["time"].iloc[input_idx]
+    timestamps = list(df_cleaned["time"].iloc[input_list])
+    
+    if input_timestamp in timestamps:
+        closest_index = input_list[timestamps.index(input_timestamp)]
+    else:
+        pos = bisect_left(timestamps, input_timestamp)
+        if pos == 0:
+            closest_index = input_list[0]
+        elif pos == len(input_list):
+            closest_index = input_list[-1]
+        else:
+            before = input_list[pos - 1]
+            after = input_list[pos]
+            # if after >= len(timestamps):
+            #     breakpoint()
+            if timestamps[pos] - input_timestamp < input_timestamp - timestamps[pos-1]:
+                closest_index = after
+            else:
+                closest_index = before
+    
+    return closest_index
+    
+
 def closest_idx(input_idx, input_list):
     """
     Takes a chosen index and compares against a list of indices, input_list.
@@ -1756,8 +1826,14 @@ def cycle_time_over_time(dtstart, dtend):
 
     """
     df_eval = load_operator_data(dtstart, dtend)[0]
-
-    cycles = df_eval
+    
+    # Remove faulty duplicates
+    df_eval = clean_duplicate_times(df_eval)
+    
+    cycles = df_eval.copy()
+    cycles = cycles[cycles["Layup Saturated"] == False]
+    cycles = cycles[cycles["Close Saturated"] == False]
+    cycles = cycles[cycles["Resin Saturated"] == False]
 
     # Sort by time column
     cycles = cycles.sort_values(by="time", axis=0)
@@ -1765,10 +1841,18 @@ def cycle_time_over_time(dtstart, dtend):
     cycles = cycles.reset_index(drop=True)
     cycles["Date"] = pd.to_datetime(cycles["time"]).dt.date
     cycles = cycles[["Date", "Cycle Time"]]
+    year = [date.isocalendar()[0] for date in cycles["Date"]]
+    cycles["Year"] = year
+    week = [date.isocalendar()[1] for date in cycles["Date"]]
+    cycles["Week"] = week
+    month = [date.month for date in cycles["Date"]]
+    cycles["Month"] = month
 
-    fig,ax=plt.subplots(dpi=300)
-    medians = cycles.groupby(["Date"])["Cycle Time"].median()
-    dates = cycles["Date"].unique()
+    fig,ax = plt.subplots(dpi=300)
+    medians = cycles.groupby(["Month"])["Cycle Time"].median()
+    # medians = cycles.groupby(["Date"])["Cycle Time"].median()
+    dates = cycles["Month"].unique()
+    # dates = cycles["Date"].unique()
     dates_str = [str(day) for day in dates]
 
     # Reorganize data for boxplot property calculation
@@ -1776,7 +1860,8 @@ def cycle_time_over_time(dtstart, dtend):
     whiskers_lo = []
     outliers = []
     for date in dates:
-        df_day = cycles.loc[cycles["Date"] == date]
+        df_day = cycles.loc[cycles["Month"] == date]
+        # df_day = cycles.loc[cycles["Date"] == date]
         cycle_data = list(df_day["Cycle Time"])
         stats = boxplot_stats(cycle_data)
         stats = stats[0]
@@ -1805,6 +1890,14 @@ def cycle_time_over_time(dtstart, dtend):
     # Make the plot
     sns.set_theme(style="ticks")
     sns.lineplot(x=dates, y=medians, linewidth=3)
+    for x,y in zip(dates, medians):
+        label = "{:.2f}".format(y)
+        plt.annotate(label,
+                     (x,y),
+                     textcoords="offset points",
+                     xytext=(0,10),
+                     ha='center')
+        
     plt.plot(dates, whiskers_hi, 'b', alpha=0.5)
     plt.plot(dates, whiskers_lo, 'b', alpha=0.5)
     plt.fill_between(dates, whiskers_hi, whiskers_lo, alpha=0.2)
@@ -1814,8 +1907,10 @@ def cycle_time_over_time(dtstart, dtend):
             sns.scatterplot(x=outlier_dates, y=fliers, color='b', marker='o', alpha=0.5, s=20)
 
     plt.xticks(dates, datelabels, rotation=90)
-    plt.xlabel("Date")
+    plt.xlabel("Month")
+    # plt.xlabel("Date")
     plt.title("Cycle Time Variability")
+    plt.show()
 
     return cycles, medians, dates
 
@@ -1999,7 +2094,7 @@ def plot_man_ratios(df_manminutes):
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,10,24,0,0,0)
+    dtstart = dt.datetime(2022,3,24,0,0,0)
     enddate = dt.date.today()
     # enddate = dt.date(2022,3,17)
     endtime = dt.time(23,59,59)
@@ -2027,17 +2122,17 @@ if __name__ == "__main__":
 
     # all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers = filter_outlier_cycles(dtstart, dtend)
 
-    # cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
+    cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
 
 
 
-    operator_list = [666]
-    # shift = None
-    # # get_operator_stats_by_list(df_eval, operator_list, shift=None)
+    # operator_list = [666]
+    # # shift = None
+    # # # get_operator_stats_by_list(df_eval, operator_list, shift=None)
 
-    df_eval, df_manminutes = load_operator_data(dtstart, dtend)
-    get_operator_stats_by_list(df_eval, operator_list)
-    # get_all_operator_stats(df_eval)
+    # df_eval, df_manminutes = load_operator_data(dtstart, dtend)
+    # get_operator_stats_by_list(df_eval, operator_list)
+    # # get_all_operator_stats(df_eval)
 
     # opnum = 69
     # get_single_operator_stats(df_eval, opnum)
