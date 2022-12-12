@@ -799,7 +799,7 @@ def get_all_operator_reports(dtstart, dtend):
     return df_eval
 
 
-def load_operator_data_single_mold(dtstart, dtend, moldcolor):
+def load_raw_data_single_mold(dtstart, dtend, moldcolor):
     """
     Load cycle time data via API for a single mold, identified by its publicID.
 
@@ -932,7 +932,7 @@ def load_operator_data(dtstart, dtend):
     df_manminutes = pd.DataFrame()
 
     for moldcolor in api.molds:
-        df_raw = load_operator_data_single_mold(dtstart, dtend, moldcolor)
+        df_raw = load_raw_data_single_mold(dtstart, dtend, moldcolor)
         # Clean the data here before sending to a list of dataframes
         # Sort by ascending time
         df_sorted = df_raw.sort_values(list(df_raw.columns), ascending=True)
@@ -1343,6 +1343,478 @@ def load_operator_data(dtstart, dtend):
         # Append mold data to larger DataFrame for all data
         df_eval = pd.concat([df_eval, df_eval_mold], ignore_index=True)
         df_manminutes = pd.concat([df_manminutes, df_manminutes_mold], ignore_index=True)
+
+    return df_eval, df_manminutes
+
+
+def load_single_mold_data(dtstart, dtend, moldcolor):
+    """
+    Load the data via API for all molds and export as a single DataFrame.
+
+    Parameters
+    ----------
+    dtstart : datetime.datetime
+        Starting date and time for the period of interest.
+    dtend : datetime.datetime
+        Ending date and time for the period of interest.
+
+    Raises
+    ------
+    ValueError
+        If an operator number isn't recognized as part of a shift, an error is
+        raised.
+
+    Returns
+    -------
+    df_eval : Pandas DataFrame
+        DataFrame that is passed on to be cleaned of duplicate cycle times and
+        then used to produce operator cycle time reports.
+    df_manminutes : Pandas DataFrame
+        DataFrame for calculating "man-minutes" contributed to each cycle time.
+
+    """
+    # Adjust dtstart and dtend to Central European Time for API compatibility
+    mtn = pytz.timezone('US/Mountain')
+    # utc = pytz.UTC
+    cet = pytz.timezone('CET')
+
+    dtstart = mtn.localize(dtstart)
+    dtend = mtn.localize(dtend)
+
+    dtstart = dtstart.astimezone(cet)
+    dtend = dtend.astimezone(cet)
+
+    # Subtract an hour from start (weird API behavior adjustment - end time
+    # doesn't appear to be affected by this issue, so it's not a daylight
+    # savings time thing)
+    dtstart = dtstart - dt.timedelta(hours=1)
+    dtend = dtend - dt.timedelta(hours=1)
+
+    # Convert dtstart and dtend from datetimes to formatted strings
+    dtstart = dtstart.strftime("%Y-%m-%dT%H:%M:%SZ")
+    dtend = dtend.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # all_man_ratios = []
+    # all_cycle_times = []
+
+    # Get list of operator numbers on each shift by checking Excel data
+    IDfilepath = data_assets.ID_data
+    daylist, swinglist, gravelist = id_methods.get_shift_lists(IDfilepath)
+
+    df_eval = pd.DataFrame()
+    df_manminutes = pd.DataFrame()
+
+    df_raw = load_raw_data_single_mold(dtstart, dtend, moldcolor)
+    # Clean the data here before sending to a list of dataframes
+    # Sort by ascending time
+    df_sorted = df_raw.sort_values(list(df_raw.columns), ascending=True)
+    df_sorted = df_sorted.reset_index(drop=True)
+
+    # Get rid of any rows with nan in all columns but time
+    nan_indices = []
+    for i in range(len(df_sorted)):
+        if np.isnan(df_sorted["Layup Time"].iloc[i]):
+            if np.isnan(df_sorted["Close Time"].iloc[i]):
+                if np.isnan(df_sorted["Resin Time"].iloc[i]):
+                    if np.isnan(df_sorted["Cycle Time"].iloc[i]):
+                        if np.isnan(df_sorted["Lead"].iloc[i]):
+                            if np.isnan(df_sorted["Assistant 1"].iloc[i]):
+                                if np.isnan(df_sorted["Assistant 2"].iloc[i]):
+                                    if np.isnan(df_sorted["Assistant 3"].iloc[i]):
+                                        nan_indices.append(i)
+
+    df_cleaned = df_sorted.drop(df_sorted.index[nan_indices])
+    df_cleaned = df_cleaned.reset_index(drop=True)
+
+    # Make a new dataframe with only time, Cycle Time, LeadIDs,
+    # AssistantIDs, LeadTimes, AssistantTimes columns. LeadTimes and
+    # AssistantTimes columns are the individual elapsed times for each
+    # operator on the mold. LeadIDs and AssistantIDs columns use a list
+    # of the operator numbers instead of single values.
+    
+    stage_inds, layup_inds, close_inds, resin_inds, cycle_inds = associate_cycle_stages(df_cleaned)
+
+    # Find the indices where there is a lead login
+    lead_inds = []
+    not_nan_series = df_cleaned["Lead"].notnull()
+    for i in range(len(not_nan_series)):
+        if not_nan_series.iloc[i] == True:
+            lead_inds.append(i)
+
+    # Find the indices where there is an assistant 1 login
+    assist1_inds = []
+    not_nan_series = df_cleaned["Assistant 1"].notnull()
+    for i in range(len(not_nan_series)):
+        if not_nan_series.iloc[i] == True:
+            assist1_inds.append(i)
+
+    # Find the indices where there is an assistant 2 login
+    assist2_inds = []
+    not_nan_series = df_cleaned["Assistant 2"].notnull()
+    for i in range(len(not_nan_series)):
+        if not_nan_series.iloc[i] == True:
+            assist2_inds.append(i)
+
+    # Find the indices where there is an assistant 1 login
+    assist3_inds = []
+    not_nan_series = df_cleaned["Assistant 3"].notnull()
+    for i in range(len(not_nan_series)):
+        if not_nan_series.iloc[i] == True:
+            assist3_inds.append(i)
+
+    leadIDs = [[] for ind in cycle_inds]
+    man_minutes = [[] for ind in cycle_inds]
+
+    for i, cyc_ind in enumerate(cycle_inds):
+        #### Get the lists of IDs associated with each cycle time ####
+
+        # If no one clocked in exactly at the same time as the cycle time
+        # was logged, get the closest previous ID number for each role and
+        # add the ID number to the appropriate list.
+        if i == 0:
+            low = 0
+            high = cyc_ind
+
+            lead_between = between(lead_inds, low, high)
+            leadIDs[i].extend(list_vals(df_cleaned["Lead"], lead_between))
+            assist1_between = between(assist1_inds, low, high)
+            assist2_between = between(assist2_inds, low, high)
+            assist3_between = between(assist3_inds, low, high)
+
+            for j,idx in enumerate(lead_between):
+                curr_id = df_cleaned["Lead"][idx]
+                if j == 0:
+                    if curr_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][0]
+                else:
+                    prev_id = df_cleaned["Lead"][lead_between[j-1]]
+                    if prev_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][lead_between[j-1]]
+                datetime_end = df_cleaned["time"][idx]
+                minutes = minutes_diff(datetime_start, datetime_end)
+                man_minutes[i].append(minutes)
+
+                # If at the end of the list, get the time between the last
+                # login (if the ID isn't zero) and the logged cycle time
+                if j == len(lead_between)-1:
+                    if df_cleaned["Lead"][idx] != 0:
+                        datetime_start = df_cleaned["time"][lead_between[j-1]]
+                        datetime_end = df_cleaned["time"][cyc_ind]
+                        minutes = minutes_diff(datetime_start, datetime_end)
+                        man_minutes[i].append(minutes)
+
+            for j,idx in enumerate(assist1_between):
+                curr_id = df_cleaned["Assistant 1"][idx]
+                if j == 0:
+                    if curr_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][0]
+                else:
+                    prev_id = df_cleaned["Assistant 1"][assist1_between[j-1]]
+                    if prev_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][assist1_between[j-1]]
+                datetime_end = df_cleaned["time"][idx]
+                minutes = minutes_diff(datetime_start, datetime_end)
+                man_minutes[i].append(minutes)
+
+                # If at the end of the list, get the time between the last
+                # login (if the ID isn't zero) and the logged cycle time
+                if j == len(assist1_between)-1:
+                    if df_cleaned["Assistant 1"][idx] != 0:
+                        datetime_start = df_cleaned["time"][assist1_between[j-1]]
+                        datetime_end = df_cleaned["time"][cyc_ind]
+                        minutes = minutes_diff(datetime_start, datetime_end)
+                        man_minutes[i].append(minutes)
+
+            for j,idx in enumerate(assist2_between):
+                curr_id = df_cleaned["Assistant 2"][idx]
+                if j == 0:
+                    if curr_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][0]
+                else:
+                    prev_id = df_cleaned["Assistant 2"][assist2_between[j-1]]
+                    if prev_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][assist2_between[j-1]]
+                datetime_end = df_cleaned["time"][idx]
+                minutes = minutes_diff(datetime_start, datetime_end)
+                man_minutes[i].append(minutes)
+
+                # If at the end of the list, get the time between the last
+                # login (if the ID isn't zero) and the logged cycle time
+                if j == len(assist2_between)-1:
+                    if df_cleaned["Assistant 2"][idx] != 0:
+                        datetime_start = df_cleaned["time"][assist2_between[j-1]]
+                        datetime_end = df_cleaned["time"][cyc_ind]
+                        minutes = minutes_diff(datetime_start, datetime_end)
+                        man_minutes[i].append(minutes)
+
+            for j,idx in enumerate(assist3_between):
+                curr_id = df_cleaned["Assistant 3"][idx]
+                if j == 0:
+                    if curr_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][0]
+                else:
+                    prev_id = df_cleaned["Assistant 3"][assist3_between[j-1]]
+                    if prev_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][assist3_between[j-1]]
+                datetime_end = df_cleaned["time"][idx]
+                minutes = minutes_diff(datetime_start, datetime_end)
+                man_minutes[i].append(minutes)
+
+                # If at the end of the list, get the time between the last
+                # login (if the ID isn't zero) and the logged cycle time
+                if j == len(assist3_between)-1:
+                    if df_cleaned["Assistant 3"][idx] != 0:
+                        datetime_start = df_cleaned["time"][assist3_between[j-1]]
+                        datetime_end = df_cleaned["time"][cyc_ind]
+                        minutes = minutes_diff(datetime_start, datetime_end)
+                        man_minutes[i].append(minutes)
+
+        else:
+            # If someone was already logged in before the cycle started,
+            # count them.
+            input_idx = cycle_inds[i-1]
+            idx = closest_before(input_idx, lead_inds)
+            leadIDs[i].append(df_cleaned["Lead"][idx])
+
+            # Get the IDs logged during the cycle
+            low = cycle_inds[i-1]
+            high = cyc_ind
+
+            lead_between = between(lead_inds, low, high)
+            leadIDs[i].extend(list_vals(df_cleaned["Lead"], lead_between))
+            assist1_between = between(assist1_inds, low, high)
+            assist2_between = between(assist2_inds, low, high)
+            assist3_between = between(assist3_inds, low, high)
+
+            for j,idx in enumerate(lead_between):
+                if j == 0:
+                    prev_idx = closest_before(idx, lead_inds)
+                    prev_id = df_cleaned["Lead"][prev_idx]
+                    if prev_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][cycle_inds[i-1]]
+                else:
+                    prev_id = df_cleaned["Lead"][lead_between[j-1]]
+                    if prev_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][lead_between[j-1]]
+                datetime_end = df_cleaned["time"][idx]
+                minutes = minutes_diff(datetime_start, datetime_end)
+                man_minutes[i].append(minutes)
+
+                # If at the end of the list, get the time between the last
+                # login (if the ID isn't zero) and the logged cycle time
+                if j == len(lead_between)-1:
+                    if df_cleaned["Lead"][idx] != 0:
+                        datetime_start = df_cleaned["time"][lead_between[j]]
+                        datetime_end = df_cleaned["time"][cyc_ind]
+                        minutes = minutes_diff(datetime_start, datetime_end)
+                        man_minutes[i].append(minutes)
+
+            for j,idx in enumerate(assist1_between):
+                if j == 0:
+                    prev_idx = closest_before(idx, assist1_inds)
+                    prev_id = df_cleaned["Assistant 1"][prev_idx]
+                    if prev_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][cycle_inds[i-1]]
+                else:
+                    prev_id = df_cleaned["Assistant 1"][assist1_between[j-1]]
+                    if prev_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][assist1_between[j-1]]
+                datetime_end = df_cleaned["time"][idx]
+                minutes = minutes_diff(datetime_start, datetime_end)
+                man_minutes[i].append(minutes)
+
+                # If at the end of the list, get the time between the last
+                # login (if the ID isn't zero) and the logged cycle time
+                if j == len(assist1_between)-1:
+                    if df_cleaned["Assistant 1"][idx] != 0:
+                        datetime_start = df_cleaned["time"][assist1_between[j]]
+                        datetime_end = df_cleaned["time"][cyc_ind]
+                        minutes = minutes_diff(datetime_start, datetime_end)
+                        man_minutes[i].append(minutes)
+
+            for j,idx in enumerate(assist2_between):
+                if j == 0:
+                    prev_idx = closest_before(idx, assist2_inds)
+                    prev_id = df_cleaned["Assistant 2"][prev_idx]
+                    if prev_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][cycle_inds[i-1]]
+                else:
+                    prev_id = df_cleaned["Assistant 2"][assist2_between[j-1]]
+                    if prev_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][assist2_between[j-1]]
+                datetime_end = df_cleaned["time"][idx]
+                minutes = minutes_diff(datetime_start, datetime_end)
+                man_minutes[i].append(minutes)
+
+                # If at the end of the list, get the time between the last
+                # login (if the ID isn't zero) and the logged cycle time
+                if j == len(assist2_between)-1:
+                    if df_cleaned["Assistant 2"][idx] != 0:
+                        datetime_start = df_cleaned["time"][assist2_between[j]]
+                        datetime_end = df_cleaned["time"][cyc_ind]
+                        minutes = minutes_diff(datetime_start, datetime_end)
+                        man_minutes[i].append(minutes)
+
+            for j,idx in enumerate(assist3_between):
+                if j == 0:
+                    prev_idx = closest_before(idx, assist3_inds)
+                    prev_id = df_cleaned["Assistant 3"][prev_idx]
+                    if prev_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][cycle_inds[i-1]]
+                else:
+                    prev_id = df_cleaned["Assistant 3"][assist3_between[j-1]]
+                    if prev_id == 0:
+                        continue
+                    datetime_start = df_cleaned["time"][assist3_between[j-1]]
+                datetime_end = df_cleaned["time"][idx]
+                minutes = minutes_diff(datetime_start, datetime_end)
+                man_minutes[i].append(minutes)
+
+                # If at the end of the list, get the time between the last
+                # login (if the ID isn't zero) and the logged cycle time
+                if j == len(assist3_between)-1:
+                    if df_cleaned["Assistant 3"][idx] != 0:
+                        datetime_start = df_cleaned["time"][assist3_between[j]]
+                        datetime_end = df_cleaned["time"][cyc_ind]
+                        minutes = minutes_diff(datetime_start, datetime_end)
+                        man_minutes[i].append(minutes)
+
+
+    # Get the unique IDs for each cycle time
+    for i in range(len(leadIDs)):
+        # Get unique lead IDs
+        IDs = leadIDs[i]    # list of IDs
+        IDs = list(np.unique(IDs))
+
+        # Remove zeros for ID numbers
+        if len(IDs) == 1 and IDs[0] == 0:
+            pass
+        else:
+            IDs = [id for id in IDs if id != 0]
+
+        if len(IDs) == 0:
+            IDs = [0.0]
+
+        leadIDs[i] = IDs
+
+        # # Get unique assistant IDs
+        # IDs = assistIDs[i]
+        # IDs = list(np.unique(IDs))
+        # assistIDs[i] = IDs
+
+    # Find all instances of ID 2 and change to 999 (special case where
+    # an operator changed numbers -- don't do this again!)
+    for idlist in leadIDs:
+        for i,id_int in enumerate(idlist):
+            if id_int == 2.0:
+                idlist[i] = 999.0
+
+    for i,minutes_list in enumerate(man_minutes):
+        man_minutes[i] = sum(minutes_list)
+
+    # Catch whether the part is the first part on a Monday
+    layup_times = list(df_cleaned["Layup Time"][layup_inds])
+    close_times = list(df_cleaned["Close Time"][close_inds])
+    resin_times = list(df_cleaned["Resin Time"][resin_inds])
+    cycle_times = list(df_cleaned["Cycle Time"][cycle_inds])
+    datetimes = list(df_cleaned["time"][cycle_inds])
+    weekdays = [date.weekday() for date in datetimes]
+    firstflags = []
+    for i,day in enumerate(weekdays):
+        if i == 0 and day == 0:
+            if datetimes[i].time() < dt.time(8,0,0):
+                firstflags.append(1)
+            else:
+                firstflags.append(0)
+        elif day == 0 and weekdays[i-1] != 0:
+            firstflags.append(1)
+        else:
+            firstflags.append(0)
+            
+    
+    layup_threshold = 275
+    layup_saturated = [True if time >= layup_threshold else False for time in layup_times]
+    
+    close_threshold = 90
+    close_saturated = [True if time >= close_threshold else False for time in close_times]
+    
+    resin_threshold = 180
+    resin_saturated = [True if time >= resin_threshold else False for time in resin_times]
+    
+        
+    # Add data for showing which stages should be counted for each operator,
+    # as well as whether the cycle time should be counted.
+    layupIDs, closeIDs, resinIDs, cycleIDs = count_stages_for_operator(df_cleaned, stage_inds, leadIDs)
+    
+    shifts = []
+    for i in range(len(cycleIDs)):
+        shifts.append([])
+        for j in range(len(cycleIDs[i])):
+            if cycleIDs[i][j] in daylist:
+                shifts[i].append("Day")
+            elif cycleIDs[i][j] in swinglist:
+                shifts[i].append("Swing")
+            elif cycleIDs[i][j] in gravelist:
+                shifts[i].append("Graveyard")
+            elif cycleIDs[i][j] == 0:
+                pass
+            else:
+                raise ValueError("ID not recognized as part of a shift")
+    
+    
+    
+    
+    
+
+    # Create DataFrame for evaluations for current mold
+    data_eval = {"time": datetimes, "Day": weekdays,
+                 "First Monday Part": firstflags, 
+                 "Layup Time": layup_times, "Close Time": close_times,
+                 "Resin Time": resin_times, "Cycle Time": cycle_times,
+                 "Lead": cycleIDs, "Shift": shifts,
+                 "Layup Leads": layupIDs, "Close Leads": closeIDs,
+                 "Resin Leads": resinIDs,
+                 "Layup Saturated": layup_saturated,
+                 "Close Saturated": close_saturated,
+                 "Resin Saturated": resin_saturated
+                 }
+
+    df_eval_mold = pd.DataFrame(data=data_eval)
+
+    # Create DataFrame for evaluating man-minutes and cycle times
+    man_ratios = []
+    for i in range(len(man_minutes)):
+        ratio = man_minutes[i] / cycle_times[i]
+        man_ratios.append(ratio)
+
+    data_manminutes_mold = {"time": datetimes, "Day": weekdays,
+                       "First Monday Part": firstflags, 
+                       "Layup Time": layup_times, "Close Time": close_times,
+                       "Resin Time": resin_times, "Cycle Time": cycle_times,
+                       "Shift": shifts, "Man-Minutes": man_minutes,
+                       "Man Ratio": man_ratios
+                       }
+
+    df_manminutes_mold = pd.DataFrame(data=data_manminutes_mold)
+
+    # Append mold data to larger DataFrame for all data
+    df_eval = pd.concat([df_eval, df_eval_mold], ignore_index=True)
+    df_manminutes = pd.concat([df_manminutes, df_manminutes_mold], ignore_index=True)
 
     return df_eval, df_manminutes
 
@@ -1830,6 +2302,7 @@ def cycle_time_over_time(dtstart, dtend):
     # Remove faulty duplicates
     df_eval = clean_duplicate_times(df_eval)
     
+    # Ignore any cycles that contain a saturated stage time
     cycles = df_eval.copy()
     cycles = cycles[cycles["Layup Saturated"] == False]
     cycles = cycles[cycles["Close Saturated"] == False]
@@ -1840,13 +2313,19 @@ def cycle_time_over_time(dtstart, dtend):
     # Reindex
     cycles = cycles.reset_index(drop=True)
     cycles["Date"] = pd.to_datetime(cycles["time"]).dt.date
-    cycles = cycles[["Date", "Cycle Time"]]
+    # cycles = cycles[["Date", "Cycle Time"]]
     year = [date.isocalendar()[0] for date in cycles["Date"]]
     cycles["Year"] = year
     week = [date.isocalendar()[1] for date in cycles["Date"]]
     cycles["Week"] = week
     month = [date.month for date in cycles["Date"]]
     cycles["Month"] = month
+    
+    # Catch duplicate times by validating sums and differences
+    cycles["sum"] = cycles["Layup Time"] + cycles["Close Time"] + cycles["Resin Time"]
+    cycles["diff"] = np.abs(cycles["sum"] - cycles["Cycle Time"])
+    
+    cycles = cycles[cycles["diff"] <= 0.01]
 
     fig,ax = plt.subplots(dpi=300)
     medians = cycles.groupby(["Month"])["Cycle Time"].median()
@@ -1913,6 +2392,120 @@ def cycle_time_over_time(dtstart, dtend):
     plt.show()
 
     return cycles, medians, dates
+
+
+def cycle_time_over_time_by_mold(dtstart, dtend):
+    
+    fig,ax = plt.subplots(dpi=300)
+    
+    for moldcolor in api.molds:
+        df_eval, _ = load_single_mold_data(dtstart, dtend, moldcolor)
+        
+        # Remove faulty duplicates
+        df_eval = clean_duplicate_times(df_eval)
+        
+        # Ignore any cycles that contain a saturated stage time
+        cycles = df_eval.copy()
+        cycles = cycles[cycles["Layup Saturated"] == False]
+        cycles = cycles[cycles["Close Saturated"] == False]
+        cycles = cycles[cycles["Resin Saturated"] == False]
+
+        # Sort by time column
+        cycles = cycles.sort_values(by="time", axis=0)
+        # Reindex
+        cycles = cycles.reset_index(drop=True)
+        cycles["Date"] = pd.to_datetime(cycles["time"]).dt.date
+        # cycles = cycles[["Date", "Cycle Time"]]
+        year = [date.isocalendar()[0] for date in cycles["Date"]]
+        cycles["Year"] = year
+        week = [date.isocalendar()[1] for date in cycles["Date"]]
+        cycles["Week"] = week
+        month = [date.month for date in cycles["Date"]]
+        cycles["Month"] = month
+        
+        # Catch duplicate times by validating sums and differences
+        cycles["sum"] = cycles["Layup Time"] + cycles["Close Time"] + cycles["Resin Time"]
+        cycles["diff"] = np.abs(cycles["sum"] - cycles["Cycle Time"])
+        
+        cycles = cycles[cycles["diff"] <= 0.01]
+
+        medians = cycles.groupby(["Month"])["Cycle Time"].median()
+        # medians = cycles.groupby(["Date"])["Cycle Time"].median()
+        dates = cycles["Month"].unique()
+        # dates = cycles["Date"].unique()
+        dates_str = [str(day) for day in dates]
+
+        # Reorganize data for boxplot property calculation
+        whiskers_hi = []
+        whiskers_lo = []
+        outliers = []
+        for date in dates:
+            df_day = cycles.loc[cycles["Month"] == date]
+            # df_day = cycles.loc[cycles["Date"] == date]
+            cycle_data = list(df_day["Cycle Time"])
+            stats = boxplot_stats(cycle_data)
+            stats = stats[0]
+
+            whishi = stats["whishi"]
+            whislo = stats["whislo"]
+            fliers = stats["fliers"]
+            whiskers_hi.append(whishi)
+            whiskers_lo.append(whislo)
+            outliers.append(fliers)
+
+        # Skip labels so there are 5 at most on the plot, for readability
+        labelskip = 0
+        dateticks = dates_str
+        while len(dateticks) > 5:
+            labelskip += 1
+            dateticks = dates_str[::labelskip]
+
+        datelabels = []
+        for i,day in enumerate(dates_str):
+            if day in dateticks:
+                datelabels.append(day)
+            else:
+                datelabels.append("")
+
+        # Make the plot
+        sns.set_theme(style="ticks")
+        if moldcolor == "Brown":
+            color = "saddlebrown"
+        elif moldcolor == "Purple":
+            color = "purple"
+        elif moldcolor == "Red":
+            color = "r"
+        elif moldcolor == "Pink":
+            color = "hotpink"
+        elif moldcolor == "Orange":
+            color = "darkorange"
+        elif moldcolor == "Green":
+            color = "g"
+        else:
+            raise ValueError("Mold color name is not possible")
+        sns.lineplot(x=dates, y=medians, linewidth=3, color=color)
+        # for x,y in zip(dates, medians):
+        #     label = "{:.2f}".format(y)
+        #     plt.annotate(label,
+        #                  (x,y),
+        #                  textcoords="offset points",
+        #                  xytext=(0,10),
+        #                  ha='center')
+            
+        # plt.plot(dates, whiskers_hi, color=color, alpha=0.5)
+        # plt.plot(dates, whiskers_lo, color=color, alpha=0.5)
+        plt.fill_between(dates, whiskers_hi, whiskers_lo, color=color, alpha=0.2)
+        # for i,fliers in enumerate(outliers):
+        #     if len(fliers) > 0:
+        #         outlier_dates = [dates[i]] * len(fliers)
+        #         sns.scatterplot(x=outlier_dates, y=fliers, color=color, marker='o', alpha=0.5, s=20)
+
+    plt.xticks(dates, datelabels, rotation=90)
+    plt.xlabel("Month")
+    # plt.xlabel("Date")
+    plt.title("Cycle Time Variability By Mold")
+    # plt.legend()
+    plt.show()
 
 
 def filter_outlier_cycles(dtstart, dtend):
@@ -1994,7 +2587,7 @@ def filter_outlier_cycles(dtstart, dtend):
     matchcount = 0
 
     for moldcolor in api.molds:
-        df_raw = load_operator_data_single_mold(dtstart, dtend, moldcolor)
+        df_raw = load_raw_data_single_mold(dtstart, dtend, moldcolor)
 
         # Sort by ascending time
         df_sorted = df_raw.sort_values(list(df_raw.columns), ascending=True)
@@ -2123,6 +2716,7 @@ if __name__ == "__main__":
     # all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers = filter_outlier_cycles(dtstart, dtend)
 
     cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
+    # cycle_time_over_time_by_mold(dtstart, dtend)
 
 
 
