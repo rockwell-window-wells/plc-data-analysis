@@ -289,7 +289,7 @@ def print_all_employee_IDcards_PDF():
     # print_all_employee_IDcards()
     
     idlist = get_all_employee_nums() # This outputs a DataFrame
-    idlist = idlist["ID"]
+    idlist = idlist["IDstr_trunc"]
     idlist = list(idlist)
     idlist = [int(id) for id in idlist]
     filename = "All_Operator_IDs.pdf"
@@ -616,7 +616,7 @@ def print_all_employee_IDcards():
         # this column, so we use it to catch only the personnel relevant data.
         if "Name" in iddata:
             for index in indices:
-                id_int = iddata.loc[index, "ID"]
+                id_int = iddata.loc[index, "IDIDstr_trunc"]
                 id_string = str(id_int)
                 # print(id_string)
                 generate_qrcode(id_string, QRfolder)
@@ -950,10 +950,12 @@ def get_all_employee_nums():
     IDfilepath = data_assets.ID_data
     
     leads = pd.read_excel(IDfilepath, sheet_name="Personnel-Lead")
-    allnums = leads[~leads["Name"].isnull()]   # Dataframe of just the rows with names assigned to IDs
+    allnums = leads[~leads["Name"].isnull()].copy()   # Dataframe of just the rows with names assigned to IDs
     allnums = allnums.drop(columns=["Type", "Date"])
     allnums["ID"] = allnums["ID"].apply(str)
-    allnums["ID"] = allnums["ID"].str[2:]
+    allnums["ID"] = allnums["ID"].str[2:]    
+    # allnums["ID"] = allnums["ID"].apply(str)
+    # allnums["ID"] = allnums["ID"].str[2:]
     return allnums
 
 
@@ -975,10 +977,12 @@ def get_shift_lists(IDfilepath):
 
     """
     leads = pd.read_excel(IDfilepath, sheet_name="Personnel-Lead")
-    allnums = leads[~leads["Name"].isnull()]   # Dataframe of just the rows with names assigned to IDs
+    allnums = leads[~leads["Name"].isnull()].copy()   # Dataframe of just the rows with names assigned to IDs
     allnums = allnums.drop(columns=["Type", "Date"])
-    allnums["ID"] = allnums["ID"].apply(str)        # Pandas doesn't like this. Change it to work as vectorized function
+    allnums["ID"] = allnums["ID"].apply(str)
     allnums["ID"] = allnums["ID"].str[2:]
+    # allnums["ID"] = allnums["ID"].apply(str)        # Pandas doesn't like this. Change it to work as vectorized function
+    # allnums["ID"] = allnums["ID"].str[2:]
     
     idlist = list(allnums["ID"])
     shiftlist = list(allnums["Shift"])
@@ -1010,7 +1014,7 @@ def get_id_assign_date(IDfilepath, idnum):
 
     """
     leads = pd.read_excel(IDfilepath, sheet_name="Personnel-Lead")
-    allnums = leads[~leads["Name"].isnull()]
+    allnums = leads[~leads["Name"].isnull()].copy()
     allnums["ID"] = allnums["ID"].apply(str)
     allnums["ID"] = allnums["ID"].str[2:]
     allnums["ID"] = allnums["ID"].apply(int)
