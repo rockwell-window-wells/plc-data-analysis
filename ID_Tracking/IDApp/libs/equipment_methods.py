@@ -17,8 +17,8 @@ import math
 
 from cycle_time_methods_v2 import between, closest_before, closest_idx
 
-from . import data_assets
-# import data_assets
+# from . import data_assets
+import data_assets
 
 
 def load_bag_data_single_mold(dtstart, dtend, moldcolor):
@@ -516,13 +516,27 @@ if __name__ == "__main__":
     endtime = dt.time(23,59,59)
     dtend = dt.datetime.combine(enddate, endtime)
     
-    # df = load_bag_data_single_mold(dtstart, dtend, "Purple")
+    
+    # df = load_bag_data_single_mold(dtstart, dtend, "Pink")
     df_equip = organize_bag_data(dtstart, dtend)
     
-    correlate_bag_cycles(df_equip)
+    df_equip_unsaturated = df_equip[df_equip["Saturated Time"] == False]
+    bagnums = df_equip_unsaturated["Bag"].unique()
+    bag_dataframes = []
+    rollnum = 20
+    for bagnum in bagnums:
+        df_bag = df_equip_unsaturated[df_equip_unsaturated["Bag"] == bagnum]
+        df_bag["SMA"] = df_bag["Cycle Time"].rolling(rollnum).mean()
+        bag_dataframes.append(df_bag)
+        
+        plt.figure()
+        sns.scatterplot(data=df_bag, x="time", y="Cycle Time")
+        sns.lineplot(data=df_bag, x="time", y="SMA", color="r").set(title="Bag {}".format(int(bagnum)))
+        
+    # correlate_bag_cycles(df_equip)
     
     
-    sweepwindow = 100
-    # stdev_over_time(df_equip, sweepwindow)
-    # avg_over_time(df_equip, sweepwindow)
-    boxplot_over_time(df_equip, sweepwindow)
+    # sweepwindow = 100
+    # # stdev_over_time(df_equip, sweepwindow)
+    # # avg_over_time(df_equip, sweepwindow)
+    # boxplot_over_time(df_equip, sweepwindow)

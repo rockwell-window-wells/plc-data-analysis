@@ -977,12 +977,13 @@ def get_shift_lists(IDfilepath):
     leads = pd.read_excel(IDfilepath, sheet_name="Personnel-Lead")
     allnums = leads[~leads["Name"].isnull()]   # Dataframe of just the rows with names assigned to IDs
     allnums = allnums.drop(columns=["Type", "Date"])
-    allnums["ID"] = allnums["ID"].apply(str)
+    allnums["ID"] = allnums["ID"].apply(str)        # Pandas doesn't like this. Change it to work as vectorized function
     allnums["ID"] = allnums["ID"].str[2:]
     
     idlist = list(allnums["ID"])
     shiftlist = list(allnums["Shift"])
     
+    # There has to be a more simple way of filtering the IDs into shift lists.
     daylist =   [int(id) for i,id in enumerate(idlist) if shiftlist[i]=="Day"]
     swinglist = [int(id) for i,id in enumerate(idlist) if shiftlist[i]=="Swing"]
     gravelist = [int(id) for i,id in enumerate(idlist) if shiftlist[i]=="Graveyard"]

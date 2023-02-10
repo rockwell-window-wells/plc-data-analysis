@@ -445,10 +445,73 @@ def monthly_resin_use(startdate, enddate=dt.date.today()):
     
 
 if __name__ == "__main__":
-    startdate = dt.date(2022,3,1)
-    enddate = dt.date.today()
+    # startdate = dt.date(2022,3,1)
+    # enddate = dt.date.today()
     
-    monthly_resin_use(startdate, enddate)
+    dtstart = dt.datetime(2022,3,1,0,0,0)
+    dtend = dt.datetime.now()
+    resincolors = ["Gray", "Tan"]
+    
+    sizes = [0.0, 1111.0, 422324.0, 422336.0, 422348.0, 422360.0, 422372.0,
+              422380.0, 664436.0, 664448.0, 664460.0, 664472.0, 664484.0,
+              664496.0, 6644102.0]
+    
+    partslist = []
+    
+    # df_partcounts = pd.DataFrame()
+    # df_partcounts = df_partcounts.set_axis(sizes)
+    
+    df, df_no_outliers, n_outliers, median_excess = load_resin_data_single_plc(dtstart, dtend, "Gray")
+    
+    partnums = df.iloc[:,1].value_counts()
+    partnums2 = df.iloc[:,2].value_counts()
+    partsgray = partnums.append(partnums2)
+    partsgray.rename("Gray", inplace=True)
+    
+    # df_partcounts.append(parts)
+    
+    df, df_no_outliers, n_outliers, median_excess = load_resin_data_single_plc(dtstart, dtend, "Tan")
+    
+    partnums = df.iloc[:,1].value_counts()
+    partnums2 = df.iloc[:,2].value_counts()
+    partstan = partnums.append(partnums2)
+    partstan.rename("Tan", inplace=True)
+    
+    parts_gray = partsgray.to_dict()
+    parts_tan = partstan.to_dict()
+    
+    parts_sum = {}
+    
+    for size in sizes:
+        if size in parts_gray.keys() and size in parts_tan.keys():
+            parts_sum[size] = parts_gray[size] + parts_tan[size]
+        elif size in parts_gray.keys() and size not in parts_tan.keys():
+            parts_sum[size] = parts_gray[size]
+        elif size in parts_tan.keys() and size not in parts_gray.keys():
+            parts_sum[size] = parts_tan[size]
+    
+    
+    
+    # df_partcounts.append(parts)
+    
+    
+    # for resincolor in resincolors:
+    #     df, df_no_outliers, n_outliers, median_excess = load_resin_data_single_plc(dtstart, dtend, resincolor)
+        
+    #     partnums = df.iloc[:,1].value_counts()
+    #     partnums2 = df.iloc[:,2].value_counts()
+    #     parts = partnums.append(partnums2)
+    #     parts.rename(resincolor, inplace=True)
+    
+    #     partslist.append(parts)
+        
+    #     df_partcounts.append(parts)
+    
+    # monthly_resin_use(startdate, enddate)
+    
+    
+    
+    
     
     # months = [4,5,6,7,8,9,10]
     # lastdays = [30,31,30,31,31,30,31]

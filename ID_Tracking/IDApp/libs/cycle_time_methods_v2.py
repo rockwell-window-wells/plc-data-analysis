@@ -18,6 +18,8 @@ import matplotlib as mpl
 import pytz
 from itertools import groupby
 from bisect import bisect_left
+from sklearn import linear_model
+import plotly.express as px
 
 # If running as part of a compiled exe file (i.e. as the finalized ID &
 # Evaluation Tool app), comment out the imports that contain "from . import"
@@ -2494,7 +2496,7 @@ def cycle_time_over_time_by_mold(dtstart, dtend):
             
         # plt.plot(dates, whiskers_hi, color=color, alpha=0.5)
         # plt.plot(dates, whiskers_lo, color=color, alpha=0.5)
-        plt.fill_between(dates, whiskers_hi, whiskers_lo, color=color, alpha=0.2)
+        # plt.fill_between(dates, whiskers_hi, whiskers_lo, color=color, alpha=0.2)
         # for i,fliers in enumerate(outliers):
         #     if len(fliers) > 0:
         #         outlier_dates = [dates[i]] * len(fliers)
@@ -2686,49 +2688,62 @@ def plot_man_ratios(df_manminutes):
     return m, b
 
 
+def cycles_multiple_regression(dtstart, dtend):
+    df = load_operator_data(dtstart, dtend)[0]
+    
+    # Remove faulty duplicates
+    df = clean_duplicate_times(df)
+    
+    features = ["Layup Time", "Close Time", "Resin Time"]
+    target = "Cycle Time"
+    
+    # # Ignore any cycles that contain a saturated stage time
+    # cycles = df.copy()
+    # cycles = cycles[cycles["Layup Saturated"] == False]
+    # cycles = cycles[cycles["Close Saturated"] == False]
+    # cycles = cycles[cycles["Resin Saturated"] == False]
+    
+    # X = cycles[features].values.reshape(-1, len(features))
+    # y = cycles[target].values
+    X = df[features].values.reshape(-1, len(features))
+    y = df[target].values
+    
+    ols = linear_model.LinearRegression()
+    model = ols.fit(X,y)
+    
+    # Plot the model
+    fig = px.scatter_3d(df, x="Layup Time", y="Close Time", z="Resin Time", color="Cycle Time")
+    fig.show()
+    
+    print("Multiple Regression Model:")
+    print("{}*Layup + {}*Close + {}*Resin".format(model.coef_[0], model.coef_[1], model.coef_[2]))
+    print("R-squared:\t{}".format(model.score(X,y)))
+    
+    for feature in features:    
+        X = df[[feature]].values.reshape(-1, 1)
+        y = df[target].values
+        
+        ols = linear_model.LinearRegression()
+        model = ols.fit(X,y)
+        
+        print("\nLinear Regression - {}".format(feature))
+        print("{}*{}".format(model.coef_[0], feature))
+        print("R-squared:\t{}".format(model.score(X,y)))
+    
+    
+    return df, X, y, model
+
+
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,3,24,0,0,0)
+    dtstart = dt.datetime(2022,5,1,0,0,0)
     enddate = dt.date.today()
     # enddate = dt.date(2022,3,17)
     endtime = dt.time(23,59,59)
     dtend = dt.datetime.combine(enddate, endtime)
-
-    # ndays = 21
-    # enddate = dt.date.today()
-    # endtime = dt.time(23,59,59)
-    # dtend = dt.datetime.combine(enddate, endtime)
-    # startdate = dt.date.today()
-    # starttime = dt.time(0,0,0)
-    # dtstart = dt.datetime.combine(startdate, starttime)
-
-    # for i in range(0,ndays):
-    #     df_eval, df_manminutes = load_operator_data(dtstart, dtend)
-
-    #     m, b = plot_man_ratios(df_manminutes)
-    #     print("m = {} for {} days".format(m, i+1))
-    #     print("b = {} for {} days".format(b, i+1))
-    #     print("")
-
-    #     # Adjust start date
-    #     startdate -= dt.timedelta(days=1)
-    #     dtstart = dt.datetime.combine(startdate, starttime)
-
-    # all_outliers, brown_outliers, purple_outliers, red_outliers, pink_outliers, orange_outliers, green_outliers = filter_outlier_cycles(dtstart, dtend)
-
-    cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
-    # cycle_time_over_time_by_mold(dtstart, dtend)
-
-
-
-    # operator_list = [666]
-    # # shift = None
-    # # # get_operator_stats_by_list(df_eval, operator_list, shift=None)
-
+    
+    # df, X, y, model = cycles_multiple_regression(dtstart, dtend)
+    
+    
     # df_eval, df_manminutes = load_operator_data(dtstart, dtend)
-    # get_operator_stats_by_list(df_eval, operator_list)
-    # # get_all_operator_stats(df_eval)
-
-    # opnum = 69
-    # get_single_operator_stats(df_eval, opnum)
-
-    # df_eval = get_operator_report_by_list(operator_list, shift, dtstart, dtend)
+    # cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
+    cycle_time_over_time_by_mold(dtstart, dtend)
