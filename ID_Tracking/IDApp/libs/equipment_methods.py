@@ -114,6 +114,122 @@ def load_bag_data_single_mold(dtstart, dtend, moldcolor):
     return df
 
 
+
+def associate_time(df, colname):
+    """
+    
+    
+    Parameters
+    ----------
+    df : TYPE
+        DESCRIPTION.
+    cyc_ind : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
+    mask = df[colname].notna()
+    times = df["time"][mask]
+    stage = df[colname][mask]
+    df_stage = pd.concat([times,stage], axis=1)
+    # df_stage = df_stage.reset_index(drop=True)
+    
+    return df_stage
+
+
+def get_bag_dfs(df):
+    bag_starts = get_bag_start_times(df)
+    bag_dfs = []
+    for i in range(len(bag_starts)):
+        if i == len(bag_starts)-1:
+            time_min = bag_starts.loc[i,"Start Time"]
+            df_bag = df[(df["time"] > time_min)]
+        else:
+            time_min = bag_starts.loc[i,"Start Time"]
+            time_max = bag_starts.loc[i+1,"Start Time"]
+            df_bag = df[(df["time"] > time_min) & (df["time"] < time_max)]
+        bag_dfs.append(df_bag)
+        
+    # mask = df[(df["time"] > time_min) & (df["time"] < time_max)]
+    
+    return bag_dfs    
+    
+    
+def collapse_df_bag(df_bag):
+    df_layup = associate_time(df_bag, "Layup Time")
+    df_close = associate_time(df_bag, "Close Time")
+    df_resin = associate_time(df_bag, "Resin Time")
+    df_cycle = associate_time(df_bag, "Cycle Time")
+    cycle_inds = list(df_cycle.index.values)
+    
+    
+    layup = list(np.zeros((len(df_cycle),1)))
+    close = list(np.zeros((len(df_cycle),1)))
+    resin = list(np.zeros((len(df_cycle),1)))
+    for i in range(len(df_cycle)):
+        idx_cycle = cycle_inds[i]
+        
+        idx_layup = df_layup["time"].sub(df_cycle.loc[idx_cycle,"time"]).abs().idxmin()
+        layup[i] = df_layup.loc[idx_layup,"Layup Time"]
+        
+        idx_close = df_close["time"].sub(df_cycle.loc[idx_cycle,"time"]).abs().idxmin()
+        close[i] = df_close.loc[idx_close,"Close Time"]
+        
+        idx_resin = df_resin["time"].sub(df_cycle.loc[idx_cycle,"time"]).abs().idxmin()
+        resin[i] = df_resin.loc[idx_resin,"Resin Time"]
+        
+    
+    time = list(df_cycle["time"])
+    cycle = list(df_cycle["Cycle Time"])
+    bagnum = df_bag["Bag"].value_counts().index.tolist()[0]
+    bagnum_col = list(bagnum * np.ones(len(df_cycle)))
+    
+    collapsed = {"time":time, "Layup Time":layup, "Close Time":close,
+                 "Resin Time":resin, "Cycle Time":cycle, "Bag": bagnum_col}
+    df_bag_collapsed = pd.DataFrame(collapsed)
+    
+    df_bag_collapsed["Sum"] = df_bag_collapsed["Layup Time"] + df_bag_collapsed["Close Time"] + df_bag_collapsed["Resin Time"]
+    df_bag_collapsed["Diff"] = df_bag_collapsed["Cycle Time"] - df_bag_collapsed["Sum"]
+    
+    return df_bag_collapsed
+        
+
+
+def get_bag_start_times(df):
+    df_bag = associate_time(df, "Bag")
+    df_bag = df_bag.sort_values("time")
+    df_bag = df_bag.reset_index(drop=True)
+    # bagnums = list(df_bags["Bag"].unique())
+    bagnums = []
+    bag_timestamps = []
+    # for bag in bagnums:
+    #     bag_slice = df_bags[df_bags["Bag"] == bag]
+    #     bag_timestamps.append(bag_slice["time"].min())
+    for i in range(len(df_bag)):
+        if i == 0:
+            bag_timestamps.append(df_bag.loc[i,"time"])
+            bagnums.append(df_bag.loc[i,"Bag"])
+        else:
+            if df_bag.loc[i,"Bag"] != df_bag.loc[i-1,"Bag"]:
+                bag_timestamps.append(df_bag.loc[i,"time"])
+                bagnums.append(df_bag.loc[i,"Bag"])
+        
+    bag_starts = pd.DataFrame({"Bag":bagnums, "Start Time":bag_timestamps})
+    bag_starts = bag_starts.sort_values("Start Time",ignore_index=True)
+        
+    return bag_starts
+
+
+def add_bag_days(df_stage):
+    basedate = df_stage["time"].min()
+    basedate = basedate.date()
+    basedate = dt.datetime.combine(basedate, dt.datetime.min.time())
+    df_stage["Bag Days"] = (df_stage["time"] - basedate).dt.days
+
+
 def organize_bag_data(dtstart, dtend):
     """
     
@@ -517,26 +633,40 @@ if __name__ == "__main__":
     dtend = dt.datetime.combine(enddate, endtime)
     
     
-    # df = load_bag_data_single_mold(dtstart, dtend, "Pink")
-    df_equip = organize_bag_data(dtstart, dtend)
+    df = load_bag_data_single_mold(dtstart, dtend, "Pink")
     
-    df_equip_unsaturated = df_equip[df_equip["Saturated Time"] == False]
-    bagnums = df_equip_unsaturated["Bag"].unique()
-    bag_dataframes = []
-    rollnum = 20
-    for bagnum in bagnums:
-        df_bag = df_equip_unsaturated[df_equip_unsaturated["Bag"] == bagnum]
-        df_bag["SMA"] = df_bag["Cycle Time"].rolling(rollnum).mean()
-        bag_dataframes.append(df_bag)
+    cycles = associate_time(df, "Cycle Time")
+    # bag_timestamps = get_bag_start_times(df)
+    
+    bag_dfs = get_bag_dfs(df)
+    bag_dfs_collapsed = []
+    for bag in bag_dfs:
+        df_bag_collapsed = collapse_df_bag(bag)
+        bag_dfs_collapsed.append(df_bag_collapsed)
+    # bags = associate_time(df, "Bag")
+    # add_bag_days(cycles)
+    
+    
+    
+    # df_equip = organize_bag_data(dtstart, dtend)
+    
+    # df_equip_unsaturated = df_equip[df_equip["Saturated Time"] == False]
+    # bagnums = df_equip_unsaturated["Bag"].unique()
+    # bag_dataframes = []
+    # rollnum = 20
+    # for bagnum in bagnums:
+    #     df_bag = df_equip_unsaturated[df_equip_unsaturated["Bag"] == bagnum]
+    #     df_bag["SMA"] = df_bag["Cycle Time"].rolling(rollnum).mean()
+    #     bag_dataframes.append(df_bag)
         
-        plt.figure()
-        sns.scatterplot(data=df_bag, x="time", y="Cycle Time")
-        sns.lineplot(data=df_bag, x="time", y="SMA", color="r").set(title="Bag {}".format(int(bagnum)))
+    #     plt.figure()
+    #     sns.scatterplot(data=df_bag, x="time", y="Cycle Time")
+    #     sns.lineplot(data=df_bag, x="time", y="SMA", color="r").set(title="Bag {}".format(int(bagnum)))
         
-    # correlate_bag_cycles(df_equip)
+    # # correlate_bag_cycles(df_equip)
     
     
-    # sweepwindow = 100
-    # # stdev_over_time(df_equip, sweepwindow)
-    # # avg_over_time(df_equip, sweepwindow)
-    # boxplot_over_time(df_equip, sweepwindow)
+    # # sweepwindow = 100
+    # # # stdev_over_time(df_equip, sweepwindow)
+    # # # avg_over_time(df_equip, sweepwindow)
+    # # boxplot_over_time(df_equip, sweepwindow)
