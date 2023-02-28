@@ -142,6 +142,7 @@ def associate_time(df, colname):
 
 def get_bag_dfs(df):
     bag_starts = get_bag_start_times(df)
+    # bag_starts = get_bag_start_times_data_ref(df)
     # Catch duplicate occurrences of bag numbers
     bag_starts = bag_starts[(bag_starts.ne(bag_starts.shift())).any(axis=1)]
     bag_starts = bag_starts.reset_index(drop=True)
@@ -216,7 +217,7 @@ def collapse_df_bag(df_bag):
         
 
 
-def get_bag_start_times(df):
+def get_bag_start_times_data_ref(df):
     df_bag = associate_time(df, "Bag")
     df_bag = df_bag.sort_values("time")
     df_bag = df_bag.reset_index(drop=True)
@@ -249,9 +250,23 @@ def get_bag_start_times(df):
         
     return bag_starts
 
+def get_bag_start_times(df):
+    df_bag = associate_time(df, "Bag")
+    df_bag = df_bag.sort_values("time")
+    df_bag = df_bag.reset_index(drop=True)
+    bagnums = list(df_bag["Bag"].unique())
+    # bagnums = []
+    bag_timestamps = []
+    for bag in bagnums:
+        bag_slice = df_bag[df_bag["Bag"] == bag]
+        bag_timestamps.append(bag_slice["time"].min())
+        
+    bag_starts = pd.DataFrame({"Bag":bagnums, "Start Time":bag_timestamps})
+    bag_starts = bag_starts.sort_values("Start Time",ignore_index=True)
+    return bag_starts
 
 def add_bag_days_cycles(df):
-    bag_starts = get_bag_start_times(df)
+    bag_starts = get_bag_start_times_data_ref(df)
     
     # Clean out duplicate bag numbers and replace with bag creation date data
     bag_starts = bag_starts.drop_duplicates("Bag")
@@ -325,6 +340,12 @@ def get_all_bag_data(dtstart, dtend):
     all_bag_data["Diff"] = all_bag_data["Cycle Time"] - all_bag_data["Sum"]
     
     return all_bag_data, bag_starts
+
+def filter_unsaturated_data(all_bag_data):
+    layup_unsaturated = all_bag_data.loc[(all_bag_data["Layup Time"] != 276.0) & (all_bag_data["Layup Time"] != 275.0)]
+    close_unsaturated = layup_unsaturated.loc[layup_unsaturated["Close Time"] != 90.0]
+    resin_unsaturated = close_unsaturated.loc[close_unsaturated["Resin Time"] != 180.0]
+    return resin_unsaturated
 
 
 
@@ -724,18 +745,31 @@ def boxplot_over_time(df_equip_bag, window_size):
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,3,25,16,0,0)
+    dtstart = dt.datetime(2022,9,25,0,0,0)
     enddate = dt.date.today()
     # enddate = dt.date(2022,3,17)
     endtime = dt.time(23,59,59)
     dtend = dt.datetime.combine(enddate, endtime)
     
     all_bag_data, bag_starts = get_all_bag_data(dtstart, dtend)
+    
+    all_bag_data_unsaturated = filter_unsaturated_data(all_bag_data)
+    
+    plt.figure(dpi=300)
+    sns.scatterplot(data=all_bag_data_unsaturated, x="Bag Cycles", y="Layup Time", hue="Bag", palette="Paired")
+    plt.figure(dpi=300)
+    sns.scatterplot(data=all_bag_data_unsaturated, x="Bag Cycles", y="Close Time", hue="Bag", palette="Paired")
+    plt.figure(dpi=300)
+    sns.scatterplot(data=all_bag_data_unsaturated, x="Bag Cycles", y="Resin Time", hue="Bag", palette="Paired")
+    plt.figure(dpi=300)
+    sns.scatterplot(data=all_bag_data_unsaturated, x="Bag Cycles", y="Cycle Time", hue="Bag", palette="Paired")
+    
+    
     # df = load_bag_data_single_mold(dtstart, dtend, "Pink")
     # cleaned_df = get_cleaned_single_mold(df)
     
     # cycles = associate_time(df, "Cycle Time")
-    # bag_timestamps = get_bag_start_times(df)
+    # bag_timestamps = get_bag_start_times_data_ref(df)
     
     # bag_dfs = get_bag_dfs(df)
     # bag_dfs_collapsed = []
