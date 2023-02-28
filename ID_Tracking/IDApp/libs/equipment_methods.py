@@ -142,6 +142,9 @@ def associate_time(df, colname):
 
 def get_bag_dfs(df):
     bag_starts = get_bag_start_times(df)
+    # Catch duplicate occurrences of bag numbers
+    bag_starts = bag_starts[(bag_starts.ne(bag_starts.shift())).any(axis=1)]
+    bag_starts = bag_starts.reset_index(drop=True)
     bag_dfs = []
     for i in range(len(bag_starts)):
         if i == len(bag_starts)-1:
@@ -151,12 +154,26 @@ def get_bag_dfs(df):
             time_min = bag_starts.loc[i,"Start Time"]
             time_max = bag_starts.loc[i+1,"Start Time"]
             df_bag = df[(df["time"] > time_min) & (df["time"] < time_max)]
-        bag_dfs.append(df_bag)
+        if df_bag["Bag"].isnull().all():
+            pass
+        else:
+            bag_dfs.append(df_bag)
         
     # mask = df[(df["time"] > time_min) & (df["time"] < time_max)]
     
-    return bag_dfs    
+    return bag_dfs
+
+def combine_bag_dfs(bag_dfs_collapsed):
+    combined_bag_dfs = pd.concat(bag_dfs_collapsed)
+    combined_bag_dfs = combined_bag_dfs.sort_values("time")
+    combined_bag_dfs = combined_bag_dfs.reset_index(drop=True)
+    return combined_bag_dfs
     
+def clean_consecutive_duplicates(combined_bag_dfs):
+    a = combined_bag_dfs.copy()
+    b = a[["Layup Time", "Close Time", "Resin Time", "Cycle Time", "Bag"]].copy()
+    c = a[(b.ne(b.shift())).any(axis=1)]
+    return c
     
 def collapse_df_bag(df_bag):
     df_layup = associate_time(df_bag, "Layup Time")
@@ -190,9 +207,10 @@ def collapse_df_bag(df_bag):
     collapsed = {"time":time, "Layup Time":layup, "Close Time":close,
                  "Resin Time":resin, "Cycle Time":cycle, "Bag": bagnum_col}
     df_bag_collapsed = pd.DataFrame(collapsed)
+    # add_bag_days(df_bag_collapsed)
     
-    df_bag_collapsed["Sum"] = df_bag_collapsed["Layup Time"] + df_bag_collapsed["Close Time"] + df_bag_collapsed["Resin Time"]
-    df_bag_collapsed["Diff"] = df_bag_collapsed["Cycle Time"] - df_bag_collapsed["Sum"]
+    # df_bag_collapsed["Sum"] = df_bag_collapsed["Layup Time"] + df_bag_collapsed["Close Time"] + df_bag_collapsed["Resin Time"]
+    # df_bag_collapsed["Diff"] = df_bag_collapsed["Cycle Time"] - df_bag_collapsed["Sum"]
     
     return df_bag_collapsed
         
@@ -218,16 +236,96 @@ def get_bag_start_times(df):
                 bagnums.append(df_bag.loc[i,"Bag"])
         
     bag_starts = pd.DataFrame({"Bag":bagnums, "Start Time":bag_timestamps})
+    
+    # Compare against equipment data for bags
+    bag_data = pd.read_excel(data_assets.equip_data)
+    for i,bag in enumerate(bag_starts["Bag"]):
+        row = bag_data.loc[bag_data["Bag"] == bag]
+        if pd.notnull(row.loc[row.index[0],"Built"]):
+            date = row.loc[row.index[0],"Built"]
+            bag_starts.loc[i,"Start Time"] = date
+    
     bag_starts = bag_starts.sort_values("Start Time",ignore_index=True)
         
     return bag_starts
 
 
-def add_bag_days(df_stage):
-    basedate = df_stage["time"].min()
-    basedate = basedate.date()
-    basedate = dt.datetime.combine(basedate, dt.datetime.min.time())
-    df_stage["Bag Days"] = (df_stage["time"] - basedate).dt.days
+def add_bag_days_cycles(df):
+    bag_starts = get_bag_start_times(df)
+    
+    # Clean out duplicate bag numbers and replace with bag creation date data
+    bag_starts = bag_starts.drop_duplicates("Bag")
+    bag_starts = bag_starts.sort_values("Start Time",ignore_index=True)
+    
+    # Compare against equipment data for bags
+    bag_data = pd.read_excel(data_assets.equip_data)
+    for i,bag in enumerate(bag_starts["Bag"]):
+        row = bag_data.loc[bag_data["Bag"] == bag]
+        if pd.notnull(row.loc[row.index[0],"Built"]):
+            date = row.loc[row.index[0],"Built"]
+            bag_starts.loc[i,"Start Time"] = date
+    
+    bag_starts = bag_starts.sort_values("Start Time",ignore_index=True)
+    
+    frames = []
+    
+    for i,bag in enumerate(bag_starts["Bag"]):
+        # Slice the full dataframe to just the current bag
+        df_bag = df.loc[df["Bag"] == bag]
+        # Calculate dates based on basedate found in bag_starts
+        row = bag_starts.loc[bag_starts["Bag"] == bag]
+        basedate = row.loc[row.index[0],"Start Time"]
+        df_bag["Bag Days"] = (df_bag["time"] - basedate).dt.days
+        
+        # Use index to add cycle count
+        df_bag = df_bag.sort_values("time",ignore_index=True)
+        df_bag["Bag Cycles"] = df_bag.index
+        
+        frames.append(df_bag)
+    
+    df_combine = pd.concat(frames)
+    df_combine = df_combine.sort_values("time",ignore_index=True)
+    
+    # basedate = df["time"].min()
+    # basedate = basedate.date()
+    # basedate = dt.datetime.combine(basedate, dt.datetime.min.time())
+    # df["Bag Days"] = (df["time"] - basedate).dt.days
+    return df_combine, bag_starts
+
+
+def get_cleaned_single_mold(df):
+    bag_dfs = get_bag_dfs(df)
+    bag_dfs_collapsed = []
+    for bag in bag_dfs:
+        df_bag_collapsed = collapse_df_bag(bag)
+        bag_dfs_collapsed.append(df_bag_collapsed)
+        
+    combined_bag_dfs = combine_bag_dfs(bag_dfs_collapsed)
+    cleaned_df = clean_consecutive_duplicates(combined_bag_dfs)
+    return cleaned_df
+
+
+def get_all_bag_data(dtstart, dtend):
+    frames = []
+    for moldcolor in api.molds:
+        df = load_bag_data_single_mold(dtstart, dtend, moldcolor)
+        cleaned_df = get_cleaned_single_mold(df)
+        frames.append(cleaned_df)
+        
+    all_bag_data = pd.concat(frames)
+    
+    # Sort and reindex
+    all_bag_data = all_bag_data.sort_values("time", ignore_index=True)
+    
+    
+    # Add bag days and validation columns
+    all_bag_data, bag_starts = add_bag_days_cycles(all_bag_data)
+    
+    all_bag_data["Sum"] = all_bag_data["Layup Time"] + all_bag_data["Close Time"] + all_bag_data["Resin Time"]
+    all_bag_data["Diff"] = all_bag_data["Cycle Time"] - all_bag_data["Sum"]
+    
+    return all_bag_data, bag_starts
+
 
 
 def organize_bag_data(dtstart, dtend):
@@ -632,17 +730,21 @@ if __name__ == "__main__":
     endtime = dt.time(23,59,59)
     dtend = dt.datetime.combine(enddate, endtime)
     
+    all_bag_data, bag_starts = get_all_bag_data(dtstart, dtend)
+    # df = load_bag_data_single_mold(dtstart, dtend, "Pink")
+    # cleaned_df = get_cleaned_single_mold(df)
     
-    df = load_bag_data_single_mold(dtstart, dtend, "Pink")
-    
-    cycles = associate_time(df, "Cycle Time")
+    # cycles = associate_time(df, "Cycle Time")
     # bag_timestamps = get_bag_start_times(df)
     
-    bag_dfs = get_bag_dfs(df)
-    bag_dfs_collapsed = []
-    for bag in bag_dfs:
-        df_bag_collapsed = collapse_df_bag(bag)
-        bag_dfs_collapsed.append(df_bag_collapsed)
+    # bag_dfs = get_bag_dfs(df)
+    # bag_dfs_collapsed = []
+    # for bag in bag_dfs:
+    #     df_bag_collapsed = collapse_df_bag(bag)
+    #     bag_dfs_collapsed.append(df_bag_collapsed)
+        
+    # combined_bag_dfs = combine_bag_dfs(bag_dfs_collapsed)
+    # cleaned_bag_dfs = clean_consecutive_duplicates(combined_bag_dfs)
     # bags = associate_time(df, "Bag")
     # add_bag_days(cycles)
     
