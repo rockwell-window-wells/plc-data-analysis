@@ -190,14 +190,23 @@ def collapse_df_bag(df_bag):
     for i in range(len(df_cycle)):
         idx_cycle = cycle_inds[i]
         
-        idx_layup = df_layup["time"].sub(df_cycle.loc[idx_cycle,"time"]).abs().idxmin()
-        layup[i] = df_layup.loc[idx_layup,"Layup Time"]
+        if len(df_layup["time"]) > 0:
+            idx_layup = df_layup["time"].sub(df_cycle.loc[idx_cycle,"time"]).abs().idxmin()
+            layup[i] = df_layup.loc[idx_layup,"Layup Time"]
+        else:
+            layup[i] = 0
         
-        idx_close = df_close["time"].sub(df_cycle.loc[idx_cycle,"time"]).abs().idxmin()
-        close[i] = df_close.loc[idx_close,"Close Time"]
-        
-        idx_resin = df_resin["time"].sub(df_cycle.loc[idx_cycle,"time"]).abs().idxmin()
-        resin[i] = df_resin.loc[idx_resin,"Resin Time"]
+        if len(df_close["time"]) > 0:
+            idx_close = df_close["time"].sub(df_cycle.loc[idx_cycle,"time"]).abs().idxmin()
+            close[i] = df_close.loc[idx_close,"Close Time"]
+        else:
+            close[i] = 0
+            
+        if len(df_resin["time"]) > 0:
+            idx_resin = df_resin["time"].sub(df_cycle.loc[idx_cycle,"time"]).abs().idxmin()
+            resin[i] = df_resin.loc[idx_resin,"Resin Time"]
+        else:
+            resin[i] = 0
         
     
     time = list(df_cycle["time"])
@@ -347,7 +356,70 @@ def filter_unsaturated_data(all_bag_data):
     resin_unsaturated = close_unsaturated.loc[close_unsaturated["Resin Time"] != 180.0]
     return resin_unsaturated
 
+def analyze_by_bag_list(bag_list):
+    # Find the earliest bag creation date in the data set
+    choose_date = dt.date.today()
+    enddate = dt.date.today()    
+    endtime = dt.time(23,59,59)
+    dtend = dt.datetime.combine(enddate, endtime)
+    choose_date = dt.datetime.combine(choose_date, endtime)
+    
+    bag_data = pd.read_excel(data_assets.equip_data)
+    for bag in bag_list:
+        # Select row where bag is present
+        row = bag_data.loc[bag_data["Bag"] == bag]
+        check_date = row.loc[int(bag), "Built"]
+        
+        if check_date < choose_date:
+            choose_date = check_date
+            
+    # Access data and filter it down to the bags of interest
+    all_bag_data, bag_starts = get_all_bag_data(choose_date, dtend)
+    selected_bag_data = all_bag_data[all_bag_data["Bag"].isin(bag_list)]
+    selected_bag_data_unsaturated = filter_unsaturated_data(selected_bag_data)
+    
+    return selected_bag_data, selected_bag_data_unsaturated
+    
 
+def break_out_by_bag(selected_bag_data):
+    bag_list = list(selected_bag_data["Bag"].unique())
+    frames = []
+    for bag in bag_list:
+        frames.append(selected_bag_data[selected_bag_data["Bag"] == bag])
+    
+    return frames
+
+
+def plot_rolling_avg(selected_bag_data):
+    frames = break_out_by_bag(selected_bag_data)
+    nobs = 80
+    
+    for frame in frames:
+        frame["Layup Avg"] = frame["Layup Time"].rolling(nobs).mean()
+        frame["Close Avg"] = frame["Close Time"].rolling(nobs).mean()
+        frame["Resin Avg"] = frame["Resin Time"].rolling(nobs).mean()
+        frame["Cycle Avg"] = frame["Cycle Time"].rolling(nobs).mean()
+        
+    # Recombine the dataframes
+    df = pd.concat(frames)
+    df.sort_values("time",ignore_index=True)
+    
+    # Plot rolling averages for stage times against number of cycles
+    plt.figure(dpi=300)
+    sns.lineplot(data=df, x="Bag Cycles", y="Layup Time", hue="Bag", palette="Paired")
+    plt.figure(dpi=300)
+    sns.lineplot(data=df, x="Bag Cycles", y="Close Time", hue="Bag", palette="Paired")
+    plt.figure(dpi=300)
+    sns.lineplot(data=df, x="Bag Cycles", y="Resin Time", hue="Bag", palette="Paired")
+    plt.figure(dpi=300)
+    sns.lineplot(data=df, x="Bag Cycles", y="Cycle Time", hue="Bag", palette="Paired")
+    
+    return df
+
+
+########################################
+############## OLD CODE ################
+########################################
 
 def organize_bag_data(dtstart, dtend):
     """
@@ -744,25 +816,56 @@ def boxplot_over_time(df_equip_bag, window_size):
         
 
 
+
+
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,9,25,0,0,0)
-    enddate = dt.date.today()
-    # enddate = dt.date(2022,3,17)
-    endtime = dt.time(23,59,59)
-    dtend = dt.datetime.combine(enddate, endtime)
+    # dtstart = dt.datetime(2022,9,25,0,0,0)
+    # enddate = dt.date.today()
+    # # enddate = dt.date(2022,3,17)
+    # endtime = dt.time(23,59,59)
+    # dtend = dt.datetime.combine(enddate, endtime)
     
-    all_bag_data, bag_starts = get_all_bag_data(dtstart, dtend)
+    # all_bag_data, bag_starts = get_all_bag_data(dtstart, dtend)
     
-    all_bag_data_unsaturated = filter_unsaturated_data(all_bag_data)
+    # all_bag_data_unsaturated = filter_unsaturated_data(all_bag_data)
+    start_bag = 10
+    end_bag = 15
+    bag_list = np.linspace(start_bag, end_bag, end_bag-start_bag+1)
+    selected_bag_data, selected_bag_data_unsaturated = analyze_by_bag_list(bag_list)
+    
+    selected_bag_data_unsaturated = plot_rolling_avg(selected_bag_data_unsaturated)
+    # frames = break_out_by_bag(selected_bag_data)
     
     plt.figure(dpi=300)
-    sns.scatterplot(data=all_bag_data_unsaturated, x="Bag Cycles", y="Layup Time", hue="Bag", palette="Paired")
+    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Cycles", y="Layup Time", hue="Bag", palette="Paired")
     plt.figure(dpi=300)
-    sns.scatterplot(data=all_bag_data_unsaturated, x="Bag Cycles", y="Close Time", hue="Bag", palette="Paired")
+    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Cycles", y="Close Time", hue="Bag", palette="Paired")
     plt.figure(dpi=300)
-    sns.scatterplot(data=all_bag_data_unsaturated, x="Bag Cycles", y="Resin Time", hue="Bag", palette="Paired")
+    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Cycles", y="Resin Time", hue="Bag", palette="Paired")
     plt.figure(dpi=300)
-    sns.scatterplot(data=all_bag_data_unsaturated, x="Bag Cycles", y="Cycle Time", hue="Bag", palette="Paired")
+    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Cycles", y="Cycle Time", hue="Bag", palette="Paired")
+    
+    plt.figure(dpi=300)
+    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Layup Time", hue="Bag", palette="Paired")
+    plt.figure(dpi=300)
+    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Close Time", hue="Bag", palette="Paired")
+    plt.figure(dpi=300)
+    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Resin Time", hue="Bag", palette="Paired")
+    plt.figure(dpi=300)
+    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Cycle Time", hue="Bag", palette="Paired")
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     
     # df = load_bag_data_single_mold(dtstart, dtend, "Pink")
