@@ -11,6 +11,7 @@ import requests
 import datetime as dt
 import pytz
 import api_config_vars as api
+import api_config_vars_resin as api_resin
 import matplotlib.pyplot as plt
 import seaborn as sns
 import math
@@ -392,7 +393,7 @@ def break_out_by_bag(selected_bag_data):
 
 def plot_rolling_avg(selected_bag_data):
     frames = break_out_by_bag(selected_bag_data)
-    nobs = 80
+    nobs = 50
     
     for frame in frames:
         frame["Layup Avg"] = frame["Layup Time"].rolling(nobs).mean()
@@ -406,13 +407,13 @@ def plot_rolling_avg(selected_bag_data):
     
     # Plot rolling averages for stage times against number of cycles
     plt.figure(dpi=300)
-    sns.lineplot(data=df, x="Bag Cycles", y="Layup Time", hue="Bag", palette="Paired")
+    sns.lineplot(data=df, x="Bag Cycles", y="Layup Avg", hue="Bag", palette="Paired")
     plt.figure(dpi=300)
-    sns.lineplot(data=df, x="Bag Cycles", y="Close Time", hue="Bag", palette="Paired")
+    sns.lineplot(data=df, x="Bag Cycles", y="Close Avg", hue="Bag", palette="Paired")
     plt.figure(dpi=300)
-    sns.lineplot(data=df, x="Bag Cycles", y="Resin Time", hue="Bag", palette="Paired")
+    sns.lineplot(data=df, x="Bag Cycles", y="Resin Avg", hue="Bag", palette="Paired")
     plt.figure(dpi=300)
-    sns.lineplot(data=df, x="Bag Cycles", y="Cycle Time", hue="Bag", palette="Paired")
+    sns.lineplot(data=df, x="Bag Cycles", y="Cycle Avg", hue="Bag", palette="Paired")
     
     return df
 

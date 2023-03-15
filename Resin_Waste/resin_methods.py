@@ -88,6 +88,8 @@ def load_resin_data_single_plc(dtstart, dtend, resincolor):
     for i,col in enumerate(df.columns):
         if col == "time":
             df[col] = pd.to_datetime(df[col])
+        elif col == "Short Flag":
+            pass
         else:
             df[col] = df[col].astype(float)
             
@@ -99,8 +101,8 @@ def load_resin_data_single_plc(dtstart, dtend, resincolor):
     # Update "additional resin" part numbers to use the total resin weight
     # as the excess resin value instead of the overshoot of the nominal weight
     updated_excess_resin = []
-    partnum1_name = resincolor + " - 1st Part Number"
-    resin_weight = resincolor + " - Resin Weight"
+    partnum1_name = "1st Part Number"
+    resin_weight = "Resin Weight"
     for i in range(len(df)):
         updated_excess_resin.append(df.loc[i,resin_weight] - df.loc[i,"True Nominal Resin Weight"])
     # excess_resin_weight = resincolor + " - Excess Resin Weight"
@@ -178,8 +180,8 @@ def verify_nominals(df, resincolor):
     true_nominal = []
     
     wtgt = 1.0  # Target weight for the product
-    part1col = "{} - 1st Part Number".format(resincolor)
-    part2col = "{} - 2nd Part Number".format(resincolor)
+    part1col = "1st Part Number"
+    part2col = "2nd Part Number"
     for ind in df.index:
         num1 = int(df[part1col][ind])
         num2 = int(df[part2col][ind])
@@ -230,7 +232,7 @@ def verify_nominals(df, resincolor):
         elif num1 == 1111:
             wtgt = 0.0
         else:
-            excess_resin_col = "{} - Excess Resin Weight".format(resincolor)
+            excess_resin_col = "Extra Resin Weight"
             wtgt = df[excess_resin_col][ind]
             # print("ERROR: PRODUCT NUMBER NOT RECOGNIZED")
             
