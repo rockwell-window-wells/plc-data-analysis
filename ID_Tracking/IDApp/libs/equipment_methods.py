@@ -376,6 +376,9 @@ def analyze_by_bag_list(bag_list):
             
     # Access data and filter it down to the bags of interest
     all_bag_data, bag_starts = get_all_bag_data(choose_date, dtend)
+    
+    all_bag_data["Bag"] = all_bag_data["Bag"].astype(int)
+    
     selected_bag_data = all_bag_data[all_bag_data["Bag"].isin(bag_list)]
     selected_bag_data_unsaturated = filter_unsaturated_data(selected_bag_data)
     
@@ -391,9 +394,9 @@ def break_out_by_bag(selected_bag_data):
     return frames
 
 
-def plot_rolling_avg(selected_bag_data):
+def plot_rolling_avg(selected_bag_data, nobs):
     frames = break_out_by_bag(selected_bag_data)
-    nobs = 50
+    # nobs = 50
     
     for frame in frames:
         frame["Layup Avg"] = frame["Layup Time"].rolling(nobs).mean()
@@ -408,12 +411,30 @@ def plot_rolling_avg(selected_bag_data):
     # Plot rolling averages for stage times against number of cycles
     plt.figure(dpi=300)
     sns.lineplot(data=df, x="Bag Cycles", y="Layup Avg", hue="Bag", palette="Paired")
+    plt.title("Rolling Average - {} Samples".format(nobs))
     plt.figure(dpi=300)
     sns.lineplot(data=df, x="Bag Cycles", y="Close Avg", hue="Bag", palette="Paired")
+    plt.title("Rolling Average - {} Samples".format(nobs))
     plt.figure(dpi=300)
     sns.lineplot(data=df, x="Bag Cycles", y="Resin Avg", hue="Bag", palette="Paired")
+    plt.title("Rolling Average - {} Samples".format(nobs))
     plt.figure(dpi=300)
     sns.lineplot(data=df, x="Bag Cycles", y="Cycle Avg", hue="Bag", palette="Paired")
+    plt.title("Rolling Average - {} Samples".format(nobs))
+    
+    plt.figure(dpi=300)
+    sns.lineplot(data=df, x="time", y="Layup Avg", hue="Bag", palette="Paired")
+    plt.title("Rolling Average - {} Samples".format(nobs))
+    plt.figure(dpi=300)
+    sns.lineplot(data=df, x="time", y="Close Avg", hue="Bag", palette="Paired")
+    plt.title("Rolling Average - {} Samples".format(nobs))
+    plt.figure(dpi=300)
+    sns.lineplot(data=df, x="time", y="Resin Avg", hue="Bag", palette="Paired")
+    plt.title("Rolling Average - {} Samples".format(nobs))
+    plt.figure(dpi=300)
+    sns.lineplot(data=df, x="time", y="Cycle Avg", hue="Bag", palette="Paired")
+    plt.title("Rolling Average - {} Samples".format(nobs))
+    
     
     return df
 
@@ -830,11 +851,12 @@ if __name__ == "__main__":
     
     # all_bag_data_unsaturated = filter_unsaturated_data(all_bag_data)
     start_bag = 10
-    end_bag = 15
-    bag_list = np.linspace(start_bag, end_bag, end_bag-start_bag+1)
+    end_bag = 17
+    bag_list = list(range(start_bag, end_bag+1))
     selected_bag_data, selected_bag_data_unsaturated = analyze_by_bag_list(bag_list)
     
-    selected_bag_data_unsaturated = plot_rolling_avg(selected_bag_data_unsaturated)
+    nobs = 50
+    selected_bag_data_unsaturated = plot_rolling_avg(selected_bag_data_unsaturated, nobs)
     # frames = break_out_by_bag(selected_bag_data)
     
     plt.figure(dpi=300)
