@@ -122,6 +122,33 @@ def calculate_machine_error(df):
     dfupdate = dfupdate.sort_index()
     return dfupdate, df_no_short
 
+def summarize_variability(dfupdate):
+    ### Machine Error ###
+    avg_machine_error = dfupdate["Machine Error"].mean()
+    print("Machine Error:")
+    print("Average:\t{}".format(avg_machine_error))
+    
+    ### Extra Resin ###
+    # Total extra resin
+    tot_extra_resin = dfupdate["Extra Resin Weight"].sum()
+    # % of dispensed resin cases that are extra resin
+    pct_extra = len(dfupdate[dfupdate["Extra Resin"]==True])/len(dfupdate)
+    # Average extra resin per part
+    avg_extra_resin = dfupdate["Extra Resin Weight"].mean()
+    print("\nExtra Resin:")
+    print("Total Pounds Extra:\t{}".format(tot_extra_resin))
+    print("Percentage of Parts with Extra:\t{}".format(pct_extra))
+    print("Average Extra Resin Per Part:\t{}".format(avg_extra_resin))
+    
+    ### Short Flag Cases ###
+    short_count = len(dfupdate[dfupdate["Short Flag"]==True])
+    pct_short = short_count/len(dfupdate)
+    print("\nShort Cases:")
+    print("Short Count:\t{}".format(short_count))
+    print("Percentage of Parts Short of Nominal:\t{}".format(pct_short))
+    
+    
+
 def plot_machine_error(dfgray, dftan):
     # Prepare dataframes for combination
     dfgray["Color"] = "Gray"
@@ -136,9 +163,14 @@ def plot_machine_error(dfgray, dftan):
     sns.set_theme(style="whitegrid")
     customPalette = sns.light_palette("lightblue", 2)
     flierprops = dict(marker='o', markerfacecolor='None', markersize=4)
+    # Plot with outliers
     plt.figure(dpi=300)
     sns.boxplot(x="Color", y="Machine Error", data=dfall, flierprops=flierprops, palette=customPalette)
     plt.title("Resin Dispenser Machine Error")
+    # Plot without outliers
+    plt.figure(dpi=300)
+    sns.boxplot(x="Color", y="Machine Error", data=dfall, showfliers=False, palette=customPalette)
+    plt.title("Resin Dispenser Machine Error (No Outliers)")
     
     return dfgray_auto, dftan_auto
     
@@ -162,6 +194,8 @@ if __name__ == "__main__":
     
     dfgray = load_resin_data_single_plc(dtstart, dtend, "Gray")    
     dfgray, gray_no_short = calculate_machine_error(dfgray)
+    print("\n##### Gray Resin Summary #####")
+    summarize_variability(dfgray)
     
     partnums = dfgray.iloc[:,1].value_counts()
     partnums2 = dfgray.iloc[:,2].value_counts()
@@ -172,6 +206,8 @@ if __name__ == "__main__":
     
     dftan = load_resin_data_single_plc(dtstart, dtend, "Tan")
     dftan, tan_no_short = calculate_machine_error(dftan)
+    print("\n\n##### Tan Resin Summary #####")
+    summarize_variability(dftan)
     
     partnums = dftan.iloc[:,1].value_counts()
     partnums2 = dftan.iloc[:,2].value_counts()
