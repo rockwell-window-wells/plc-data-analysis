@@ -16,6 +16,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import math
 import meteostat as mst
+from sklearn.preprocessing import scale
+from sklearn.model_selection import RepeatedKFold
+from sklearn.decomposition import PCA
+from sklearn import model_selection
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
 
 from cycle_time_methods_v2 import between, closest_before, closest_idx
 
@@ -492,414 +498,124 @@ def temperature_effects(bag_list):
     return dfcopy, weather_data
     
 
+def bag_PCA(selected_bag_data_unsaturated, bag_list, independent_list, dependent_list):
+    frames = []
+    for bag in bag_list:
+        frames.append(selected_bag_data_unsaturated[selected_bag_data_unsaturated["Bag"]==bag])
+        
+    for i,frame in enumerate(frames):
+        print("\n############################################")
+        print("Bag:\t{}".format(bag_list[i]))
+        print("############################################")
+        X = frame[independent_list]
+        y = frame[dependent_list]
+        
+        pca = PCA()
+        X_reduced = pca.fit_transform(scale(X))
+        
+        # define cross validation method
+        cv = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1)
 
-    
-    
-    
-    
-    
-    
+        regr = LinearRegression()
+        mse = []
 
-########################################
-############## OLD CODE ################
-########################################
+        # Calculate MSE (mean squared error) with only the intercept
+        score = -1*model_selection.cross_val_score(regr, np.ones((len(X_reduced),1)), y, cv=cv, scoring='neg_mean_squared_error').mean()
+        mse.append(score)
 
-# def organize_bag_data(dtstart, dtend):
-#     """
-    
-
-#     Parameters
-#     ----------
-#     dtstart : TYPE
-#         DESCRIPTION.
-#     dtend : TYPE
-#         DESCRIPTION.
-
-#     Returns
-#     -------
-#     None.
-
-#     """
-#     df_equip = pd.DataFrame()
-    
-#     for moldcolor in api.molds:
-#         df_raw = load_bag_data_single_mold(dtstart, dtend, moldcolor)
-        
-#         # Clean the data here before sending to a list of dataframes
-#         # Sort by ascending time
-#         df_sorted = df_raw.sort_values(list(df_raw.columns), ascending=True)
-#         df_sorted = df_sorted.reset_index(drop=True)
-
-#         # Get rid of any rows with nan in all columns but time
-#         nan_indices = []
-#         for i in range(len(df_sorted)):
-#             if np.isnan(df_sorted["Layup Time"].iloc[i]):
-#                 if np.isnan(df_sorted["Close Time"].iloc[i]):
-#                     if np.isnan(df_sorted["Resin Time"].iloc[i]):
-#                         if np.isnan(df_sorted["Cycle Time"].iloc[i]):
-#                             if np.isnan(df_sorted["Bag"].iloc[i]):
-#                                 if np.isnan(df_sorted["Bag Days"].iloc[i]):
-#                                     if np.isnan(df_sorted["Bag Cycles"].iloc[i]):
-#                                         nan_indices.append(i)
-
-#         df_cleaned = df_sorted.drop(df_sorted.index[nan_indices])
-#         df_cleaned = df_cleaned.reset_index(drop=True)
-        
-#         # Make a new dataframe with only time, Cycle Time, Bag,
-#         # Bag Days, and Bag Count columns.
-        
-#         # Find the indices where there is a layup time.
-#         layup_inds = []
-#         not_nan_series = df_cleaned["Layup Time"].notnull()
-#         for i in range(len(not_nan_series)):
-#             if not_nan_series.iloc[i] == True:
-#                 layup_inds.append(i)
-                
-#         # Find the indices where there is a close time.
-#         close_inds = []
-#         not_nan_series = df_cleaned["Close Time"].notnull()
-#         for i in range(len(not_nan_series)):
-#             if not_nan_series.iloc[i] == True:
-#                 close_inds.append(i)
-                
-#         # Find the indices where there is a resin time.
-#         resin_inds = []
-#         not_nan_series = df_cleaned["Resin Time"].notnull()
-#         for i in range(len(not_nan_series)):
-#             if not_nan_series.iloc[i] == True:
-#                 resin_inds.append(i)
-        
-#         # Find the indices where there is a cycle time.
-#         cycle_inds = []
-#         not_nan_series = df_cleaned["Cycle Time"].notnull()
-#         for i in range(len(not_nan_series)):
-#             if not_nan_series.iloc[i] == True:
-#                 cycle_inds.append(i)
-        
-#         # Find the indices where there is a bag ID.
-#         bagid_inds = []
-#         not_nan_series = df_cleaned["Bag"].notnull()
-#         for i in range(len(not_nan_series)):
-#             if not_nan_series.iloc[i] == True:
-#                 bagid_inds.append(i)
-                
-#         # Find the indices where there is a bag day count.
-#         bagdays_inds = []
-#         not_nan_series = df_cleaned["Bag Days"].notnull()
-#         for i in range(len(not_nan_series)):
-#             if not_nan_series.iloc[i] == True:
-#                 bagdays_inds.append(i)
-                
-#         # Find the indices where there is a bag cycle count.
-#         bagcycles_inds = []
-#         not_nan_series = df_cleaned["Bag Cycles"].notnull()
-#         for i in range(len(not_nan_series)):
-#             if not_nan_series.iloc[i] == True:
-#                 bagcycles_inds.append(i)
-                
-        
-#         bagIDs = []
-#         bagdays = []
-#         bagcycles = []
-        
-#         layup_times = []
-#         close_times = []
-#         resin_times = []
-        
-#         layup_idx_diff = []
-#         close_idx_diff = []
-#         resin_idx_diff = []
-        
-#         # For each cycle time, get the most recent bag number, bag days, and
-#         # bag cycle count
-#         for i, cyc_ind in enumerate(cycle_inds):
+        # Calculate MSE using cross-validation, adding one component at a time
+        for i in np.arange(1, 6):
+            score = -1*model_selection.cross_val_score(regr, X_reduced[:, :i], y, cv=cv, scoring='neg_mean_squared_error').mean()
+            mse.append(score)
             
-#             if i == 0:
-#                 bagIDs.append(df_cleaned["Bag"][bagid_inds[0]])
-#                 bagdays.append(df_cleaned["Bag Days"][bagdays_inds[0]])
-#                 bagcycles.append(df_cleaned["Bag Cycles"][bagcycles_inds[0]])
-                
-#                 layup_times.append(df_cleaned["Layup Time"][layup_inds[0]])
-#                 close_times.append(df_cleaned["Close Time"][close_inds[0]])
-#                 resin_times.append(df_cleaned["Resin Time"][resin_inds[0]])
-#             else:            
-#                 input_idx = cycle_inds[i]
-#                 idx = closest_before(input_idx, bagid_inds)
-#                 bagIDs.append(df_cleaned["Bag"][idx])
-#                 idx = closest_before(input_idx, bagdays_inds)
-#                 bagdays.append(df_cleaned["Bag Days"][idx])
-#                 idx = closest_before(input_idx, bagcycles_inds)
-#                 bagcycles.append(df_cleaned["Bag Cycles"][idx])
-                
-#                 idx = closest_idx(input_idx, layup_inds)
-#                 layup_idx_diff.append(input_idx-idx)
-#                 if np.abs(input_idx-idx) >= 3:
-#                     # print("Layup: {} - {}".format(input_idx, idx))
-#                     layup_times.append(np.nan)
-#                 else:
-#                     layup_times.append(df_cleaned["Layup Time"][idx])
-                
-#                 idx = closest_idx(input_idx, close_inds)
-#                 close_idx_diff.append(input_idx-idx)
-#                 if np.abs(input_idx-idx) >= 3:
-#                     # print("Close: {} - {}".format(input_idx, idx))
-#                     close_times.append(np.nan)
-#                 else:
-#                     close_times.append(df_cleaned["Close Time"][idx])
-                
-#                 idx = closest_idx(input_idx, resin_inds)
-#                 resin_idx_diff.append(input_idx-idx)
-#                 if np.abs(input_idx-idx) >= 3:
-#                     # print("Resin: {} - {}".format(input_idx, idx))
-#                     resin_times.append(np.nan)
-#                 else:
-#                     resin_times.append(df_cleaned["Resin Time"][idx])
-        
-#         cycle_times = list(df_cleaned["Cycle Time"][cycle_inds])
-#         datetimes = list(df_cleaned["time"][cycle_inds])
-        
-#         saturated = []
-        
-#         for i,val in enumerate(layup_times):
-#             if math.isnan(val):
-#                 # print("Found nan in layup, index {}".format(i))
-#                 layup_times[i] = cycle_times[i] - resin_times[i] - close_times[i]
-                
-#         for i,val in enumerate(close_times):
-#             if math.isnan(val):
-#                 # print("Found nan in close, index {}".format(i))
-#                 close_times[i] = cycle_times[i] - resin_times[i] - layup_times[i]
-                
-#         for i,val in enumerate(resin_times):
-#             if math.isnan(val):
-#                 # print("Found nan in resin, index {}".format(i))
-#                 resin_times[i] = cycle_times[i] - close_times[i] - layup_times[i]
-                
-#         for i in range(len(cycle_times)):
-#             if layup_times[i] >= 275:
-#                 saturated.append(True)
-#                 continue
-#             elif close_times[i] >= 90:
-#                 saturated.append(True)
-#                 continue
-#             elif resin_times[i] >= 180:
-#                 saturated.append(True)
-#                 continue
-#             else:
-#                 saturated.append(False)
-                
-#         repeated_rows = []
-#         for i in range(len(cycle_times)):
-#             if i == 0:
-#                 continue
-#             if layup_times[i] == layup_times[i-1]:
-#                 if close_times[i] == close_times[i-1]:
-#                     if resin_times[i] == resin_times[i-1]:
-#                         # print("Found repeated row, index {}".format(i))
-#                         repeated_rows.append(i)
-        
-#         data_equip = {"time": datetimes, "Layup Time": layup_times,
-#                       "Close Time": close_times, "Resin Time": resin_times,
-#                       "Cycle Time": cycle_times,
-#                       "Bag": bagIDs, "Bag Days": bagdays,
-#                       "Bag Cycles": bagcycles, "Saturated Time": saturated}
-    
-#         df_equip_mold = pd.DataFrame(data=data_equip)
-        
-#         # Filter out rows that are repeated, based on indices listed in 
-#         # repeated_rows
-#         delete_rows = []
-#         for i,row in enumerate(repeated_rows):
-#             t1 = df_equip_mold["time"].iloc[row]
-#             t0 = df_equip_mold["time"].iloc[row-1]
-            
-#             tdelta = t1-t0
-#             tdelta_seconds = tdelta.total_seconds()
-            
-#             cycle_seconds = df_equip_mold["Cycle Time"].iloc[row] * 60
-            
-#             if cycle_seconds > tdelta_seconds:
-#                 delete_rows.append(row)
-                
-#         df_equip_mold = df_equip_mold.drop(df_equip_mold.index[delete_rows])
-#         df_equip_mold = df_equip_mold.reset_index(drop=True)
-        
-#         # initial_bag_cycles = df_equip_mold["Bag Cycles"].iloc[0]
-#         # bag_cycles = []
-#         # for i in range(len(df_equip_mold["Cycle Time"])):
-#         #     if i == 0:
-#         #         bag_cycles.append(initial_bag_cycles)
-#         #     else:
-#         #         bag_cycles.append(initial_bag_cycles + i)
-        
-#         # df_equip_mold["Bag Cycles"] = bag_cycles
-        
-#         df_equip = pd.concat([df_equip, df_equip_mold], ignore_index=True)
-        
-#     return df_equip
-    
+        # Plot cross-validation results
+        plt.plot(mse)
+        plt.xlabel("Number of Principal Components")
+        plt.ylabel("MSE")
+        # plt.title("hp")
 
-# def correlate_bag_cycles(df_equip_bag):
-#     """
-#     Display the correlation relationship between cycle time and bag usage
-#     parameters (days in use and number of cycles in use). Generates two plots,
-#     with linear fit lines drawn.
+        # The plot displays the number of principal components along the x-axis and the
+        # test MSE (mean squared error) along the y-axis.
 
-#     Parameters
-#     ----------
-#     df_equip_bag : Pandas DataFrame
-#         The output of organize_bag_data(), which has columns Cycle Time, Bag,
-#         Bag Days, and Bag Cycles.
+        # From the plot we can see that the test MSE decreases by adding in two
+        # principal components, yet it begins to increase as we add more than two
+        # principal components. Thus, the optimal model includes just the first two
+        # principal components.
 
-#     Returns
-#     -------
-#     None.
-
-#     """
-    
-#     non_saturated = df_equip_bag.loc[df_equip_bag["Saturated Time"] == False]
-    
-#     bagdays_nonsat = non_saturated["Bag Days"]
-#     cycletimes_nonsat = non_saturated["Cycle Time"]
-#     bagcycles_nonsat = non_saturated["Bag Cycles"]
-    
-#     bagdays = df_equip_bag["Bag Days"]
-#     cycletimes = df_equip_bag["Cycle Time"]
-#     bagcycles = df_equip_bag["Bag Cycles"]
-    
-#     fig1,ax1 = plt.subplots(dpi=300)
-#     sns.set_theme(style="whitegrid")
-#     sns.regplot(x=bagdays_nonsat, y=cycletimes_nonsat, color='b', line_kws={"color": "red"})
-#     ax1.set_title("Bag Age Trends - Non Saturated Times")
-    
-#     fig2,ax2 = plt.subplots(dpi=300)
-#     sns.set_theme(style="whitegrid")
-#     sns.regplot(x=bagcycles_nonsat, y=cycletimes_nonsat, color='b', line_kws={"color": "red"})
-#     ax2.set_title("Bag Usage Trends - Non Saturated Times")
-    
-#     fig3,ax3 = plt.subplots(dpi=300)
-#     sns.set_theme(style="whitegrid")
-#     sns.regplot(x=bagdays, y=cycletimes, color='b', line_kws={"color": "red"})
-#     ax3.set_title("Bag Age Trends - All Times")
-    
-#     fig4,ax4 = plt.subplots(dpi=300)
-#     sns.set_theme(style="whitegrid")
-#     sns.regplot(x=bagcycles, y=cycletimes, color='b', line_kws={"color": "red"})
-#     ax4.set_title("Bag Usage Trends - All Times")
-    
-
-# def stdev_over_time(df_equip_bag, sweepwindow):
-    
-#     non_saturated = df_equip_bag.loc[df_equip_bag["Saturated Time"] == False]
-    
-#     # bagdays_nonsat = non_saturated["Bag Days"]
-#     cycletimes_nonsat = non_saturated["Cycle Time"]
-#     bagcycles_nonsat = non_saturated["Bag Cycles"]
-    
-#     sweep_plot_start = int(sweepwindow) + int(bagcycles_nonsat.min())
-#     sweep_plot_end = int(bagcycles_nonsat.max())
-#     sweep_plot_cycles = list(range(sweep_plot_start, sweep_plot_end+1))
-    
-#     # sweep_plot_start_cycle = int(bagcycles_nonsat.min() + sweepwindow/2)
-    
-    
-#     # sweep_plot_cycles = list(df_equip_bag["Bag Cycles"].iloc[sweep_plot_indices])
-    
-#     stdev_sweep = []
-#     for i,idx in enumerate(sweep_plot_cycles):
-#         sweep_start = idx - int(sweepwindow)
-#         sweep_end = sweep_start + sweepwindow
-#         sweep_indices = list(range(sweep_start, sweep_end+1))
+        # We can also use the following code to calculate the percentage of variance in
+        # the response variable explained by adding in each principal component to the
+        # model:
+        pct_variance = np.cumsum(np.round(pca.explained_variance_ratio_, decimals=4)*100)
+        print("% Variance in response explained by adding each principal component: {}".format(pct_variance))
+        print("i.e. PC1 explains {}% of response variance".format(pct_variance[0]))
         
-#         stdev = np.std(df_equip_bag["Cycle Time"].iloc[sweep_indices])
-#         stdev_sweep.append(stdev)
+        # Number of rows in pca.components_ is the number of principal components.
+        # Number of columns in pca.components_ is the number of features
+        print("\nPrincipal components: \n{}".format(abs(pca.components_)))
+        # Example result is below:
+        # [[ 0.52106591  0.26934744  0.5804131   0.56485654]
+        #  [ 0.37741762  0.92329566  0.02449161  0.06694199]]
+        # Looking at PC1:
+        # [ 0.52106591  0.26934744  0.5804131   0.56485654]
+        # Features 1, 3, and 4 are most important for PC1
     
-#     fig1,ax1 = plt.subplots(dpi=300)
-#     sns.set_theme(style="whitegrid")
-#     sns.scatterplot(x=bagcycles_nonsat, y=cycletimes_nonsat, color='b', alpha=0.5)
-#     sns.lineplot(x=sweep_plot_cycles, y=stdev_sweep, color='r')
-#     ax1.set_title("Standard deviation - sweep window of {}".format(sweepwindow))
+def all_bags_PCA(selected_bag_data_unsaturated, independent_list, dependent_list):
+    print("\n############################################")
+    print("PCA all bags:")
+    print("############################################")
+    X = selected_bag_data_unsaturated[independent_list]
+    y = selected_bag_data_unsaturated[dependent_list]
     
-#     return sweep_plot_cycles
+    pca = PCA()
+    X_reduced = pca.fit_transform(scale(X))
+    
+    # define cross validation method
+    cv = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1)
 
+    regr = LinearRegression()
+    mse = []
 
-# def avg_over_time(df_equip_bag, sweepwindow):
-    
-#     non_saturated = df_equip_bag.loc[df_equip_bag["Saturated Time"] == False]
-    
-#     # bagdays_nonsat = non_saturated["Bag Days"]
-#     cycletimes_nonsat = non_saturated["Cycle Time"]
-#     bagcycles_nonsat = non_saturated["Bag Cycles"]
-    
-#     sweep_plot_start = int(sweepwindow) + int(bagcycles_nonsat.min())
-#     sweep_plot_end = int(bagcycles_nonsat.max())
-#     sweep_plot_cycles = list(range(sweep_plot_start, sweep_plot_end+1))
-    
-#     # sweep_plot_start_cycle = int(bagcycles_nonsat.min() + sweepwindow/2)
-    
-    
-#     # sweep_plot_cycles = list(df_equip_bag["Bag Cycles"].iloc[sweep_plot_indices])
-    
-#     avg_sweep = []
-#     for i,idx in enumerate(sweep_plot_cycles):
-#         sweep_start = idx - int(sweepwindow)
-#         sweep_end = sweep_start + sweepwindow
-#         sweep_indices = list(range(sweep_start, sweep_end+1))
+    # Calculate MSE (mean squared error) with only the intercept
+    score = -1*model_selection.cross_val_score(regr, np.ones((len(X_reduced),1)), y, cv=cv, scoring='neg_mean_squared_error').mean()
+    mse.append(score)
+
+    # Calculate MSE using cross-validation, adding one component at a time
+    for i in np.arange(1, 6):
+        score = -1*model_selection.cross_val_score(regr, X_reduced[:, :i], y, cv=cv, scoring='neg_mean_squared_error').mean()
+        mse.append(score)
         
-#         avg = np.mean(df_equip_bag["Cycle Time"].iloc[sweep_indices])
-#         avg_sweep.append(avg)
-    
-#     fig1,ax1 = plt.subplots(dpi=300)
-#     sns.set_theme(style="whitegrid")
-#     sns.scatterplot(x=bagcycles_nonsat, y=cycletimes_nonsat, color='b', alpha=0.5)
-#     sns.lineplot(x=sweep_plot_cycles, y=avg_sweep, color='r')
-#     ax1.set_title("Mean cycle time - sweep window of {}".format(sweepwindow))
-    
-#     return sweep_plot_cycles
+    # Plot cross-validation results
+    plt.plot(mse)
+    plt.xlabel("Number of Principal Components")
+    plt.ylabel("MSE")
+    # plt.title("hp")
 
+    # The plot displays the number of principal components along the x-axis and the
+    # test MSE (mean squared error) along the y-axis.
 
-# def boxplot_over_time(df_equip_bag, window_size):
-    
-#     max_cycles = df_equip_bag["Bag Cycles"].max()
-    
-#     boundary_vals = [0]
-#     while max(boundary_vals) < max_cycles:
-#         lastval = boundary_vals[-1]
-#         nextval = lastval + window_size
-#         boundary_vals.append(nextval)
-#         # print(boundary_vals)
-    
-    
-#     window_cycles_list = []
-#     labels_list = []
-#     for i,bound in enumerate(boundary_vals):
-#         if i == len(boundary_vals)-1:
-#             continue
-#         lower_bounded = df_equip_bag.loc[df_equip_bag["Bag Cycles"] >= bound]
-#         fully_bounded = lower_bounded.loc[lower_bounded["Bag Cycles"] < boundary_vals[i+1]]
-#         window_cycle_times = list(fully_bounded["Cycle Time"])
-#         colname = "{} to {}".format(bound, boundary_vals[i+1]-1)
-#         for j,cyc in enumerate(window_cycle_times):
-#             window_cycles_list.append(cyc)
-#             labels_list.append(colname)
-#         # df_cyc[colname] = window_cycles
-    
-#     data = {"Cycle Bounds": labels_list, "Cycle Time": window_cycles_list}
-    
-#     df_cyc = pd.DataFrame(data)
-    
-#     unique_labels = np.unique(df_cyc["Cycle Bounds"])
-    
-#     fig,ax = plt.subplots(dpi=300)
-#     sns.set_theme(style="whitegrid")
-#     customPalette = sns.light_palette("lightblue", len(unique_labels))
-#     flierprops = dict(marker='o', markerfacecolor='None', markersize=4)    
-#     sns.boxplot(x='Cycle Bounds', y='Cycle Time', data=df_cyc, flierprops=flierprops, palette=customPalette)
-#     ax.set_xticklabels(ax.get_xticklabels(),rotation=45)
-        
+    # From the plot we can see that the test MSE decreases by adding in two
+    # principal components, yet it begins to increase as we add more than two
+    # principal components. Thus, the optimal model includes just the first two
+    # principal components.
 
-
-
+    # We can also use the following code to calculate the percentage of variance in
+    # the response variable explained by adding in each principal component to the
+    # model:
+    pct_variance = np.cumsum(np.round(pca.explained_variance_ratio_, decimals=4)*100)
+    print("% Variance in response explained by adding each principal component: {}".format(pct_variance))
+    print("i.e. PC1 explains {}% of response variance".format(pct_variance[0]))
+    
+    # Number of rows in pca.components_ is the number of principal components.
+    # Number of columns in pca.components_ is the number of features
+    print("\nPrincipal components: \n{}".format(abs(pca.components_)))
+    # Example result is below:
+    # [[ 0.52106591  0.26934744  0.5804131   0.56485654]
+    #  [ 0.37741762  0.92329566  0.02449161  0.06694199]]
+    # Looking at PC1:
+    # [ 0.52106591  0.26934744  0.5804131   0.56485654]
+    # Features 1, 3, and 4 are most important for PC1
+    
+    
 
 if __name__ == "__main__":
     # dtstart = dt.datetime(2022,9,25,0,0,0)
@@ -912,11 +628,16 @@ if __name__ == "__main__":
     
     # all_bag_data_unsaturated = filter_unsaturated_data(all_bag_data)
     start_bag = 10
-    end_bag = 12
+    end_bag = 19
     bag_list = list(range(start_bag, end_bag+1))
     selected_bag_data, selected_bag_data_unsaturated = analyze_by_bag_list(bag_list)
     
     dfcopy, weather_data = temperature_effects(bag_list)
+    
+    independent_list = ["temp", "Bag Days", "Bag Cycles"]
+    dependent_list = ["Resin Time"]
+    # bag_PCA(dfcopy, bag_list, independent_list, dependent_list)
+    all_bags_PCA(dfcopy, independent_list, dependent_list)
     
     plt.figure(dpi=300)
     sns.scatterplot(data=dfcopy, x="temp", y="Close Time")
@@ -944,18 +665,6 @@ if __name__ == "__main__":
     sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Resin Time", hue="Bag", palette="Paired")
     plt.figure(dpi=300)
     sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Cycle Time", hue="Bag", palette="Paired")
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     
     
