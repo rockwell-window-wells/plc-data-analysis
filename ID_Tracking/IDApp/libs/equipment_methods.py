@@ -301,13 +301,26 @@ def add_bag_days_cycles(df):
     
     frames = []
     
+    def as_days(x):
+        return x.days
+    
     for i,bag in enumerate(bag_starts["Bag"]):
         # Slice the full dataframe to just the current bag
         df_bag = df.loc[df["Bag"] == bag]
         # Calculate dates based on basedate found in bag_starts
-        row = bag_starts.loc[bag_starts["Bag"] == bag]
+        # df_bag["Bag Days Starts"] = bag_starts.loc[bag_starts.Bag==bag,"Start Time"][0]   # Returns a Timestamp
+        
+        # df_bag["Bag Days Timestamp"] = df_bag["time"] - df_bag["Bag Days Starts"]     # Timestamp - Timestamp = Timedelta
+        # df_bag["Bag Days"] = df_bag["Bag Days Timestamp"].dt.days
+        
+        # df_bag["Bag Days"] = (df_bag["time"] - bag_starts.loc[bag_starts["Bag"]==bag,"Start Time"][0]).dt.days
+        
+        row = bag_starts.loc[bag_starts["Bag"] == bag].copy()
         basedate = row.loc[row.index[0],"Start Time"]
-        df_bag["Bag Days"] = (df_bag["time"] - basedate).dt.days
+        df_bag["Bag Days Timedelta"] = df_bag["time"] - basedate
+        df_bag["Bag Days"] = df_bag["Bag Days Timedelta"].apply(as_days)
+        
+        # df_bag["Bag Days"] = (df_bag["time"] - basedate).dt.days   # FIXME: This line is causing the SettingWtithCopyWarning
         
         # Use index to add cycle count
         df_bag = df_bag.sort_values("time",ignore_index=True)
@@ -558,6 +571,7 @@ def bag_PCA(selected_bag_data_unsaturated, bag_list, independent_list, dependent
         # Looking at PC1:
         # [ 0.52106591  0.26934744  0.5804131   0.56485654]
         # Features 1, 3, and 4 are most important for PC1
+        
     
 def all_bags_PCA(selected_bag_data_unsaturated, independent_list, dependent_list):
     print("\n############################################")
@@ -627,8 +641,8 @@ if __name__ == "__main__":
     # all_bag_data, bag_starts = get_all_bag_data(dtstart, dtend)
     
     # all_bag_data_unsaturated = filter_unsaturated_data(all_bag_data)
-    start_bag = 10
-    end_bag = 19
+    start_bag = 18
+    end_bag = 18
     bag_list = list(range(start_bag, end_bag+1))
     selected_bag_data, selected_bag_data_unsaturated = analyze_by_bag_list(bag_list)
     

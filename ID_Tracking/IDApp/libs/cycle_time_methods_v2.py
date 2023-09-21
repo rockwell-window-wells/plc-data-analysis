@@ -1304,7 +1304,7 @@ def load_operator_data(dtstart, dtend):
                 elif cycleIDs[i][j] == 0:
                     pass
                 else:
-                    raise ValueError("ID not recognized as part of a shift")
+                    raise ValueError(f"ID {cycleIDs[i][j]} not recognized as part of a shift")
         
         
         
