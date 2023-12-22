@@ -129,7 +129,7 @@ def combination_ttests(df_features, column_str, feature_vals):
 if __name__ == "__main__":
     # Load and prepare data
     datafile = "Z:/Current Projects/RockWell Profitability/Resin Controlled Experiments.xlsx"
-    sheet = "Results_Filler_Low_Catalyst"
+    # sheet = "Results_Filler_Low_Catalyst"
     # sheet = "Results_Filler_Extra_Low_Cat"
     # sheet = "Results_Filler_Extra_Low_Cat_2"
     # sheet = "Results_Feed_Hose_Size"
@@ -137,7 +137,7 @@ if __name__ == "__main__":
     # sheet = "Results_Feed_Hose_Size_3"
     # sheet = "Results_Diaper_Placement"
     # sheet = "Results_Hose_Number"
-    # sheet = "Results_Cooling"
+    sheet = "Results_Cooling"
     # sheet = "Results_Cooling_2"
     # sheet = "Results_Tee"
     # sheet = "Results_Clean_Feed_Lines"

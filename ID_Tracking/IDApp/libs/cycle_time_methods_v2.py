@@ -23,12 +23,12 @@ import plotly.express as px
 
 # If running as part of a compiled exe file (i.e. as the finalized ID &
 # Evaluation Tool app), comment out the imports that contain "from . import"
-import data_assets
-import id_methods
-import api_config_vars as api
-# from . import data_assets
-# from . import id_methods
-# from . import api_config_vars as api
+# import data_assets
+# import id_methods
+# import api_config_vars as api
+from . import data_assets
+from . import id_methods
+from . import api_config_vars as api
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -2735,7 +2735,7 @@ def cycles_multiple_regression(dtstart, dtend):
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2022,12,1,0,0,0)
+    dtstart = dt.datetime(2023,7,1,0,0,0)
     enddate = dt.date.today()
     # enddate = dt.date(2022,3,17)
     endtime = dt.time(23,59,59)
@@ -2743,7 +2743,7 @@ if __name__ == "__main__":
     
     # df, X, y, model = cycles_multiple_regression(dtstart, dtend)
     
-    operator_list = [666]
+    operator_list = [153]
     df_eval, df_manminutes = load_operator_data(dtstart, dtend)
     get_operator_stats_by_list(df_eval, operator_list)
     # # cycles, medians, dates = cycle_time_over_time(dtstart, dtend)

@@ -96,6 +96,27 @@ def load_resin_data_single_plc(dtstart, dtend, resincolor):
     # Remove the last row that is filled with nan
     df = df.dropna()
     
+    def catch_errors(df):
+        # If the nominal resin weight is not zero but the total weight is zero,
+        # change the extra resin weight to be 0
+        extra_resin_weight_adjusted = []
+        resin_weight_adjusted = []
+        error_caught = []
+        for i in range(len(df)):
+            if df.loc[i,"Nominal Resin Weight"]>0 and df.loc[i,"Total Weight"]==0:
+                df.loc[i,"Extra Resin Weight"] = 0
+                df.loc[i,"Resin Weight"] = df.loc[i,"Nominal Resin Weight"]
+                error_caught.append(True)
+            elif df.loc[i,"Extra Resin Weight"] > 15:
+                df.loc[i,"Extra Resin Weight"] = 0
+                error_caught.append(True)
+            else:
+                error_caught.append(False)
+        df["Error Caught"] = error_caught
+        return df
+    
+    df = catch_errors(df)
+    
     df = verify_nominals(df, resincolor)
     
     # Update "additional resin" part numbers to use the total resin weight
@@ -119,7 +140,7 @@ def load_resin_data_single_plc(dtstart, dtend, resincolor):
     outlier_bool = []
     # Threshold Outlier Detection Method
     upperlim = 10
-    lowerlim = -3
+    lowerlim = -6
     for i in range(len(df)):
         if df.loc[i,colname] > upperlim or df.loc[i,colname] < lowerlim:
             outlier_bool.append(True)
@@ -450,7 +471,8 @@ if __name__ == "__main__":
     # startdate = dt.date(2022,3,1)
     # enddate = dt.date.today()
     
-    dtstart = dt.datetime(2022,3,1,0,0,0)
+    dtstart = dt.datetime(2023,6,26,0,0,0)
+    # dtend = dt.datetime(2023,7,25,23,59,59)
     dtend = dt.datetime.now()
     resincolors = ["Gray", "Tan"]
     
@@ -464,6 +486,7 @@ if __name__ == "__main__":
     # df_partcounts = df_partcounts.set_axis(sizes)
     
     df, df_no_outliers, n_outliers, median_excess = load_resin_data_single_plc(dtstart, dtend, "Gray")
+    dfgray = df.copy()
     
     partnums = df.iloc[:,1].value_counts()
     partnums2 = df.iloc[:,2].value_counts()
@@ -473,6 +496,7 @@ if __name__ == "__main__":
     # df_partcounts.append(parts)
     
     df, df_no_outliers, n_outliers, median_excess = load_resin_data_single_plc(dtstart, dtend, "Tan")
+    dftan = df.copy()
     
     partnums = df.iloc[:,1].value_counts()
     partnums2 = df.iloc[:,2].value_counts()
