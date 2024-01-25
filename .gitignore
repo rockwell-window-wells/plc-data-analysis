@@ -19,3 +19,6 @@ api_config_vars_resin.py
 ID_Tracking/IDApp/build/main/warn-main.txt
 ID_Tracking/accesstokenlist_test.py
 *.spec
+*.db
+ID_Tracking/IDApp/libs/PLC_ID_database.db
+*.db
