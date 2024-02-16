@@ -875,6 +875,80 @@ def load_raw_data_single_mold(dtstart, dtend, moldcolor):
 
     return df
 
+def load_raw_data_single_mold_all_data(dtstart, dtend, moldcolor):
+    """
+    Load cycle time data via API for a single mold, identified by its publicID.
+
+    Parameters
+    ----------
+    dtstart : datetime.datetime
+        Starting date and time for the period of interest.
+    dtend : datetime.datetime
+        Ending date and time for the period of interest.
+    moldcolor : str
+        Mold station color. Options include:
+            "Brown", "Purple", "Red", "Pink", "Orange", "Green"
+
+    Returns
+    -------
+    df : Pandas DataFrame
+        Data loaded from StrideLinx API for cycle times, operators, etc.
+
+    """
+    url = api.url
+
+    publicID = api.publicIds[moldcolor]
+    tags = api.all_tags[moldcolor]
+
+    payload = {
+        "source": {"publicId": publicID},
+        "tags": tags,
+        "start": dtstart,
+        "end": dtend,
+        "timeZone": "America/Denver"
+    }
+    headers = api.operator_headers
+
+    response = requests.request("POST", url, json=payload, headers=headers)
+
+    # print(response.text)
+
+    # Save the response as a string
+    datastr = response.text
+    # print(datastr)
+
+    # Convert the data string to a Pandas DataFrame
+    df = pd.DataFrame([x.split(',') for x in datastr.split('\n')])
+    new_header = df.iloc[0] #grab the first row for the header
+    df = df[1:] #take the data less the header row
+    df.columns = new_header #set the header row as the df header
+    df = df.reset_index(drop=True)
+
+    # Replace empty values with NaN
+    df = df.replace(r'^\s*$', np.nan, regex=True)
+
+    # Fix last column name having a carriage return at the end of the string
+    lastcolold = df.columns[-1]
+    if lastcolold[-1] == "\r":
+        # print("Carriage return found at the end of column name")
+        lastcolnew = lastcolold[0:-1]
+        df = df.rename(columns={lastcolold: lastcolnew})
+
+    # Convert to the relevant data types
+    for i,col in enumerate(df.columns):
+        if col == "time":
+            df[col] = pd.to_datetime(df[col])
+        else:
+            df[col] = df[col].astype(float)
+
+    # Fix issue where some data is read in from the day before the date of
+    # dtstart. Get rid of rows with a date earlier than daystart.
+    dtstart = dt.datetime.strptime(dtstart, "%Y-%m-%dT%H:%M:%SZ")
+    daystart = dt.datetime.date(dtstart)
+    df = df.loc[pd.to_datetime(df["time"]).dt.date >= daystart]
+
+    return df
+
 
 def load_operator_data(dtstart, dtend):
     """
@@ -2759,5 +2833,5 @@ if __name__ == "__main__":
     
     raw_dfs = {}
     for moldcolor in api.molds:
-        df_raw = load_raw_data_single_mold(dtstart, dtend, moldcolor)
+        df_raw = load_raw_data_single_mold_all_data(dtstart, dtend, moldcolor)
         raw_dfs.update({moldcolor: df_raw})
