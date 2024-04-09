@@ -289,7 +289,8 @@ def print_all_employee_IDcards_PDF():
     # print_all_employee_IDcards()
     
     idlist = get_all_employee_nums() # This outputs a DataFrame
-    idlist = idlist["IDstr_trunc"]
+    idlist = idlist["ID"]
+    # idlist = idlist["IDstr_trunc"]
     idlist = list(idlist)
     idlist = [int(id) for id in idlist]
     filename = "All_Operator_IDs.pdf"
@@ -616,7 +617,8 @@ def print_all_employee_IDcards():
         # this column, so we use it to catch only the personnel relevant data.
         if "Name" in iddata:
             for index in indices:
-                id_int = iddata.loc[index, "IDIDstr_trunc"]
+                id_int = iddata.loc[index, "ID"]
+                # id_int = iddata.loc[index, "IDstr_trunc"]
                 id_string = str(id_int)
                 # print(id_string)
                 generate_qrcode(id_string, QRfolder)
@@ -1063,11 +1065,14 @@ if __name__ == '__main__':
     print("id_generator is being run as the main function")
     # allnums = get_all_employee_nums(data_assets.ID_data)
     
-    # # print_all_employee_IDcards_PDF()
+    
+    # print_all_employee_IDcards()
+    print_all_employee_IDcards_PDF()
+    
     # idlist = [111]
     # filename = "test_id.pdf"
     # print_list_employee_IDcards_PDF(idlist, filename)
     
-    typestring = "pictureframe"
+    # typestring = "pictureframe"
     
-    get_most_recent_equipment_IDcards_PDF(typestring)
+    # get_most_recent_equipment_IDcards_PDF(typestring)
