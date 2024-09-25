@@ -8,9 +8,9 @@ import datetime as dt
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-# import libs.data_assets as data_assets
+import libs.data_assets as data_assets
 # import data_assets
-from . import data_assets
+# from . import data_assets
 
 ##### ID card printing class and functions #####
 class IDPDF(FPDF):
@@ -563,7 +563,7 @@ def print_IDcard_type_3digit(typestring, id_num):
         # Iterate through the sheets
         for sheetname in sheetnames:
             iddata = df[sheetname]
-            print(iddata)
+            # print(iddata)
             # All personnel sheets have a Name column. Equipment sheets don't have
             # this column, so we use it to catch only the personnel relevant data.
             if "Name" in iddata:

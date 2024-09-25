@@ -22,15 +22,23 @@ from itertools import groupby
 from bisect import bisect_left
 from sklearn import linear_model
 import plotly.express as px
+import warnings
 
 # If running as part of a compiled exe file (i.e. as the finalized ID &
 # Evaluation Tool app), comment out the imports that contain "from . import"
 # import data_assets
 # import id_methods
 # import api_config_vars as api
-from . import data_assets
-from . import id_methods
-from . import api_config_vars as api
+# from . import data_assets
+# from . import id_methods
+# from . import api_config_vars as api
+import libs.data_assets as data_assets
+import libs.id_methods as id_methods
+import libs.api_config_vars as api
+
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 ##### PDF Methods #####
 class OperatorStatsPDF(FPDF):
@@ -447,7 +455,7 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
         sns.set_theme(style="whitegrid")
         customPalette = sns.light_palette("lightblue", 3)
         flierprops = dict(marker='o', markerfacecolor='None', markersize=4)
-        sns.boxplot(x="variable", y="value", data=pd.melt(operator_compare), flierprops=flierprops, palette=customPalette)
+        sns.boxplot(x="variable", y="value", hue="variable", data=pd.melt(operator_compare), flierprops=flierprops, palette=customPalette)
         plt.title("Operator {} {}s: {} to {}".format(operator, timestring, startdate, enddate))
         plt.ylabel("{} (minutes)".format(timestring))
         plt.xlabel("")
@@ -602,8 +610,9 @@ def lookup_operator_name(opnum, IDfilepath):
 
     leadnum = "10" + opnum_str
     leadnum = int(leadnum)
-    namerow = df_lead.loc[df_lead["ID"] == leadnum]
-    opname = namerow.iloc[0][3]
+    # namerow = df_lead.loc[df_lead["ID"] == leadnum]
+    # opname = namerow.iloc[0][3]
+    opname = df_lead.loc[df_lead["ID"] == leadnum, "Name"].values[0]
     return opname
 
 
@@ -858,11 +867,13 @@ def load_raw_data_single_mold(dtstart, dtend, moldcolor):
         "end": dtend,
         "timeZone": "America/Denver"
     }
-    headers = api.operator_headers
+    headers = api.request_operator_headers()
+    # headers = api.operator_headers
+    # print(f'\nHeaders:\t{headers}')
 
     response = requests.request("POST", url, json=payload, headers=headers)
 
-    print(f'\nAPI Response: {response.text}')
+    # print(f'\nAPI Response: {response.text}')
 
     # Save the response as a string
     datastr = response.text
@@ -896,7 +907,7 @@ def load_raw_data_single_mold(dtstart, dtend, moldcolor):
     # dtstart. Get rid of rows with a date earlier than daystart.
     dtstart = dt.datetime.strptime(dtstart, "%Y-%m-%dT%H:%M:%SZ")
     daystart = dt.datetime.date(dtstart)
-    print(f'df columns: {df.columns}')
+    # print(f'df columns: {df.columns}')
     df = df.loc[pd.to_datetime(df["time"]).dt.date >= daystart]
 
     return df
