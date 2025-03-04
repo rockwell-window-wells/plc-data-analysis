@@ -8,9 +8,9 @@ import datetime as dt
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-import libs.data_assets as data_assets
+# import libs.data_assets as data_assets
 # import data_assets
-# from . import data_assets
+from . import data_assets
 
 ##### ID card printing class and functions #####
 class IDPDF(FPDF):
@@ -1081,6 +1081,6 @@ if __name__ == '__main__':
     # filename = "test_id.pdf"
     # print_list_employee_IDcards_PDF(idlist, filename)
     
-    # typestring = "pictureframe"
+    # typestring = "bag"
     
     # get_most_recent_equipment_IDcards_PDF(typestring)
