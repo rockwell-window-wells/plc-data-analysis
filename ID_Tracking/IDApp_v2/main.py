@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QDateEdit,
     QRadioButton, QButtonGroup, QHBoxLayout, QSpinBox, QComboBox, QFrame
 )
-from PyQt5.QtCore import Qt, QDate
+from PyQt5.QtCore import Qt, QDate, QThread, pyqtSignal
 import datetime as dt
 from dateutil.relativedelta import relativedelta
 import libs.cycle_time_methods_v2 as cycle
@@ -11,14 +11,56 @@ import libs.data_assets as data_assets
 import libs.id_methods as id_methods
 import libs.api_config_vars as api
 import pandas as pd
+import os
 
 
 # Global Variables
-dtdate_start = dt.date.today() - relativedelta(months=3)
-dtdate_end = dt.date.today()
-dtstart = dt.datetime.combine(dtdate_start, dt.time(0, 0, 0))
-dtend = dt.datetime.combine(dtdate_end, dt.time(23, 59, 59))
+date_start = dt.date.today() - relativedelta(months=3)
+date_end = dt.date.today()
+# dtstart = dt.datetime.combine(dtdate_start, dt.time(0, 0, 0))
+# dtend = dt.datetime.combine(dtdate_end, dt.time(23, 59, 59))
 
+class ReportWorker(QThread):
+    start_signal = pyqtSignal(str)
+    progress_signal = pyqtSignal(int)  # Signal to update progress in GUI
+    finished_signal = pyqtSignal(str)  # Signal to notify when the report is finished
+
+    def __init__(self, date_start, date_end, operator_list, shift_type=None):
+        super().__init__()
+        self.dtstart = dt.datetime.combine(dt.date(date_start.date().year(), date_start.date().month(), date_start.date().day()), dt.time(0, 0, 0))
+        self.dtend = dt.datetime.combine(dt.date(date_end.date().year(), date_end.date().month(), date_end.date().day()), dt.time(23, 59, 59))
+        self.operator_list = operator_list
+        self.shift_type = shift_type
+
+    def run(self):
+        report_data_list = []
+        try:
+            self.start_signal.emit("Gathering cycle time data...")
+            # Long-running task: Call cycle function here
+            df_eval = cycle.load_operator_data(self.dtstart, self.dtend)[0]
+            df_eval = cycle.clean_duplicate_times(df_eval)
+
+            total_operators = len(self.operator_list)
+            for i, operator in enumerate(self.operator_list):
+                # This function will now accept the progress_callback parameter
+                report_data = cycle.get_operator_stats_by_list(
+                    df_eval, [operator], self.shift_type, progress_callback=self.progress_signal.emit
+                )
+                report_data_list.append(report_data)
+                
+                # Emit progress signal to update GUI
+                percentage = int((i + 1) / total_operators * 100)
+                self.progress_signal.emit(percentage)
+                
+            # Merge all reports together
+            dest = cycle.merge_reports(report_data_list, self.dtstart, self.dtend, self.shift_type)
+
+            self.finished_signal.emit("Report completed")
+            
+            os.system(dest)
+            
+        except Exception as e:
+            self.finished_signal.emit(f"Error: {str(e)}")
 
 # Main Application Window
 class MainWindow(QWidget):
@@ -44,9 +86,9 @@ class MainWindow(QWidget):
         operator_eval_layout.addWidget(eval_header)
         operator_eval_layout.addWidget(QLabel("Select Date Range:"))
         self.date_start = QDateEdit(calendarPopup=True)
-        self.date_start.setDate(QDate(dtdate_start.year, dtdate_start.month, dtdate_start.day))
+        self.date_start.setDate(QDate(date_start.year, date_start.month, date_start.day))
         self.date_end = QDateEdit(calendarPopup=True)
-        self.date_end.setDate(QDate(dtdate_end.year, dtdate_end.month, dtdate_end.day))
+        self.date_end.setDate(QDate(date_end.year, date_end.month, date_end.day))
         operator_eval_layout.addWidget(self.date_start)
         operator_eval_layout.addWidget(self.date_end)
 
@@ -140,19 +182,42 @@ class MainWindow(QWidget):
         # Read input values
         radio_value = self.radio_group.checkedId()
         operator_number = self.operator_number_input.value()
+        
+        shift_type = None
 
-        if radio_value == 1:
-            if operator_number == 0:
-                self.output_label.setText("Error: Operator number is required for single operator report")
-            else:
-                self.output_label.setText(f"Report generated for operator {operator_number}")
-                self.single_operator_function(operator_number)
+        if radio_value == 1 and operator_number != 0:
+            operator_list = [operator_number]
+            self.run_report_thread(self.date_start, self.date_end, operator_list, shift_type)
         elif radio_value == 2:
-            self.output_label.setText("Report generated for day shift")
-            self.day_shift_function()
+            IDfilepath = data_assets.ID_data
+            daylist, _, _ = id_methods.get_shift_lists(IDfilepath)
+            shift_type = 'Day'
+            self.run_report_thread(self.date_start, self.date_end, daylist, shift_type)
         elif radio_value == 3:
-            self.output_label.setText("Report generated for swing shift")
-            self.swing_shift_function()
+            IDfilepath = data_assets.ID_data
+            _, swinglist, _ = id_methods.get_shift_lists(IDfilepath)
+            shift_type = 'Swing'
+            self.run_report_thread(self.date_start, self.date_end, swinglist, shift_type)
+            
+    def run_report_thread(self, date_start, date_end, operator_list, shift_type):
+        # Create a worker thread for report generation
+        self.report_worker = ReportWorker(date_start, date_end, operator_list, shift_type)
+        self.report_worker.start_signal.connect(self.report_started)
+        self.report_worker.progress_signal.connect(self.update_progress)
+        self.report_worker.finished_signal.connect(self.report_finished)
+        self.report_worker.start()
+
+    def update_progress(self, percentage):
+        # Update the GUI with the current percentage
+        self.output_label.setText(f"Report progress: {percentage}%")
+
+    def report_finished(self, message):
+        # Update the GUI when the report is done
+        self.output_label.setText(message)
+        
+    def report_started(self, message):
+        # Update teh GUI when the report is started
+        self.output_label.setText(message)
 
     def assign_employee_num(self):
         # Assign employee number logic
@@ -232,33 +297,33 @@ class MainWindow(QWidget):
             self.select_operator_output.setText(statustext)
             
 
-    # Dummy functions for testing purposes
-    def single_operator_function(self, operator_number):
-        global dtstart, dtend
-        operator_list = [operator_number]
-        df_eval = cycle.load_operator_data(dtstart, dtend)[0]
+    # # Dummy functions for testing purposes
+    # def single_operator_function(self, operator_number):
+    #     global dtstart, dtend
+    #     operator_list = [operator_number]
+    #     df_eval = cycle.load_operator_data(dtstart, dtend)[0]
 
-        # Remove faulty duplicates
-        df_eval = cycle.clean_duplicate_times(df_eval)
-        cycle.get_operator_stats_by_list(df_eval, operator_list, None)
-        # print(f"Running report for single operator: {operator_number}")
-        # print(f"Single operator function called for operator {operator_number}")
+    #     # Remove faulty duplicates
+    #     df_eval = cycle.clean_duplicate_times(df_eval)
+    #     cycle.get_operator_stats_by_list(df_eval, operator_list, None)
+    #     # print(f"Running report for single operator: {operator_number}")
+    #     # print(f"Single operator function called for operator {operator_number}")
 
-    def day_shift_function(self):
-        global dtstart, dtend
-        IDfilepath = data_assets.ID_data
-        daylist, _, _ = id_methods.get_shift_lists(IDfilepath)
-        df_eval = cycle.load_operator_data(dtstart, dtend)[0]
-        cycle.get_operator_stats_by_list(df_eval, daylist)
-        # print("Day shift function called")
+    # def day_shift_function(self):
+    #     global dtstart, dtend
+    #     IDfilepath = data_assets.ID_data
+    #     daylist, _, _ = id_methods.get_shift_lists(IDfilepath)
+    #     df_eval = cycle.load_operator_data(dtstart, dtend)[0]
+    #     cycle.get_operator_stats_by_list(df_eval, daylist)
+    #     # print("Day shift function called")
 
-    def swing_shift_function(self):
-        global dtstart, dtend
-        IDfilepath = data_assets.ID_data
-        _, swinglist, _ = id_methods.get_shift_lists(IDfilepath)
-        df_eval = cycle.load_operator_data(dtstart, dtend)[0]
-        cycle.get_operator_stats_by_list(df_eval, swinglist)
-        # print("Swing shift function called")
+    # def swing_shift_function(self):
+    #     global dtstart, dtend
+    #     IDfilepath = data_assets.ID_data
+    #     _, swinglist, _ = id_methods.get_shift_lists(IDfilepath)
+    #     df_eval = cycle.load_operator_data(dtstart, dtend)[0]
+    #     cycle.get_operator_stats_by_list(df_eval, swinglist)
+    #     # print("Swing shift function called")
 
 
 # Main program execution

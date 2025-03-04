@@ -15,6 +15,7 @@ from PyPDF2 import PdfFileMerger, PdfMerger, PdfFileReader, PdfReader
 import seaborn as sns
 import datetime as dt
 import shutil
+import concurrent.futures
 from natsort import natsorted
 import matplotlib as mpl
 import pytz
@@ -286,6 +287,40 @@ def merge_operator_PDFs(exportfolder, mergedfilepath):
     with open(mergedfilepath, "wb") as fout:
         merger.write(fout)
 
+# def merge_operator_PDFs(exportfolder, mergedfilepath):
+#     """
+#     Take all PDFs in the output folder and merge them together.
+
+#     Parameters
+#     ----------
+#     exportfolder : str
+#         Path to the export folder.
+#     mergedfilepath : str
+#         Full filepath of the exported file. Should contain the path of
+#         exportfolder.
+
+#     Returns
+#     -------
+#     None.
+
+#     """
+#     x = [a for a in os.listdir(exportfolder) if a.endswith(".pdf")]
+#     x = natsorted(x)
+#     # print(x)
+#     x = [exportfolder + "\\" + a for a in x]    # List of strings at this point
+
+#     merger = PdfMerger()
+#     # merger = PdfFileMerger()
+
+#     for pdf in x:
+#         with open(pdf, 'rb') as source:
+#             tmp = PdfReader(source)
+#             # tmp = PdfFileReader(source)
+#             merger.append(tmp)
+
+#     with open(mergedfilepath, "wb") as fout:
+#         merger.write(fout)
+
 
 def get_all_operator_stats(df):
     """
@@ -312,7 +347,7 @@ def get_all_operator_stats(df):
     get_operator_stats_by_list(df, operator_list, "all")
 
 
-def get_operator_stats_by_list(df, operator_list, shift=None):
+def get_operator_stats_by_list(df, operator_list, shift=None, progress_callback=None):
     """
     Take in a cleaned DataFrame, df, and a list of integers of up to 3 digits,
     operator_list, and a shift indicator if necessary. Produce the cycle time
@@ -339,12 +374,11 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
     None.
 
     """
+    report_data = [] # Initialize a list to hold report data for each operator
 
     startdate = df["time"].iloc[0].date()
     enddate = df["time"].iloc[-1].date()
-
     timestring = "Cycle Time"
-
     directory = data_assets.pdftempfolder
 
     # Get list of operator numbers on each shift by checking Excel data
@@ -352,9 +386,10 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
     daylist, swinglist, gravelist = id_methods.get_shift_lists(IDfilepath)
 
     noperators = len(operator_list)
+    exportpath = data_assets.pdftempfolder
 
     for i,operator in enumerate(operator_list):
-        print("\n{}% complete".format(np.around(i*100/noperators, 2)))
+            
         # Get all rows where the current operator is in the lead list
         # Convert the 'Lead' column to a DataFrame where each list is expanded into a row
         expanded_df = pd.DataFrame(df.Lead.tolist())
@@ -364,42 +399,18 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
         
         # Filter the original DataFrame based on the mask
         df_lead = df[mask]
-        
-        # df_lead = df[pd.DataFrame(df.Lead.tolist()).isin([operator]).any(1).values]
-        
-        # df_layup = df[pd.DataFrame(df["Layup Leads"].tolist()).isin([operator]).any(1).values]
-        # df_close = df[pd.DataFrame(df["Close Leads"].tolist()).isin([operator]).any(1).values]
-        # df_resin = df[pd.DataFrame(df["Resin Leads"].tolist()).isin([operator]).any(1).values]
 
         opdate = id_methods.get_id_assign_date(IDfilepath, operator)
 
         # Filter out dates before the operator's ID number was assigned
         datelist_lead = df_lead["time"].tolist()
-        # datelist_layup = df_layup["time"].tolist()
-        # datelist_close = df_close["time"].tolist()
-        # datelist_resin = df_resin["time"].tolist()
         for i in range(len(datelist_lead)):
             datelist_lead[i] = datelist_lead[i].to_pydatetime()
             datelist_lead[i] = datelist_lead[i].date()
-        # for i in range(len(datelist_layup)):
-        #     datelist_layup[i] = datelist_layup[i].to_pydatetime()
-        #     datelist_layup[i] = datelist_layup[i].date()
-        # for i in range(len(datelist_close)):
-        #     datelist_close[i] = datelist_close[i].to_pydatetime()
-        #     datelist_close[i] = datelist_close[i].date()
-        # for i in range(len(datelist_resin)):
-        #     datelist_resin[i] = datelist_resin[i].to_pydatetime()
-        #     datelist_resin[i] = datelist_resin[i].date()
             
         filtered_dates_indices_lead = [i for i,date in enumerate(datelist_lead) if date>=opdate]
-        # filtered_dates_indices_layup = [i for i,date in enumerate(datelist_layup) if date>=opdate]
-        # filtered_dates_indices_close = [i for i,date in enumerate(datelist_close) if date>=opdate]
-        # filtered_dates_indices_resin = [i for i,date in enumerate(datelist_resin) if date>=opdate]
         df_lead = df_lead.iloc[filtered_dates_indices_lead]
-        # df_layup = df_layup.iloc[filtered_dates_indices_layup]
-        # df_close = df_close.iloc[filtered_dates_indices_close]
-        # df_resin = df_resin.iloc[filtered_dates_indices_resin]
-
+        
         # Get all rows for the current operator's shift
         operator_shift = None
         if operator in daylist:
@@ -418,39 +429,18 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
         
         # Filter the original DataFrame based on the mask
         df_shift = df[mask]
-
-
-        # df_shift = df[pd.DataFrame(df.Shift.tolist()).isin([operator_shift]).any(1).values]
-
-        # # Remove rows where it's the first part on a Monday
-        # df_lead = df_lead[df_lead["First Monday Part"] != 1]
-        # # df_layup = df_layup[df_layup["First Monday Part"] != 1]
-        # # df_close = df_close[df_close["First Monday Part"] != 1]
-        # # df_resin = df_resin[df_resin["First Monday Part"] != 1]
-        # df_shift = df_shift[df_shift["First Monday Part"] != 1]
-        # df_company = df[df["First Monday Part"] != 1]
         
         # For the lead only, remove rows where the layup time is saturated
         df_lead = df_lead[df_lead["Layup Saturated"] == False]
 
         # Compare the current operator against all cycle times
         lead_col = "Lead"
-        # layup_col = "Layup Leads"
-        # close_col = "Close Leads"
-        # resin_col = "Resin Leads"
         shift_col = "Shift"
         company_col = "RockWell"
         operator_compare = pd.DataFrame()
         operator_compare = pd.concat([operator_compare, df_lead[timestring].rename(lead_col)], axis=1)
         operator_compare = pd.concat([operator_compare, df_shift[timestring].rename(shift_col)], axis=1)
         operator_compare = pd.concat([operator_compare, df[timestring].rename(company_col)], axis=1)
-        
-        # layup_compare = pd.DataFrame()
-        # layup_compare = pd.concat([layup_compare, df_layup["Layup Time"].rename(lead_col)], axis=1)
-        # layup_compare = pd.concat([layup_compare, df_shift["Layup Time"].rename(shift_col)], axis=1)
-        # layup_compare = pd.concat([layup_compare, df_company["Layup Time"].rename(company_col)], axis=1)
-        
-        
 
         sns.set_theme(style="whitegrid")
         customPalette = sns.light_palette("lightblue", 3)
@@ -477,24 +467,81 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
             shiftavg = np.around(operator_compare[shift_col].mean(),1)
             companyavg = np.around(operator_compare[company_col].mean(),1)
             averages = [leadavg, shiftavg, companyavg]
+            
             filename = "Operator_{}_{}_Stats_{}_to_{}.pdf".format(operator, timestring.replace(" ","_"), startdate, enddate)
-            exportpath = data_assets.pdftempfolder
+            # exportpath = data_assets.pdftempfolder
             opname = lookup_operator_name(operator, data_assets.ID_data)
             generate_operator_PDF(startdate, enddate, plotname, operator, opname, cycles_logged, medians, averages, operator_shift, filename, exportpath)
+            
+            report_info = {
+                'plotname': plotname,
+                'filename': filename,
+                'cycles_logged': cycles_logged,
+                'medians': medians,
+                'averages': averages,
+                'operator_shift': operator_shift
+            }
+            report_data.append(report_info)
 
+            percentage = int((i+1) / noperators * 100)
+            if progress_callback:
+                progress_callback(percentage)
 
+    # if shift is None and len(operator_list) > 1:
+    #     mergefile = "List_Operators_{}_to_{}.pdf".format(startdate, enddate)
+    #     mergedfilepath = data_assets.pdftempfolder + "\\" + mergefile
+    #     merge_operator_PDFs(exportpath, mergedfilepath)
+    # elif shift is None and len(operator_list) == 1:
+    #     # Copy merged file into Operator_Reports folder
+    #     mergefile = filename
+    #     mergedfilepath = data_assets.pdftempfolder + "\\" + filename
+    # else:
+    #     mergefile, mergedfilepath = merge_by_shift(startdate, enddate, shift, exportpath)
 
-    if shift is None and len(operator_list) > 1:
+    # # Copy merged file into Operator_Reports folder
+    # dest = data_assets.pdfexportfolder + "\\" + mergefile
+    # shutil.copyfile(mergedfilepath, dest)
+
+    # # Delete all files from temp data holding folder
+    # files_in_directory = os.listdir(directory)
+    # for file in files_in_directory:
+    #     path_to_file = os.path.join(directory, file)
+    #     os.remove(path_to_file)
+
+    # # print("\n100.0% complete")
+
+    # # Automatically open the merged file from its new location
+    # os.system(dest)
+    
+    return report_data
+
+def merge_reports(report_data_list, startdate, enddate, shift):
+    directory = data_assets.pdftempfolder
+    
+    # print(f'\nReport Data List:\n{report_data_list}')
+    # # Create a merged PDF based on all the report data
+    # for report_data in report_data_list:
+    #     print(report_data)
+    #     plotname = report_data[0]['plotname']
+    #     filename = report_data[0]['filename']
+    #     cycles_logged = report_data[0]['cycles_logged']
+    #     medians = report_data[0]['medians']
+    #     averages = report_data[0]['averages']
+    #     operator_shift = report_data[0]['operator_shift']
+        
+    #     # Generate the PDF from individual report data
+        
+    # Final merging logic based on shift and saving to destination
+    if shift is None and len(report_data_list) > 1:
         mergefile = "List_Operators_{}_to_{}.pdf".format(startdate, enddate)
-        mergedfilepath = data_assets.pdftempfolder + "\\" + mergefile
-        merge_operator_PDFs(exportpath, mergedfilepath)
-    elif shift is None and len(operator_list) == 1:
-        # Copy merged file into Operator_Reports folder
-        mergefile = filename
-        mergedfilepath = data_assets.pdftempfolder + "\\" + filename
+        mergedfilepath = directory + "\\" + mergefile
+        merge_operator_PDFs(directory, mergedfilepath)
+    elif shift is None and len(report_data_list) == 1:
+        mergefile = report_data_list[0][0]['filename']  # assuming filename contains the path
+        mergedfilepath = directory + "\\" + mergefile
     else:
-        mergefile, mergedfilepath = merge_by_shift(startdate, enddate, shift, exportpath)
-
+        mergefile, mergedfilepath = merge_by_shift(startdate, enddate, shift, directory)
+    
     # Copy merged file into Operator_Reports folder
     dest = data_assets.pdfexportfolder + "\\" + mergefile
     shutil.copyfile(mergedfilepath, dest)
@@ -504,12 +551,11 @@ def get_operator_stats_by_list(df, operator_list, shift=None):
     for file in files_in_directory:
         path_to_file = os.path.join(directory, file)
         os.remove(path_to_file)
+    
+    return dest
 
-    print("\n100.0% complete")
-
-    # Automatically open the merged file from its new location
-    os.system(dest)
-
+    # # Automatically open the merged file from its new location
+    # os.system(dest)
 
 def merge_by_shift(startdate, enddate, shift, exportpath):
     """
@@ -542,6 +588,8 @@ def merge_by_shift(startdate, enddate, shift, exportpath):
         Complete filepath, including filename, of the merged file.
 
     """
+    startdate = startdate.date()
+    enddate = enddate.date()
     shift = shift.lower()
     if shift == "day":
         mergefile = "Day_Shift_Operators_Cycle_Times_{}_to_{}.pdf".format(startdate, enddate)
@@ -553,7 +601,7 @@ def merge_by_shift(startdate, enddate, shift, exportpath):
         mergefile = "All_Operators_Cycle_Times_{}_to_{}.pdf".format(startdate, enddate)
     else:
         raise ValueError("No shift specified")
-
+        
     mergedfilepath = data_assets.pdftempfolder + "\\" + mergefile
     merge_operator_PDFs(exportpath, mergedfilepath)
 
