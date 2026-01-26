@@ -9,10 +9,12 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 # import libs.data_assets as data_assets
-# import data_assets
-from . import data_assets
+import data_assets
+# from . import data_assets
 
 ##### ID card printing class and functions #####
+
+
 class IDPDF(FPDF):
     def __init__(self):
         super().__init__()
@@ -38,28 +40,28 @@ class IDPDF(FPDF):
         hcard = 113.6
         wpage = self.WIDTH
         hpage = self.HEIGHT
-        
+
         wcard_center_from_edge = marginwidth + ((wpage/2) - marginwidth)/2
         hcard_center_from_edge = marginwidth + ((hpage/2) - marginwidth)/2
-        
+
         # Top left
         TLx = wcard_center_from_edge - wcard/2
         TLy = hcard_center_from_edge - hcard/2
-        
+
         # Top right
         TRx = wpage - wcard_center_from_edge - wcard/2
         TRy = TLy
-        
+
         # Bottom left
         BLx = TLx
         BLy = hpage - hcard_center_from_edge - hcard/2
-        
+
         # Bottom right
         BRx = TRx
         BRy = BLy
-        
+
         self.set_margins(marginwidth, marginwidth, marginwidth)
-        
+
         if len(images) == 4:
             self.image(images[0], x=TLx, y=TLy, w=wcard)
             self.image(images[1], x=TRx, y=TRy, w=wcard)
@@ -80,8 +82,10 @@ class IDPDF(FPDF):
         self.add_page()
         self.page_body(images)
 
+
 def chunker(seq, size):
     return (seq[pos:pos + size] for pos in range(0, len(seq), size))
+
 
 def unify_IDcard_lists(idlist):
     # Convert idlist, which is the list of 3-digit or fewer numbers, and
@@ -91,20 +95,20 @@ def unify_IDcard_lists(idlist):
     assistlist = []
     IDcardfolder = data_assets.IDcardImagesfolder
     blankcard = "../assets/Portrait_white_ID.png"
-    
+
     for id in idlist:
         idstr = str(id)
         if len(idstr) == 1:
             idstr = "00" + idstr
         elif len(idstr) == 2:
             idstr = "0" + idstr
-            
+
         leadID = IDcardfolder + "\\" + "10" + idstr + "Lead.png"
         assistID = IDcardfolder + "\\" + "11" + idstr + "Assistant.png"
-        
+
         leadlist.append(leadID)
         assistlist.append(assistID)
-        
+
     # Group leadlist into fours
     leadlist_copy = leadlist
     leadlist = []
@@ -118,12 +122,12 @@ def unify_IDcard_lists(idlist):
         elif len(group) == 1:
             templist = [group[0], blankcard, blankcard, blankcard]
         leadlist.append(templist)
-    
+
     # Reorder assistlist so the cards will be rearranged for printing
     # back to back
     assistlist_copy = assistlist
     assistlist = []
-    
+
     for group in chunker(assistlist_copy, 4):
         # print("group: {}".format(group))
         if len(group) == 4:
@@ -135,15 +139,14 @@ def unify_IDcard_lists(idlist):
         elif len(group) == 1:
             templist = [blankcard, group[0], blankcard, blankcard]
         assistlist.append(templist)
-    
-    
+
     unified_idlist = []
     for i in range(len(leadlist)):
         unified_idlist.append(leadlist[i])
         unified_idlist.append(assistlist[i])
-            
+
     return unified_idlist
-        
+
 
 def gather_EQcard_lists(typestring, idlist):
     # Convert idlist, which is the list of 3-digit or fewer numbers, and
@@ -153,21 +156,21 @@ def gather_EQcard_lists(typestring, idlist):
     # assistlist = []
     IDcardfolder = data_assets.IDcardImagesfolder
     blankcard = "../assets/Portrait_white_ID.png"
-    
+
     typedict = {"purple": 30,
                 "bag": 31,
                 "pictureframe": 32}
-    
+
     prefix = typedict.get(typestring)
     prefix_str = str(prefix)
-    
+
     for id in idlist:
         idstr = str(id)
         if len(idstr) == 1:
             idstr = "00" + idstr
         elif len(idstr) == 2:
             idstr = "0" + idstr
-            
+
         if prefix == 30:
             imagename = "Purple.png"
         elif prefix == 31:
@@ -176,13 +179,13 @@ def gather_EQcard_lists(typestring, idlist):
             imagename = "PictureFrame.png"
         else:
             raise ValueError("Invalid ID prefix")
-            
+
         equipID = IDcardfolder + "\\" + prefix_str + idstr + imagename
         # assistID = IDcardfolder + "\\" + "11" + idstr + "Assistant.png"
-        
+
         equiplist.append(equipID)
         # assistlist.append(assistID)
-        
+
     # Group equiplist into fours
     equiplist_copy = equiplist
     equiplist = []
@@ -196,12 +199,12 @@ def gather_EQcard_lists(typestring, idlist):
         elif len(group) == 1:
             templist = [group[0], blankcard, blankcard, blankcard]
         equiplist.append(templist)
-    
+
     # # Reorder assistlist so the cards will be rearranged for printing
     # # back to back
     # assistlist_copy = assistlist
     # assistlist = []
-    
+
     # for group in chunker(assistlist_copy, 4):
     #     # print("group: {}".format(group))
     #     if len(group) == 4:
@@ -213,26 +216,25 @@ def gather_EQcard_lists(typestring, idlist):
     #     elif len(group) == 1:
     #         templist = [blankcard, group[0], blankcard, blankcard]
     #     assistlist.append(templist)
-    
-    
+
     # unified_idlist = []
     # for i in range(len(leadlist)):
     #     unified_idlist.append(leadlist[i])
     #     unified_idlist.append(assistlist[i])
-            
+
     return equiplist
-        
+
 
 def generate_IDPDF(idlist, filename):
     pdf = IDPDF()
-    
+
     unified_idlist = unify_IDcard_lists(idlist)
-    
+
     for elem in unified_idlist:
         pdf.print_page(elem)
-    
+
     exportpath = data_assets.IDcardPrintsfolder
-    
+
     exportfilepath = exportpath + '\\' + filename
     # Check if the exported PDF file already exists in the export folder
     if os.path.exists(exportfilepath):
@@ -243,18 +245,18 @@ def generate_IDPDF(idlist, filename):
             i += 1
         exportfilepath = exportpath + '\\' + filename + "({}).pdf".format(i)
     pdf.output(exportfilepath, 'F')
-    
-    
+
+
 def generate_EQPDF(typestring, idlist, filename):
     pdf = IDPDF()
-    
+
     equiplist = gather_EQcard_lists(typestring, idlist)
-    
+
     for elem in equiplist:
         pdf.print_page(elem)
-        
+
     exportpath = data_assets.IDcardPrintsfolder
-    
+
     exportfilepath = exportpath + '\\' + filename
     # Check if the exported PDF file already exists in the export folder
     if os.path.exists(exportfilepath):
@@ -283,20 +285,20 @@ def print_list_employee_IDcards_PDF(idlist, filename):
     """
     for id in idlist:
         print_IDcard_type_3digit("personnel", id)
-        
+
     generate_IDPDF(idlist, filename)
-    
+
 
 def print_all_employee_IDcards_PDF():
     # print_all_employee_IDcards()
-    
-    idlist = get_all_employee_nums() # This outputs a DataFrame
+
+    idlist = get_all_employee_nums()  # This outputs a DataFrame
     idlist = idlist["ID"]
     # idlist = idlist["IDstr_trunc"]
     idlist = list(idlist)
     idlist = [int(id) for id in idlist]
     filename = "All_Operator_IDs.pdf"
-    
+
     # Automatically open the file for printing
     exportpath = data_assets.IDcardPrintsfolder
     exportfilepath = exportpath + '\\' + filename
@@ -308,17 +310,17 @@ def print_all_employee_IDcards_PDF():
 
 
 def print_list_equipment_IDcards_PDF(idlist, typestring, filename):
-    
+
     # # Set relevant folders
     # IDfilepath = data_assets.ID_data
-                
+
     # typedict = {"purple": 30,
     #             "bag": 31,
     #             "pictureframe": 32}
 
     for id in idlist:
         print_IDcard_type_3digit(typestring, id)
-        
+
     # Automatically open the file for printing
     exportpath = data_assets.IDcardPrintsfolder
     exportfilepath = exportpath + '\\' + filename
@@ -327,16 +329,16 @@ def print_list_equipment_IDcards_PDF(idlist, typestring, filename):
         os.remove(exportfilepath)
     generate_EQPDF(typestring, idlist, filename)
     os.startfile(exportfilepath)
-    
-    
+
+
 def get_most_recent_equipment_IDcards_PDF(typestring):
-    
+
     IDfilepath = data_assets.ID_data
-    
+
     typedict = {"purple": 30,
                 "bag": 31,
                 "pictureframe": 32}
-    
+
     # Get the necessary inputs to print_page function
     df = pd.read_excel(IDfilepath, None)
     sheetnames = df.keys()
@@ -353,13 +355,13 @@ def get_most_recent_equipment_IDcards_PDF(typestring):
             continue
         else:
             break
-        
+
     recent_date = iddata["Date"].max()
     recent_rows = iddata.loc[iddata["Date"] == recent_date]
     idlist = list(recent_rows["ID"])
     idlist = [str(id) for id in idlist]
     idlist = [int(id[2:]) for id in idlist]
-    
+
     minid = min(idlist)
     maxid = max(idlist)
     if typestring == "purple":
@@ -367,12 +369,13 @@ def get_most_recent_equipment_IDcards_PDF(typestring):
     elif typestring == "bag":
         filename = "Bag_" + str(minid) + "_thru_" + str(maxid) + ".pdf"
     elif typestring == "pictureframe":
-        filename = "PictureFrame_" + str(minid) + "_thru_" + str(maxid) + ".pdf"
+        filename = "PictureFrame_" + \
+            str(minid) + "_thru_" + str(maxid) + ".pdf"
     else:
         raise ValueError("INVALID TYPESTRING")
-    
+
     print_list_equipment_IDcards_PDF(idlist, typestring, filename)
-        
+
 
 # NOTE: The final version might need to work with image files, in which case
 # these ID printing methods will need to change
@@ -409,7 +412,7 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
         data[..., :-1][white_areas.T] = purplergb
     # Yellow for bag
     elif prefix == "31":
-        data[..., :-1][white_areas.T] = bagrgb        
+        data[..., :-1][white_areas.T] = bagrgb
     else:
         data[..., :-1][white_areas.T] = whitergb
     template = Image.fromarray(data)
@@ -454,13 +457,14 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
         h = fontsize
         # w, h = draw.textsize(msg, font=font)
         while True:
-            if w < (W - 2*bleed -10):
+            if w < (W - 2*bleed - 10):
                 break
             else:
                 fontsize -= 5
                 font = ImageFont.truetype(data_assets.font, size=fontsize)
                 w, h = draw.textsize(msg, font=font)
-        draw.text(((W-w)/2, (H-W)/6 + bleed), employee_name, font=font, fill='black')
+        draw.text(((W-w)/2, (H-W)/6 + bleed),
+                  employee_name, font=font, fill='black')
     fontsize = 75
     font = ImageFont.truetype(data_assets.font, size=fontsize)
     msg = itemtype
@@ -472,7 +476,8 @@ def generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name):
     w = draw.textlength(msg, font=font)
     h = fontsize
     # w, h = draw.textsize(msg, font=font)
-    draw.text(((W-w)/2, 5*(H-W)/6 + bleed), str(idnum), font=font, fill='black')
+    draw.text(((W-w)/2, 5*(H-W)/6 + bleed),
+              str(idnum), font=font, fill='black')
     return template
 
 
@@ -484,7 +489,7 @@ def print_IDcard_5digit(idnum):
     IDfilepath = data_assets.ID_data
     QRfolder = data_assets.QRcodesfolder
     IDcardfolder = data_assets.IDcardImagesfolder
-    
+
     # Get the necessary inputs to print_page function
     df = pd.read_excel(IDfilepath, None)
     sheetnames = df.keys()
@@ -506,7 +511,8 @@ def print_IDcard_5digit(idnum):
             itemtype = idrow.loc[idindex, "Type"]
             # Sanity check that idrow is only one row
             if len(idrow.index) != 1:
-                raise Exception("[ERROR] There are 0 or more than 1 IDs that match")
+                raise Exception(
+                    "[ERROR] There are 0 or more than 1 IDs that match")
             # elif pd.isna(idrow.loc[idindex, "Date"]):
             #     raise Exception("[ERROR] The chosen ID has not been assigned.")
             else:
@@ -529,7 +535,8 @@ def print_IDcard_5digit(idnum):
 
     # Print the ID card and export it to the IDcardfolder with
     templatefile = data_assets.templatefile
-    card = generate_idcard(templatefile, idnum, itemtype, qrcodepath, employee_name)
+    card = generate_idcard(templatefile, idnum, itemtype,
+                           qrcodepath, employee_name)
     IDcardfilename = str(idnum) + itemtype + ".png"
     IDcardpath = IDcardfolder + '/' + IDcardfilename
     card.save(IDcardpath)
@@ -540,6 +547,7 @@ def print_IDcard_5digit(idnum):
     # IDcardpath = IDcardfolder + '/' + IDcardfilename
     # pdf.output(IDcardpath, 'F')
 
+
 def print_IDcard_type_3digit(typestring, id_num):
     """For cases where a card needs to be reprinted, this function takes a
     type string (i.e. "moldbacker" or "purple") and a 3-digit ID number, checks
@@ -548,7 +556,7 @@ def print_IDcard_type_3digit(typestring, id_num):
     """
     # Set relevant folders
     IDfilepath = data_assets.ID_data
-    
+
     typedict = {"purple": 30,
                 "bag": 31,
                 "pictureframe": 32}
@@ -567,7 +575,7 @@ def print_IDcard_type_3digit(typestring, id_num):
             # All personnel sheets have a Name column. Equipment sheets don't have
             # this column, so we use it to catch only the personnel relevant data.
             if "Name" in iddata:
-                IDexample = str(iddata.loc[0,"ID"])
+                IDexample = str(iddata.loc[0, "ID"])
                 prefixes.append(int(IDexample[0:2]))
     else:
         raise ValueError("[ERROR] typestring is not in approved list")
@@ -591,7 +599,7 @@ def print_IDcard_type_3digit(typestring, id_num):
         for sheetname in sheetnames:
             iddata = df[sheetname]
             print(sheetname)
-            if (id in iddata["ID"].values) and (not pd.isna(iddata.loc[(id_num-1),"Date"])):
+            if (id in iddata["ID"].values) and (not pd.isna(iddata.loc[(id_num-1), "Date"])):
                 print("found ID in {}".format(sheetname))
                 idgood = True
                 if idgood is False:
@@ -605,11 +613,12 @@ def print_IDcard_type_3digit(typestring, id_num):
     # Print the ID cards once the QR cards are generated
     list_IDcard(id_ints)
 
+
 def print_all_employee_IDcards():
     # Set relevant folders
     IDfilepath = data_assets.ID_data
     QRfolder = data_assets.QRcodesfolder
-    
+
     allnums = get_all_employee_nums()
     indices = allnums.index
 
@@ -632,6 +641,7 @@ def print_all_employee_IDcards():
                 generate_qrcode(id_string, QRfolder)
                 print_IDcard_5digit(id_int)
 
+
 def list_IDcard(idlist):
     """Take a list of ID numbers (full ID with prefixes, as integers) and print
     all of the corresponding ID cards as PDF documents. Only prints ID cards for
@@ -643,7 +653,7 @@ def list_IDcard(idlist):
         except Exception as e:
             print(e)
             continue
-    
+
 
 def print_all_ID_by_type(typestring):
     """Choose a category of ID from a list of acceptable strings, and print all
@@ -653,7 +663,7 @@ def print_all_ID_by_type(typestring):
     """
     # Set relevant folders
     IDfilepath = data_assets.ID_data
-    
+
     typedict = {"purple": 30,
                 "bag": 31,
                 "pictureframe": 32}
@@ -673,7 +683,7 @@ def print_all_ID_by_type(typestring):
             # this column, so we use it to catch only the personnel relevant data.
             if "Name" in iddata:
                 # print("{}:\n{}".format(sheetname,iddata))
-                IDexample = str(iddata.loc[0,"ID"])
+                IDexample = str(iddata.loc[0, "ID"])
                 prefixes.append(int(IDexample[0:2]))
     else:
         raise ValueError("[ERROR] typestring is not in approved list")
@@ -690,10 +700,11 @@ def print_all_ID_by_type(typestring):
                 assigned = iddata["ID"].loc[pd.notna(iddata["Date"])].tolist()
                 list_IDcard(assigned)
 
+
 def print_all_IDcards():
     """Single function to update the QR codes and ID cards with all of the
     currently assigned ID numbers for both personnel and equipment.
-    """    
+    """
     typekeys = ["personnel", "purple", "bag", "pictureframe"]
     for key in typekeys:
         print_all_ID_by_type(key)
@@ -705,7 +716,7 @@ def N_new_equip_ids(n, typestring):
     """
     # Set relevant folders
     IDfilepath = data_assets.ID_data
-    
+
     typedict = {"purple": 30,
                 "bag": 31,
                 "pictureframe": 32}
@@ -733,7 +744,7 @@ def N_new_equip_ids(n, typestring):
             i = 0
             while i < len(iddata):
                 # If the date value for the current index is not empty, continue
-                if not pd.isna(iddata.loc[i,"Date"]):
+                if not pd.isna(iddata.loc[i, "Date"]):
                     i += 1
                     continue
                 else:
@@ -773,6 +784,7 @@ def generate_qrcode(id_string, path):
     filepath = path + "\\" + filename
     img.save(filepath)
 
+
 def range_QR(typeprefix, idA, idB, path):
     """Generate a sequential series of QR codes.
 
@@ -792,18 +804,20 @@ def range_QR(typeprefix, idA, idB, path):
     else:
         raise ValueError("idB must be greater than idA")
 
+
 def list_QR(idlist):
     """Take a list of ID numbers (full ID with prefixes, as integers) and print
     all of the corresponding qr codes.
     """
     # Set relevant folders
     QRfolder = data_assets.QRcodesfolder
-    
+
     for id in idlist:
         id_string = str(id)
         # Sanity check on length of id_string
         if len(id_string) != 5:
-            raise ValueError("[ERROR] ID number {} has the wrong number of digits.".format(id))
+            raise ValueError(
+                "[ERROR] ID number {} has the wrong number of digits.".format(id))
         else:
             generate_qrcode(id_string, QRfolder)
 
@@ -816,7 +830,8 @@ def generate_id_string(typeprefix, idnum):
     len_prefix = len(str(typeprefix))
     len_idnum = len(str(idnum))
     if len_prefix != 2 or len_idnum < 1 or len_idnum > 3:
-        raise ValueError("Prefix or ID number have an invalid number of digits")
+        raise ValueError(
+            "Prefix or ID number have an invalid number of digits")
     else:
         n = 3   # The idnum should have three digits
         # Add any preceding zeros to get the idnum to 3 digits
@@ -844,7 +859,7 @@ def assign_employee_nums_from_sheet():
     """
     # Set relevant folders
     IDinputfile = data_assets.ID_input
-    
+
     # Load the input workbook, assuming the data is on the first sheet
     df_input = pd.read_excel(IDinputfile)
 
@@ -898,7 +913,7 @@ def assign_employee_num(desired_number, employee_name):
     """
     # Set relevant folders
     IDfilepath = data_assets.ID_data
-    
+
     # Load the workbook with all sheets (that's what the None flag is for)
     # df is a dictionary of sheet names and dataframes of the sheets
     df = pd.read_excel(IDfilepath, None)
@@ -911,7 +926,7 @@ def assign_employee_num(desired_number, employee_name):
         # All personnel sheets have a Name column. Equipment sheets don't have
         # this column, so we use it to catch only the personnel relevant data.
         if "Name" in iddata:
-            IDexample = str(iddata.loc[0,"ID"])
+            IDexample = str(iddata.loc[0, "ID"])
             prefix = IDexample[0:2]
 
             # Handle the incoming desired_number, whether it is an integer or string
@@ -927,9 +942,11 @@ def assign_employee_num(desired_number, employee_name):
                     nzeros = 3 - len(desired_number)
                     idnum_str = nzeros*"0" + desired_number
                 else:
-                    raise Exception("Desired ID number is too long. Choose one with 3 or less characters")
+                    raise Exception(
+                        "Desired ID number is too long. Choose one with 3 or less characters")
             else:
-                raise Exception("Desired ID number was not entered as an integer or string")
+                raise Exception(
+                    "Desired ID number was not entered as an integer or string")
 
             # Combine the prefix and the ID number
             num = prefix + idnum_str
@@ -949,7 +966,8 @@ def assign_employee_num(desired_number, employee_name):
                 rewrite_whole_Excel_sheet(df, sheetnames)
                 print_IDcard_5digit(num)
             else:
-                raise Exception("[ERROR] ID number {} has already been assigned.".format(num))
+                raise Exception(
+                    "[ERROR] ID number {} has already been assigned.".format(num))
 
 
 def get_all_employee_nums():
@@ -958,12 +976,13 @@ def get_all_employee_nums():
     """
     # Set relevant folders
     IDfilepath = data_assets.ID_data
-    
+
     leads = pd.read_excel(IDfilepath, sheet_name="Personnel-Lead")
-    allnums = leads[~leads["Name"].isnull()].copy()   # Dataframe of just the rows with names assigned to IDs
+    # Dataframe of just the rows with names assigned to IDs
+    allnums = leads[~leads["Name"].isnull()].copy()
     allnums = allnums.drop(columns=["Type", "Date"])
     allnums["ID"] = allnums["ID"].apply(str)
-    allnums["ID"] = allnums["ID"].str[2:]    
+    allnums["ID"] = allnums["ID"].str[2:]
     # allnums["ID"] = allnums["ID"].apply(str)
     # allnums["ID"] = allnums["ID"].str[2:]
     return allnums
@@ -987,21 +1006,24 @@ def get_shift_lists(IDfilepath):
 
     """
     leads = pd.read_excel(IDfilepath, sheet_name="Personnel-Lead")
-    allnums = leads[~leads["Name"].isnull()].copy()   # Dataframe of just the rows with names assigned to IDs
+    # Dataframe of just the rows with names assigned to IDs
+    allnums = leads[~leads["Name"].isnull()].copy()
     allnums = allnums.drop(columns=["Type", "Date"])
     allnums["ID"] = allnums["ID"].apply(str)
     allnums["ID"] = allnums["ID"].str[2:]
     # allnums["ID"] = allnums["ID"].apply(str)        # Pandas doesn't like this. Change it to work as vectorized function
     # allnums["ID"] = allnums["ID"].str[2:]
-    
+
     idlist = list(allnums["ID"])
     shiftlist = list(allnums["Shift"])
-    
+
     # There has to be a more simple way of filtering the IDs into shift lists.
-    daylist =   [int(id) for i,id in enumerate(idlist) if shiftlist[i]=="Day"]
-    swinglist = [int(id) for i,id in enumerate(idlist) if shiftlist[i]=="Swing"]
-    gravelist = [int(id) for i,id in enumerate(idlist) if shiftlist[i]=="Graveyard"]
-    
+    daylist = [int(id) for i, id in enumerate(idlist) if shiftlist[i] == "Day"]
+    swinglist = [int(id)
+                 for i, id in enumerate(idlist) if shiftlist[i] == "Swing"]
+    gravelist = [int(id) for i, id in enumerate(
+        idlist) if shiftlist[i] == "Graveyard"]
+
     return daylist, swinglist, gravelist
 
 
@@ -1028,14 +1050,14 @@ def get_id_assign_date(IDfilepath, idnum):
     allnums["ID"] = allnums["ID"].apply(str)
     allnums["ID"] = allnums["ID"].str[2:]
     allnums["ID"] = allnums["ID"].apply(int)
-    
+
     oprow = allnums.loc[allnums["ID"] == idnum]
     opdate = oprow["Date"].iloc[0]
     opdate = opdate.to_pydatetime()
     opdate = opdate.date()
-    
+
     return opdate
-    
+
 
 def reassign_employee_num(oldnum, newnum):
     """Take an employee name (assumed to be unique in the list of employee names
@@ -1045,12 +1067,14 @@ def reassign_employee_num(oldnum, newnum):
     pass
 
 ##### Convenience methods #####
+
+
 def rewrite_whole_Excel_sheet(df, sheetnames):
     """Convenience function for writing all new data to the whole Excel sheet.
     """
     # Set relevant folders
     IDfilepath = data_assets.ID_data
-    
+
     with pd.ExcelWriter(IDfilepath, engine='xlsxwriter',
                         date_format="yyyy-mm-dd",
                         datetime_format="yyyy-mm-dd") as writer:
@@ -1072,15 +1096,14 @@ def rewrite_whole_Excel_sheet(df, sheetnames):
 if __name__ == '__main__':
     print("id_generator is being run as the main function")
     # allnums = get_all_employee_nums(data_assets.ID_data)
-    
-    
+
     print_all_employee_IDcards()
     print_all_employee_IDcards_PDF()
-    
+
     # idlist = [111]
     # filename = "test_id.pdf"
     # print_list_employee_IDcards_PDF(idlist, filename)
-    
+
     # typestring = "bag"
-    
+
     # get_most_recent_equipment_IDcards_PDF(typestring)
