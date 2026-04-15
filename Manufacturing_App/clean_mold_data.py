@@ -158,25 +158,103 @@ def associate_cycle_stages(df):
 
 # ---------------------------------------------------------------------------
 # Operator presence logic
-# Preserved from count_stages_for_operator in cycle_time_methods_v2.py,
-# but returns structured data instead of parallel lists.
+#
+# This is a faithful port of the two-step process in cycle_time_methods_v2.py:
+#
+# Step 1 -- collect_lead_ids():
+#   Mirrors the leadIDs collection loop in load_operator_data. For each
+#   cycle, finds which operator numbers were active in the window between
+#   the previous cycle and this one, using between() and closest_before()
+#   exactly as the original code does. Same-number re-logs from the PLC
+#   are naturally deduplicated by np.unique at the end.
+#
+# Step 2 -- get_operator_presence():
+#   Mirrors count_stages_for_operator. Takes the leadIDs from step 1 and
+#   determines per-stage presence by reconstructing stage boundaries from
+#   the timing values, then checking each operator's clock-in/clock-out
+#   against those boundaries.
 # ---------------------------------------------------------------------------
 
-def get_operator_presence(df, ind_sets):
-    """
-    For each cycle, determine which lead operator(s) were present and for
-    which stages. Returns a list (one entry per cycle) of lists of dicts:
+def between(l1, low, high):
+    """Values from l1 that are >= low and < high. From cycle_time_methods_v2."""
+    return [i for i in l1 if i >= low and i < high]
 
+
+def list_vals(df_col, idx_list):
+    """Elements of df_col at positions in idx_list. From cycle_time_methods_v2."""
+    col_list = list(df_col)
+    return [col_list[i] for i in idx_list]
+
+
+def collect_lead_ids(df, cycle_inds):
+    """
+    Step 1: For each cycle, collect the list of unique lead operator numbers
+    that were active during that cycle's window. Matches the leadIDs loop in
+    load_operator_data exactly, including the closest_before lookback for
+    operators who were already clocked in at the start of the window.
+
+    Returns leadIDs: a list (one per cycle) of lists of employee numbers.
+    Zero means no one was clocked in.
+    """
+    # Find all row indices where Lead has a non-null value
+    lead_inds = [i for i in range(len(df))
+                 if pd.notna(df["Lead"].iloc[i])]
+
+    if not lead_inds:
+        return [[0.0] for _ in cycle_inds]
+
+    leadIDs = [[] for _ in cycle_inds]
+
+    for i, cyc_ind in enumerate(cycle_inds):
+        if i == 0:
+            low  = 0
+            high = cyc_ind
+            lead_between = between(lead_inds, low, high)
+            leadIDs[i].extend(list_vals(df["Lead"], lead_between))
+        else:
+            # Include the operator who was already clocked in before this
+            # cycle started (closest Lead row at or before previous cycle)
+            prev_cyc_ind = cycle_inds[i - 1]
+            cb = closest_before(prev_cyc_ind, lead_inds)
+            leadIDs[i].append(df["Lead"].iloc[cb])
+
+            low  = prev_cyc_ind
+            high = cyc_ind
+            lead_between = between(lead_inds, low, high)
+            leadIDs[i].extend(list_vals(df["Lead"], lead_between))
+
+        # Deduplicate, preserving zero-only lists as-is
+        IDs = list(np.unique(leadIDs[i]))
+        if len(IDs) == 1 and IDs[0] == 0:
+            pass
+        else:
+            IDs = [id_ for id_ in IDs if id_ != 0]
+        if len(IDs) == 0:
+            IDs = [0.0]
+        leadIDs[i] = IDs
+
+    return leadIDs
+
+
+def get_operator_presence(df, ind_sets, cycle_inds):
+    """
+    Step 2: For each cycle, determine which operators were present for which
+    stages. Matches count_stages_for_operator in cycle_time_methods_v2.py
+    exactly, including the all_IDs_changes_only deduplication that strips
+    PLC re-logs of the same number.
+
+    Returns a list (one per cycle) of lists of dicts:
         [
           [  # cycle 0
-            {"employee_number": 42, "on_layup": True, "on_close": True, "on_resin": True},
-            {"employee_number": 87, "on_layup": False, "on_close": True, "on_resin": True},
+            {"employee_number": 42,
+             "on_layup": True, "on_close": True, "on_resin": True},
           ],
           ...
         ]
-
-    Employee number 0 means no one was clocked in.
     """
+    # Step 1: collect which operators were active per cycle
+    leadIDs = collect_lead_ids(df, cycle_inds)
+
     results = []
 
     for i, ind_set in enumerate(ind_sets):
@@ -190,54 +268,62 @@ def get_operator_presence(df, ind_sets):
         close_dur_sec = 60.0 * df["Close Time"].iloc[close_ind]
         resin_dur_sec = 60.0 * df["Resin Time"].iloc[resin_ind]
 
-        layup_finish = cycle_finish - dt.timedelta(seconds=resin_dur_sec) - dt.timedelta(seconds=close_dur_sec)
+        layup_finish = (cycle_finish
+                        - dt.timedelta(seconds=resin_dur_sec)
+                        - dt.timedelta(seconds=close_dur_sec))
         close_finish = cycle_finish - dt.timedelta(seconds=resin_dur_sec)
         layup_start  = layup_finish - dt.timedelta(seconds=layup_dur_sec)
 
-        # Find the operator row closest to layup_start, then walk back to
-        # find the nearest Lead value (same logic as count_stages_for_operator)
+        # Find the row closest to layup_start, then walk back to the nearest
+        # non-null Lead value -- same logic as count_stages_for_operator
         closest_layup_idx = int((np.abs(df["time"] - layup_start)).idxmin())
         ref_idx = closest_layup_idx
+        closest_before_op = closest_layup_idx
         while ref_idx > -1:
             if pd.notna(df["Lead"].iloc[ref_idx]):
                 closest_before_op = ref_idx
                 break
             ref_idx -= 1
-        else:
-            closest_before_op = closest_layup_idx
 
-        # Collect all [row_index, employee_number] pairs in the cycle window
-        all_ids = [[closest_before_op, df["Lead"].iloc[closest_before_op]]]
+        # Collect all [row_index, employee_number] pairs from layup_start
+        # through the end of the cycle
+        all_IDs = [[closest_before_op,
+                    df["Lead"].iloc[closest_before_op]]]
         for j in range(closest_layup_idx, cycle_ind + 1):
             if pd.notna(df["Lead"].iloc[j]):
-                all_ids.append([j, df["Lead"].iloc[j]])
+                all_IDs.append([j, df["Lead"].iloc[j]])
 
-        # Keep only rows where the ID changes (deduplicate consecutive same IDs)
-        changes_only = [all_ids[0]]
-        for j in range(1, len(all_ids)):
-            if all_ids[j][1] != all_ids[j - 1][1]:
-                changes_only.append(all_ids[j])
+        # Strip consecutive duplicate IDs -- these are PLC re-logs of the
+        # same number and don't represent a clock-in or clock-out event
+        all_IDs_changes_only = [all_IDs[0]]
+        for j in range(1, len(all_IDs)):
+            if all_IDs[j][1] != all_IDs[j - 1][1]:
+                all_IDs_changes_only.append(all_IDs[j])
 
         cycle_presence = []
 
-        if len(changes_only) == 1:
-            # One operator present the whole time
+        if len(all_IDs_changes_only) == 1:
+            # One operator for the whole cycle
             cycle_presence.append({
-                "employee_number": safe_int(changes_only[0][1]),
+                "employee_number": safe_int(all_IDs_changes_only[0][1]),
                 "on_layup": True,
                 "on_close": True,
                 "on_resin": True,
             })
         else:
-            for k, entry in enumerate(changes_only):
+            for k, entry in enumerate(all_IDs_changes_only):
                 op_clock_in  = df.loc[entry[0], "time"]
-                op_clock_out = (df.loc[changes_only[k + 1][0], "time"]
-                                if k < len(changes_only) - 1
-                                else df.loc[cycle_ind, "time"])
+                op_clock_out = (
+                    df.loc[all_IDs_changes_only[k + 1][0], "time"]
+                    if k < len(all_IDs_changes_only) - 1
+                    else df.loc[cycle_ind, "time"]
+                )
 
                 on_layup = op_clock_in < layup_finish
-                on_close = op_clock_in < close_finish and op_clock_out > layup_finish
-                on_resin = op_clock_in < cycle_finish and op_clock_out > close_finish
+                on_close = (op_clock_in  < close_finish
+                            and op_clock_out > layup_finish)
+                on_resin = (op_clock_in  < cycle_finish
+                            and op_clock_out > close_finish)
 
                 cycle_presence.append({
                     "employee_number": safe_int(entry[1]),
@@ -451,7 +537,7 @@ def process_mold(mold_name, conn):
           f"({len(cycle_inds) - n_excluded} reportable).")
 
     print(f"  [{mold_name}] Resolving operator presence for each cycle...")
-    presence_by_cycle = get_operator_presence(df, ind_sets)
+    presence_by_cycle = get_operator_presence(df, ind_sets, cycle_inds)
 
     cycles_written   = 0
     cycles_skipped   = 0
