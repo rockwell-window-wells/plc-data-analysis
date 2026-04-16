@@ -35,7 +35,7 @@ from itertools import groupby
 # Configuration
 # ---------------------------------------------------------------------------
 
-DB_PATH = "manufacturing.db"
+DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
 
 # Saturation thresholds -- must match clean_mold_data.py
 LAYUP_THRESHOLD = 275
@@ -91,6 +91,12 @@ def closest_by_timestamp(input_idx, input_list, df):
             return before
 
 
+def closest_before(input_idx, input_list):
+    arr = np.asarray(input_list)
+    prev = arr[arr <= input_idx]
+    return int(prev.max()) if len(prev) > 0 else int(arr[0])
+
+
 def find_nonzero_notnull_inds(series):
     inds = [i for i in range(len(series))
             if pd.notna(series.iloc[i]) and series.iloc[i] != 0]
@@ -111,11 +117,56 @@ def associate_cycle_stages(df):
     return ind_sets, cycle_inds
 
 
-def get_operator_presence_for_cycle(df, ind_set):
+def between(l1, low, high):
+    return [i for i in l1 if i >= low and i < high]
+
+
+def list_vals(df_col, idx_list):
+    col_list = list(df_col)
+    return [col_list[i] for i in idx_list]
+
+
+def collect_lead_ids(df, cycle_inds):
+    """Step 1: collect which operator numbers were active per cycle window."""
+    lead_inds = [i for i in range(len(df))
+                 if pd.notna(df["Lead"].iloc[i])]
+    if not lead_inds:
+        return [[0.0] for _ in cycle_inds]
+
+    leadIDs = [[] for _ in cycle_inds]
+    for i, cyc_ind in enumerate(cycle_inds):
+        if i == 0:
+            lead_between = between(lead_inds, 0, cyc_ind)
+            leadIDs[i].extend(list_vals(df["Lead"], lead_between))
+        else:
+            prev_cyc_ind = cycle_inds[i - 1]
+            cb = closest_before(prev_cyc_ind, lead_inds)
+            leadIDs[i].append(df["Lead"].iloc[cb])
+            lead_between = between(lead_inds, prev_cyc_ind, cyc_ind)
+            leadIDs[i].extend(list_vals(df["Lead"], lead_between))
+
+        IDs = list(np.unique(leadIDs[i]))
+        if len(IDs) == 1 and IDs[0] == 0:
+            pass
+        else:
+            IDs = [id_ for id_ in IDs if id_ != 0]
+        if len(IDs) == 0:
+            IDs = [0.0]
+        leadIDs[i] = IDs
+
+    return leadIDs
+
+
+def get_operator_presence_for_cycle(df, ind_set, cycle_inds, cycle_position):
     """
-    Run the presence logic for a single cycle. Returns a list of dicts,
-    one per operator detected in that cycle window.
+    Step 2: determine per-stage presence for one specific cycle.
+    cycle_position is the index of this cycle within cycle_inds,
+    needed so collect_lead_ids can establish the correct window.
     """
+    # Run collect_lead_ids for all cycles so window boundaries are correct,
+    # then pick just the entry for our target cycle
+    leadIDs = collect_lead_ids(df, cycle_inds)
+
     layup_ind = ind_set[0]
     close_ind = ind_set[1]
     resin_ind = ind_set[2]
@@ -141,34 +192,37 @@ def get_operator_presence_for_cycle(df, ind_set):
             break
         ref_idx -= 1
 
-    all_ids = [[closest_before_op, df["Lead"].iloc[closest_before_op]]]
+    all_IDs = [[closest_before_op, df["Lead"].iloc[closest_before_op]]]
     for j in range(closest_layup_idx, cycle_ind + 1):
         if pd.notna(df["Lead"].iloc[j]):
-            all_ids.append([j, df["Lead"].iloc[j]])
+            all_IDs.append([j, df["Lead"].iloc[j]])
 
-    changes_only = [all_ids[0]]
-    for j in range(1, len(all_ids)):
-        if all_ids[j][1] != all_ids[j - 1][1]:
-            changes_only.append(all_ids[j])
+    # Strip PLC re-logs (consecutive identical IDs)
+    all_IDs_changes_only = [all_IDs[0]]
+    for j in range(1, len(all_IDs)):
+        if all_IDs[j][1] != all_IDs[j - 1][1]:
+            all_IDs_changes_only.append(all_IDs[j])
 
     cycle_presence = []
-    if len(changes_only) == 1:
+    if len(all_IDs_changes_only) == 1:
         cycle_presence.append({
-            "employee_number": safe_int(changes_only[0][1]),
+            "employee_number": safe_int(all_IDs_changes_only[0][1]),
             "on_layup": True,
             "on_close": True,
             "on_resin": True,
         })
     else:
-        for k, entry in enumerate(changes_only):
+        for k, entry in enumerate(all_IDs_changes_only):
             op_clock_in  = df.loc[entry[0], "time"]
-            op_clock_out = (df.loc[changes_only[k + 1][0], "time"]
-                            if k < len(changes_only) - 1
-                            else df.loc[cycle_ind, "time"])
+            op_clock_out = (
+                df.loc[all_IDs_changes_only[k + 1][0], "time"]
+                if k < len(all_IDs_changes_only) - 1
+                else df.loc[cycle_ind, "time"]
+            )
             on_layup = op_clock_in < layup_finish
-            on_close = (op_clock_in < close_finish
+            on_close = (op_clock_in  < close_finish
                         and op_clock_out > layup_finish)
-            on_resin = (op_clock_in < cycle_finish
+            on_resin = (op_clock_in  < cycle_finish
                         and op_clock_out > close_finish)
             cycle_presence.append({
                 "employee_number": safe_int(entry[1]),
@@ -210,6 +264,12 @@ def load_raw_window_for_cycle(conn, mold_name, cycle_timestamp, window_hours=12)
         WHERE mold_name = ?
           AND record_timestamp >= ?
           AND record_timestamp <= ?
+          AND (
+              layup_time IS NOT NULL OR close_time IS NOT NULL OR
+              resin_time IS NOT NULL OR cycle_time IS NOT NULL OR
+              lead IS NOT NULL OR assistant_1 IS NOT NULL OR
+              assistant_2 IS NOT NULL OR assistant_3 IS NOT NULL
+          )
         ORDER BY record_timestamp ASC
     """, conn, params=(mold_name, ts_start, ts_end))
 
@@ -220,23 +280,23 @@ def load_raw_window_for_cycle(conn, mold_name, cycle_timestamp, window_hours=12)
 def find_ind_set_for_cycle(df, target_timestamp):
     """
     Given a DataFrame window and a target cycle timestamp, find the
-    ind_set (layup/close/resin/cycle indices) that corresponds to that
-    specific cycle. Returns None if not found.
+    ind_set and its position within cycle_inds. Returns (ind_set,
+    cycle_inds, position) or (None, None, None) if not found.
     """
     ind_sets, cycle_inds = associate_cycle_stages(df)
 
     target_ts = pd.Timestamp(target_timestamp)
     for i, cycle_idx in enumerate(cycle_inds):
         if df["time"].iloc[cycle_idx] == target_ts:
-            return ind_sets[i]
+            return ind_sets[i], cycle_inds, i
 
     # Fallback: find the closest cycle within 60 seconds
     for i, cycle_idx in enumerate(cycle_inds):
         diff = abs((df["time"].iloc[cycle_idx] - target_ts).total_seconds())
         if diff <= 60:
-            return ind_sets[i]
+            return ind_sets[i], cycle_inds, i
 
-    return None
+    return None, None, None
 
 
 def presence_row_exists(cursor, cycle_id, operator_id):
@@ -281,23 +341,31 @@ def backfill_operator(employee_number: int, db_path: str = DB_PATH,
     if dry_run:
         print("\n[DRY RUN] No changes will be written.\n")
 
-    # Find all cycles that came from raw rows where this employee number
-    # appeared as Lead, but have no presence row for this operator yet.
-    # We join through source_raw_id to get the cycle and mold context.
+    # Find all cycles where this employee number appears as Lead in the
+    # raw data within a window around the cycle timestamp, but has no
+    # presence row yet.
+    #
+    # We cannot simply check the single raw row that source_raw_id points
+    # to, because source_raw_id points to the row where the Cycle Time
+    # was logged -- the Lead ID for that cycle is typically on a different
+    # nearby row. Instead, we look for any raw row where this employee
+    # number appears as Lead within a 12-hour window before each cycle.
     print(f"\nSearching for cycles with employee {employee_number} "
           f"in raw data but missing presence rows...")
 
     candidates = pd.read_sql("""
-        SELECT
+        SELECT DISTINCT
             c.id            AS cycle_id,
             c.mold_name,
             c.cycle_timestamp,
             c.source_raw_id AS raw_id
         FROM cycles c
-        WHERE c.source_raw_id IN (
-            SELECT id FROM raw_mold_data
-            WHERE lead = ?
-              AND processed_at IS NOT NULL
+        WHERE EXISTS (
+            SELECT 1 FROM raw_mold_data r
+            WHERE r.mold_name = c.mold_name
+              AND r.lead = ?
+              AND r.record_timestamp <= c.cycle_timestamp
+              AND r.record_timestamp >= datetime(c.cycle_timestamp, '-12 hours')
         )
         ORDER BY c.cycle_timestamp ASC
     """, conn, params=(float(employee_number),))
@@ -345,7 +413,9 @@ def backfill_operator(employee_number: int, db_path: str = DB_PATH,
             df_window = load_raw_window_for_cycle(
                 conn, mold_name, cycle_timestamp
             )
-            ind_set = find_ind_set_for_cycle(df_window, cycle_timestamp)
+            ind_set, cycle_inds_window, cycle_pos = find_ind_set_for_cycle(
+                df_window, cycle_timestamp
+            )
 
             if ind_set is None:
                 print(f"  SKIP {cycle_timestamp} ({mold_name}): "
@@ -354,7 +424,7 @@ def backfill_operator(employee_number: int, db_path: str = DB_PATH,
                 continue
 
             presence_list = get_operator_presence_for_cycle(
-                df_window, ind_set
+                df_window, ind_set, cycle_inds_window, cycle_pos
             )
 
             # Find this employee's entry in the presence list
@@ -385,10 +455,10 @@ def backfill_operator(employee_number: int, db_path: str = DB_PATH,
                       f"full={on_full}")
             else:
                 cursor.execute("""
-                    INSERT INTO cycle_operator_presence (
-                        cycle_id, operator_id, role,
+                    INSERT OR IGNORE INTO cycle_operator_presence (
+                        cycle_id, operator_id,
                         on_layup, on_close, on_resin, on_full_cycle
-                    ) VALUES (?, ?, 'lead', ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?)
                 """, (cycle_id, operator_id,
                       int(op_entry["on_layup"]),
                       int(op_entry["on_close"]),

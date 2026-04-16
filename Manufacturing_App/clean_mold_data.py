@@ -344,25 +344,45 @@ def get_operator_presence(df, ind_sets, cycle_inds):
 
 def load_raw_from_db(conn, mold_name):
     """
-    Load all unprocessed raw rows for one mold into a DataFrame formatted
-    the same way as load_raw_data_single_mold returned -- so the existing
-    alignment logic works without modification.
+    Load unprocessed raw rows for one mold, pre-filtered to only rows that
+    are relevant to the cleaning pipeline.
+
+    Because the database is populated from all_tags (every tag the PLC
+    logs), most rows contain only bag counts, leak counts, or other data
+    the cleaning pipeline doesn't use. Loading all rows would make the
+    operator association logic work through a much noisier dataset for no
+    benefit. The WHERE clause here replicates what using operator_tags
+    would have achieved, but from the unified all_tags archive.
+
+    Rows are included if any of the eight cleaning-relevant columns is
+    non-null. All-null rows (e.g. pure bag count rows) are excluded
+    entirely, making drop_all_nan_rows unnecessary.
     """
     df = pd.read_sql("""
         SELECT
-            id              AS raw_id,
+            id               AS raw_id,
             record_timestamp AS time,
-            layup_time      AS "Layup Time",
-            close_time      AS "Close Time",
-            resin_time      AS "Resin Time",
-            cycle_time      AS "Cycle Time",
-            lead            AS "Lead",
-            assistant_1     AS "Assistant 1",
-            assistant_2     AS "Assistant 2",
-            assistant_3     AS "Assistant 3"
+            layup_time       AS "Layup Time",
+            close_time       AS "Close Time",
+            resin_time       AS "Resin Time",
+            cycle_time       AS "Cycle Time",
+            lead             AS "Lead",
+            assistant_1      AS "Assistant 1",
+            assistant_2      AS "Assistant 2",
+            assistant_3      AS "Assistant 3"
         FROM raw_mold_data
         WHERE mold_name = ?
           AND processed_at IS NULL
+          AND (
+              layup_time  IS NOT NULL OR
+              close_time  IS NOT NULL OR
+              resin_time  IS NOT NULL OR
+              cycle_time  IS NOT NULL OR
+              lead        IS NOT NULL OR
+              assistant_1 IS NOT NULL OR
+              assistant_2 IS NOT NULL OR
+              assistant_3 IS NOT NULL
+          )
         ORDER BY record_timestamp ASC
     """, conn, params=(mold_name,))
 
@@ -371,22 +391,6 @@ def load_raw_from_db(conn, mold_name):
 
     df["time"] = pd.to_datetime(df["time"])
     return df
-
-
-# ---------------------------------------------------------------------------
-# Row cleaning
-# Mirrors the nan-filtering in load_operator_data
-# ---------------------------------------------------------------------------
-
-def drop_all_nan_rows(df):
-    """
-    Drop rows where every data column is NaN -- these are the empty rows
-    from the PLC that your existing code filters out with the nested if-chain.
-    """
-    data_cols = ["Layup Time", "Close Time", "Resin Time", "Cycle Time",
-                 "Lead", "Assistant 1", "Assistant 2", "Assistant 3"]
-    mask = df[data_cols].isnull().all(axis=1)
-    return df[~mask].reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------
@@ -476,26 +480,37 @@ def process_mold(mold_name, conn):
     cursor = conn.cursor()
 
     print(f"\n  [{mold_name}] Loading unprocessed rows from database...")
-    df_raw = load_raw_from_db(conn, mold_name)
-    if df_raw.empty:
+
+    # Collect ALL unprocessed row IDs before any filtering.
+    # This includes bag count, leak count, and other rows that the
+    # pre-filter in load_raw_from_db will exclude from the DataFrame.
+    # mark_raw_processed uses this full list so those rows get stamped
+    # and don't re-appear on every subsequent run.
+    cursor.execute("""
+        SELECT id FROM raw_mold_data
+        WHERE mold_name = ? AND processed_at IS NULL
+    """, (mold_name,))
+    all_raw_ids = [row[0] for row in cursor.fetchall()]
+
+    if not all_raw_ids:
         print(f"  [{mold_name}] No unprocessed rows -- skipping.")
         return 0, 0
 
-    raw_ids = list(df_raw["raw_id"])
-    print(f"  [{mold_name}] {len(raw_ids)} raw rows to process.")
+    # Load only the cleaning-relevant rows (stage times + operator columns)
+    df_raw = load_raw_from_db(conn, mold_name)
+    print(f"  [{mold_name}] {len(all_raw_ids)} total unprocessed rows, "
+          f"{len(df_raw)} relevant to cleaning pipeline.")
 
-    print(f"  [{mold_name}] Filtering empty rows...")
-    df = drop_all_nan_rows(df_raw)
-    dropped = len(raw_ids) - len(df)
-    print(f"  [{mold_name}] {dropped} all-empty rows dropped, {len(df)} rows remaining.")
-
-    if df.empty:
-        mark_raw_processed(cursor, raw_ids)
+    if df_raw.empty:
+        mark_raw_processed(cursor, all_raw_ids)
         conn.commit()
-        print(f"  [{mold_name}] Nothing left after filtering -- marked as processed.")
+        print(f"  [{mold_name}] No cleaning-relevant rows -- marked as processed.")
         return 0, 0
 
-    df = df.sort_values("time").reset_index(drop=True)
+    raw_ids = list(df_raw["raw_id"])
+    print(f"  [{mold_name}] {len(raw_ids)} relevant rows to process.")
+
+    df = df_raw.sort_values("time").reset_index(drop=True)
     date_min = df["time"].iloc[0].strftime("%Y-%m-%d")
     date_max = df["time"].iloc[-1].strftime("%Y-%m-%d")
     print(f"  [{mold_name}] Data spans {date_min} to {date_max}.")
@@ -508,7 +523,7 @@ def process_mold(mold_name, conn):
         return 0, 0
 
     if not cycle_inds:
-        mark_raw_processed(cursor, raw_ids)
+        mark_raw_processed(cursor, all_raw_ids)
         conn.commit()
         print(f"  [{mold_name}] No complete cycles found -- marked as processed.")
         return 0, 0
@@ -588,27 +603,51 @@ def process_mold(mold_name, conn):
                 continue
             cycles_written += 1
 
+            # Merge presence entries by operator before inserting.
+            # The same operator can appear multiple times in presence_by_cycle[i]
+            # if they clocked in and out during the cycle window. We take the
+            # logical OR across all their entries so a single row per
+            # (cycle_id, operator_id) pair is inserted with the union of
+            # whichever stages they were present for.
+            merged = {}
+            
+            # # FIXME
+            # # TEMPORARY DIAGNOSTIC -- remove after debugging
+            # if any(emp != 0 and emp != 1 for emp in merged.keys()):
+            #     print(f"  [{mold_name}] Cycle {i} ({datetimes[i].date()}) "
+            #           f"merged presence: {merged}")
+            # # FIXME
+            
             for op in presence_by_cycle[i]:
                 emp_num = op["employee_number"]
-
                 if emp_num in (0, 1):
                     continue
+                if emp_num not in merged:
+                    merged[emp_num] = {
+                        "on_layup": False,
+                        "on_close": False,
+                        "on_resin": False,
+                    }
+                merged[emp_num]["on_layup"] = merged[emp_num]["on_layup"] or op["on_layup"]
+                merged[emp_num]["on_close"] = merged[emp_num]["on_close"] or op["on_close"]
+                merged[emp_num]["on_resin"] = merged[emp_num]["on_resin"] or op["on_resin"]
 
+            for emp_num, stages in merged.items():
                 operator_id = resolve_operator_id(cursor, emp_num, cycle_date)
                 if operator_id is None:
                     unresolved_ops += 1
                     unresolved_set.add(emp_num)
                     continue
 
-                on_full = op["on_layup"] and op["on_close"] and op["on_resin"]
+                on_full = stages["on_layup"] and stages["on_close"] and stages["on_resin"]
                 insert_presence(
                     cursor,
-                    cycle_id    = cycle_db_id,
-                    operator_id = operator_id,
-                    on_layup    = op["on_layup"],
-                    on_close    = op["on_close"],
-                    on_resin    = op["on_resin"],
-                    on_full_cycle = on_full
+                    cycle_id      = cycle_db_id,
+                    operator_id   = operator_id,
+                    on_layup      = stages["on_layup"],
+                    on_close      = stages["on_close"],
+                    on_resin      = stages["on_resin"],
+                    on_full_cycle = on_full,
                 )
                 presence_written += 1
 
@@ -627,7 +666,7 @@ def process_mold(mold_name, conn):
             print(f"  [{mold_name}]   Skipping this cycle and continuing...")
 
     print(f"  [{mold_name}] Writing changes to database...")
-    mark_raw_processed(cursor, raw_ids)
+    mark_raw_processed(cursor, all_raw_ids)
     conn.commit()
 
     print(f"  [{mold_name}] Done.")
