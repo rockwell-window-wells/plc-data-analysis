@@ -489,7 +489,7 @@ if __name__ == "__main__":
 
         df = get_operator_cycle_times(conn, emp_num)
         # df = get_operator_cycle_times(conn, emp_num)
-        fig = plot_all_operators_boxplot(df)
+        fig = plot_all_operators_boxplot(conn)
         # fig = plot_operator_boxplot(df, employee_number=emp_num)
         fig.savefig("demo_operator_boxplot.png", dpi=200)
         print("Saved: demo_operator_boxplot.png")

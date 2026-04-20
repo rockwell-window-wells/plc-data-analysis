@@ -1,0 +1,256 @@
+/* assets/style.css
+   All class names confirmed by browser inspection of the running Dash 4 app.
+*/
+
+body {
+    margin: 0;
+    font-family: Inter, sans-serif;
+    background-color: #f1f5f9;
+}
+
+/* ── Dropdown outer wrapper ── */
+.dash-dropdown {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    color: #1e293b !important;
+}
+
+/* The trigger row (selected value + arrow) */
+.dash-dropdown-grid-container {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    border-radius: 6px !important;
+    min-height: 36px !important;
+    padding: 4px 8px !important;
+    align-items: center !important;
+}
+
+/* Placeholder text */
+.dash-dropdown-placeholder {
+    color: #94a3b8 !important;
+    font-size: 13px !important;
+}
+
+/* Selected single value */
+.dash-dropdown-value {
+    color: #1e293b !important;
+    font-size: 13px !important;
+}
+
+/* Arrow */
+.dash-dropdown-trigger-icon {
+    color: #64748b !important;
+}
+
+/* ── Option list container (confirmed: dash-options-list-option) ── */
+/* The outer list wrapper -- inspect parent of label for exact class */
+ul[class*="dash-options"],
+div[class*="dash-options"],
+.dash-dropdown-options-container,
+.dash-dropdown-menu {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+    z-index: 9999 !important;
+}
+
+/* Each option row (confirmed class names) */
+.dash-options-list-option,
+.dash-dropdown-option {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    font-size: 13px !important;
+    cursor: pointer !important;
+}
+
+.dash-options-list-option:hover {
+    background-color: #eff6ff !important;
+    color: #1e293b !important;
+}
+
+.dash-options-list-option[aria-selected="true"] {
+    background-color: #dbeafe !important;
+    color: #1e40af !important;
+}
+
+/* Option text span */
+.dash-options-list-option-text {
+    color: inherit !important;
+}
+
+/* Option wrapper (contains checkbox) */
+.dash-options-list-option-wrapper {
+    display: flex !important;
+    align-items: center !important;
+}
+
+/* Checkbox inside multi-select options */
+.dash-options-list-option-checkbox {
+    accent-color: #2563eb !important;
+    margin-right: 6px !important;
+}
+
+/* ── Multi-select selected tags ── */
+.dash-dropdown-tag {
+    background-color: #dbeafe !important;
+    border: 1px solid #93c5fd !important;
+    border-radius: 4px !important;
+    color: #1e40af !important;
+    font-size: 12px !important;
+    padding: 2px 6px !important;
+    margin: 2px !important;
+}
+
+.dash-dropdown-tag-value {
+    color: #1e40af !important;
+}
+
+.dash-dropdown-tag-remove {
+    color: #1e40af !important;
+}
+
+.dash-dropdown-tag-remove:hover {
+    background-color: #bfdbfe !important;
+}
+
+/* ── Date picker ── */
+.DateInput_input {
+    font-family: Inter, sans-serif !important;
+    font-size: 13px !important;
+    color: #1e293b !important;
+    background-color: #ffffff !important;
+    border-bottom: 2px solid #cbd5e1 !important;
+}
+
+.DateInput_input__focused {
+    border-bottom: 2px solid #2563eb !important;
+}
+
+.SingleDatePickerInput {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+}
+
+/* ── Checklist ── */
+.dash-checklist label {
+    color: #334155 !important;
+    font-size: 13px !important;
+}
+
+/* ── Date picker calendar (confirmed class names) ── */
+.dash-datepicker-calendar-wrapper {
+    background-color: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+    color: #1e293b !important;
+}
+
+.dash-datepicker-controls {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    padding: 8px !important;
+}
+
+.dash-datepicker-month-nav {
+    background: none !important;
+    border: none !important;
+    color: #475569 !important;
+    cursor: pointer !important;
+}
+
+.dash-datepicker-month-nav:hover {
+    color: #2563eb !important;
+}
+
+.dash-datepicker-month-sizer,
+.dash-datepicker-month-label {
+    color: #1e293b !important;
+    font-weight: 600 !important;
+}
+
+.dash-datepicker-calendar {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+}
+
+.dash-datepicker-calendar thead th {
+    color: #64748b !important;
+    font-size: 12px !important;
+}
+
+.dash-datepicker-calendar-date-inside {
+    color: #1e293b !important;
+    background-color: #ffffff !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+}
+
+.dash-datepicker-calendar-date-inside:hover {
+    background-color: #eff6ff !important;
+    color: #2563eb !important;
+}
+
+.dash-datepicker-calendar-date-highlighted {
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+    border-radius: 4px !important;
+}
+
+.dash-datepicker-calendar-date-outside {
+    color: #cbd5e1 !important;
+}
+
+.dash-datepicker-calendar-padding {
+    background-color: #ffffff !important;
+}
+
+/* Year input */
+.dash-input-element {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 4px !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 13px !important;
+    padding: 4px 6px !important;
+    width: 60px !important;
+}
+
+.dash-input-stepper {
+    background: none !important;
+    border: none !important;
+    color: #64748b !important;
+    cursor: pointer !important;
+}
+
+/* ── Date picker input trigger (confirmed class names) ── */
+.dash-datepicker-input-wrapper {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    padding: 6px 10px !important;
+    display: flex !important;
+    align-items: center !important;
+    cursor: pointer !important;
+}
+
+.dash-datepicker-input {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    border: none !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 13px !important;
+    outline: none !important;
+}
+
+.dash-datepicker-input::placeholder {
+    color: #94a3b8 !important;
+}
+
+.dash-datepicker-caret-icon {
+    color: #64748b !important;
+}
