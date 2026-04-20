@@ -26,3 +26,7 @@ ID_Tracking/IDApp_v2/venv/
 ID_Tracking/IDApp_v2/build
 *.db
 *.spydata
+*.yaml
+*.db
+Manufacturing_App/.claude/
+Manufacturing_App/venv/
