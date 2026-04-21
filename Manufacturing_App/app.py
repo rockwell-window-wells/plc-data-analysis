@@ -34,6 +34,7 @@ from analytics import (
     get_shift_cycle_times, get_all_cycles, get_operators_by_shift,
 )
 import operators_page
+import cycle_analysis_page
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -104,7 +105,7 @@ def build_plotly_boxplot(frames, baseline_count=0):
         is_baseline = i < len(baselines)
         if is_baseline:
             color   = "#94a3b8"
-            opacity = 0.7
+            opacity = 0.4
         else:
             color   = palette[(i - len(baselines)) % len(palette)]
             opacity = 0.85
@@ -113,27 +114,11 @@ def build_plotly_boxplot(frames, baseline_count=0):
             y=df["cycle_time"],
             name=df["name"].iloc[0],
             boxpoints="outliers",
-        
-            # Points
             marker=dict(color=color, size=5, opacity=opacity),
-        
-            # Darker line for contrast (median + quartiles use this)
-            line=dict(color="#1e293b", width=2),
-        
-            # Transparent fill so lines show through
+            line=dict(color=color, width=1.5),
             fillcolor=color,
-            # opacity=0.35 if not is_baseline else 0.25,
-            opacity=opacity
+            opacity=opacity,
         ))
-        # fig.add_trace(go.Box(
-        #     y=df["cycle_time"],
-        #     name=df["name"].iloc[0],
-        #     boxpoints="outliers",
-        #     marker=dict(color=color, size=5, opacity=opacity),
-        #     line=dict(color=color, width=1.5),
-        #     fillcolor=color,
-        #     opacity=opacity,
-        # ))
 
     fig.update_layout(
         title=dict(
@@ -470,7 +455,7 @@ def reports_layout():
                     "color": "#94a3b8", "letterSpacing": "0.15em",
                     "fontFamily": "Inter, sans-serif",
                 }),
-                html.H1("Cycle Time Reports", style={
+                html.H1("Operator Performance", style={
                     "margin": "2px 0 0 0", "fontSize": "20px",
                     "fontWeight": "500", "color": "#f8fafc",
                     "fontFamily": "Inter, sans-serif",
@@ -481,6 +466,10 @@ def reports_layout():
                     "fontSize": "12px", "color": "#94a3b8",
                     "fontFamily": "Inter, sans-serif",
                 }),
+                dcc.Link("Cycle Analysis →", href="/cycle-analysis",
+                         style={"color": "#94a3b8", "fontSize": "13px",
+                                "fontFamily": "Inter, sans-serif",
+                                "textDecoration": "none"}),
                 dcc.Link("Operator Management →", href="/operators",
                          style={"color": "#94a3b8", "fontSize": "13px",
                                 "fontFamily": "Inter, sans-serif",
@@ -710,11 +699,14 @@ app.layout = html.Div([
 def display_page(pathname):
     if pathname == "/operators":
         return operators_page.layout()
+    if pathname == "/cycle-analysis":
+        return cycle_analysis_page.layout()
     return reports_layout()
 
 
-# Register operators page callbacks
+# Register page callbacks
 operators_page.register_callbacks(app)
+cycle_analysis_page.register_callbacks(app)
 
 
 # ---------------------------------------------------------------------------

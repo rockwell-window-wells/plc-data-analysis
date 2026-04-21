@@ -124,7 +124,7 @@ def get_shift_cycle_times(
     """, conn, params=params)
 
     if not df.empty:
-        df["cycle_timestamp"] = pd.to_datetime(df["cycle_timestamp"])
+        df["cycle_timestamp"] = pd.to_datetime(df["cycle_timestamp"], format="ISO8601")
         # Label as the shift name so it shows as one trace
         df["name"] = f"{shift} Shift"
 
@@ -191,7 +191,7 @@ def get_all_cycles(
     """, conn, params=params)
 
     if not df.empty:
-        df["cycle_timestamp"] = pd.to_datetime(df["cycle_timestamp"])
+        df["cycle_timestamp"] = pd.to_datetime(df["cycle_timestamp"], format="ISO8601")
         df["name"] = "All Shifts"
 
     return df
@@ -215,6 +215,127 @@ def get_operators_by_shift(conn: sqlite3.Connection) -> dict:
             result[shift] = []
         result[shift].append({"employee_number": emp_num, "name": name})
     return result
+
+
+def get_cycles_for_explorer(
+    conn: sqlite3.Connection,
+    mold_name: str = None,
+    date_start: str = None,
+    date_end: str = None,
+    employee_numbers: list = None,
+    exclude_flagged: bool = True,
+) -> pd.DataFrame:
+    """
+    Return cycle data for the Cycle Analysis explorer page.
+
+    Fetches every cycle matching the filters and computes derived columns
+    needed for the x/y/color axes:
+        hour_of_day   -- 0-23, for time-of-day analysis
+        day_of_week   -- 0=Monday ... 6=Sunday
+        day_name      -- 'Monday' ... 'Sunday'
+        operator_name -- name of the operator (or 'Unknown' if none matched)
+        shift         -- operator's shift at cycle time
+
+    Unlike get_operator_cycle_times, this is not filtered to operators
+    present for the full cycle -- it returns all cycles that match the
+    date/mold/operator filters, with operator info attached where available.
+
+    Parameters
+    ----------
+    employee_numbers : list of int, optional
+        If provided, only cycles where at least one of these operators
+        was present (on_full_cycle=1) are returned. If None, all cycles
+        are returned regardless of operator.
+    """
+    where_clauses = []
+    params        = []
+
+    if mold_name:
+        where_clauses.append("c.mold_name = ?")
+        params.append(mold_name)
+    if date_start:
+        where_clauses.append("c.cycle_timestamp >= ?")
+        params.append(date_start)
+    if date_end:
+        end_dt = (dt.date.fromisoformat(date_end)
+                  + dt.timedelta(days=1)).isoformat()
+        where_clauses.append("c.cycle_timestamp < ?")
+        params.append(end_dt)
+    if exclude_flagged:
+        where_clauses.append("c.exclusion_reason IS NULL")
+    if employee_numbers:
+        placeholders = ",".join("?" * len(employee_numbers))
+        where_clauses.append(f"""
+            EXISTS (
+                SELECT 1 FROM cycle_operator_presence p2
+                JOIN operators o2 ON o2.id = p2.operator_id
+                WHERE p2.cycle_id = c.id
+                  AND p2.on_full_cycle = 1
+                  AND o2.employee_number IN ({placeholders})
+            )
+        """)
+        params.extend(employee_numbers)
+
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+    df = pd.read_sql(f"""
+        SELECT
+            c.id              AS cycle_id,
+            c.mold_name,
+            c.cycle_timestamp,
+            c.cycle_time,
+            c.layup_time,
+            c.close_time,
+            c.resin_time,
+            c.bag_number,
+            c.bag_cycles_raw  AS bag_cycles,
+            c.bag_days_raw    AS bag_days,
+            c.exclusion_reason
+        FROM cycles c
+        {where_sql}
+        ORDER BY c.cycle_timestamp ASC
+    """, conn, params=params)
+
+    if df.empty:
+        return df
+
+    df["cycle_timestamp"] = pd.to_datetime(df["cycle_timestamp"], format="ISO8601")
+    df["hour_of_day"]     = df["cycle_timestamp"].dt.hour
+    df["day_of_week"]     = df["cycle_timestamp"].dt.dayofweek
+    df["day_name"]        = df["cycle_timestamp"].dt.day_name()
+
+    # Attach the operator name and shift for each cycle.
+    # A cycle may have multiple operators; we pick the one with on_full_cycle=1.
+    # If there are multiple full-cycle operators, we take the one with the
+    # lowest employee_number (arbitrary but consistent).
+    op_df = pd.read_sql("""
+        SELECT
+            p.cycle_id,
+            o.name        AS operator_name,
+            o.shift,
+            o.employee_number
+        FROM cycle_operator_presence p
+        JOIN operators o ON o.id = p.operator_id
+        WHERE p.on_full_cycle = 1
+        ORDER BY p.cycle_id, o.employee_number
+    """, conn)
+
+    if not op_df.empty:
+        # Keep only the first full-cycle operator per cycle
+        op_df = op_df.drop_duplicates(subset="cycle_id", keep="first")
+        df = df.merge(
+            op_df[["cycle_id", "operator_name", "shift"]],
+            on="cycle_id",
+            how="left",
+        )
+    else:
+        df["operator_name"] = "Unknown"
+        df["shift"]         = "Unknown"
+
+    df["operator_name"] = df["operator_name"].fillna("Unknown")
+    df["shift"]         = df["shift"].fillna("Unknown")
+
+    return df
 
 
 def get_operator_cycle_times(
@@ -302,7 +423,7 @@ def get_operator_cycle_times(
     """, conn, params=params)
 
     if not df.empty:
-        df["cycle_timestamp"] = pd.to_datetime(df["cycle_timestamp"])
+        df["cycle_timestamp"] = pd.to_datetime(df["cycle_timestamp"], format="ISO8601")
 
     return df
 
@@ -431,7 +552,7 @@ def get_mold_cycle_times(
     """, conn, params=params)
 
     if not df.empty:
-        df["cycle_timestamp"] = pd.to_datetime(df["cycle_timestamp"])
+        df["cycle_timestamp"] = pd.to_datetime(df["cycle_timestamp"], format="ISO8601")
 
     return df
 
