@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 analytics.py
 
@@ -35,9 +34,17 @@ DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufa
 # Database connection helper
 # ---------------------------------------------------------------------------
 
-def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
-    """Open a read-only connection to the database."""
-    conn = sqlite3.connect(db_path)
+def get_connection(db_path: str = DB_PATH, read_only: bool = True) -> sqlite3.Connection:
+    """
+    Open a connection to the database.
+    read_only=True (default): safe for Dash app callbacks that only query.
+    read_only=False: required for any callback that writes (add/retire operator).
+    """
+    if read_only:
+        uri  = "file:///" + db_path.replace("\\", "/") + "?mode=ro"
+        conn = sqlite3.connect(uri, uri=True)
+    else:
+        conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -488,13 +495,10 @@ if __name__ == "__main__":
         print(f"Generating boxplot for employee {emp_num} ({top['name']})...")
 
         df = get_operator_cycle_times(conn, emp_num)
-        # df = get_operator_cycle_times(conn, emp_num)
-        fig = plot_all_operators_boxplot(conn)
-        # fig = plot_operator_boxplot(df, employee_number=emp_num)
+        fig = plot_operator_boxplot(df, employee_number=emp_num)
         fig.savefig("demo_operator_boxplot.png", dpi=200)
         print("Saved: demo_operator_boxplot.png")
     else:
         print("No operator data found. Make sure clean_mold_data.py has run.")
 
     conn.close()
-

@@ -30,6 +30,7 @@ from dash import dcc, html, dash_table, Input, Output, State
 import dash_bootstrap_components as dbc
 
 from analytics import get_connection, get_operator_cycle_times
+import operators_page
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -142,7 +143,7 @@ def build_stats_rows(frames):
 
 
 def generate_pdf_bytes(frames, date_start, date_end, mold_filter):
-    from fpdf import FPDF
+    from fpdf import FPDF, XPos, YPos
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -185,14 +186,17 @@ def generate_pdf_bytes(frames, date_start, date_end, mold_filter):
     pdf.add_page()
     pdf.set_font("Helvetica", "B", 18)
     pdf.set_text_color(30, 41, 59)
-    pdf.cell(0, 10, "Cycle Time Report", ln=True)
+    pdf.cell(0, 10, "Cycle Time Report",
+             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(100, 116, 139)
     pdf.cell(0, 6,
              f"Date range: {date_start or 'All time'} to {date_end or 'present'}"
-             f"   |   Mold: {mold_filter or 'All molds'}", ln=True)
+             f"   |   Mold: {mold_filter or 'All molds'}",
+             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.cell(0, 6,
-             f"Generated: {dt.datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True)
+             f"Generated: {dt.datetime.now().strftime('%Y-%m-%d %H:%M')}",
+             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.ln(4)
     pdf.image(tmp.name, x=10, w=190)
     os.unlink(tmp.name)
@@ -202,7 +206,8 @@ def generate_pdf_bytes(frames, date_start, date_end, mold_filter):
     if rows:
         pdf.set_font("Helvetica", "B", 12)
         pdf.set_text_color(30, 41, 59)
-        pdf.cell(0, 8, "Summary Statistics", ln=True)
+        pdf.cell(0, 8, "Summary Statistics",
+                 new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         cols   = ["Operator", "Cycles", "Median", "Mean", "Std Dev", "Min", "Max"]
         widths = [52, 20, 26, 26, 26, 20, 20]
         pdf.set_font("Helvetica", "B", 9)
@@ -234,6 +239,7 @@ app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
     title="Cycle Time Reports",
+    suppress_callback_exceptions=True,
 )
 
 # Default dates
@@ -407,7 +413,9 @@ app.index_string = """<!DOCTYPE html>
 </body>
 </html>"""
 
-app.layout = html.Div(
+
+def reports_layout():
+    return html.Div(
     style={"backgroundColor": "#f1f5f9", "minHeight": "100vh"},
     children=[
 
@@ -431,10 +439,16 @@ app.layout = html.Div(
                     "fontFamily": "Inter, sans-serif",
                 }),
             ]),
-            html.Div(id="last-updated", style={
-                "fontSize": "12px", "color": "#94a3b8",
-                "fontFamily": "Inter, sans-serif",
-            }),
+            html.Div(style={"display": "flex", "alignItems": "center", "gap": "20px"}, children=[
+                html.Div(id="last-updated", style={
+                    "fontSize": "12px", "color": "#94a3b8",
+                    "fontFamily": "Inter, sans-serif",
+                }),
+                dcc.Link("Operator Management →", href="/operators",
+                         style={"color": "#94a3b8", "fontSize": "13px",
+                                "fontFamily": "Inter, sans-serif",
+                                "textDecoration": "none"}),
+            ]),
         ]),
 
         # Body
@@ -596,6 +610,30 @@ app.layout = html.Div(
         ]),
     ],
 )
+
+
+# ---------------------------------------------------------------------------
+# Top-level routing layout
+# ---------------------------------------------------------------------------
+
+app.layout = html.Div([
+    dcc.Location(id="url", refresh=False),
+    html.Div(id="page-content"),
+])
+
+
+@app.callback(
+    Output("page-content", "children"),
+    Input("url", "pathname"),
+)
+def display_page(pathname):
+    if pathname == "/operators":
+        return operators_page.layout()
+    return reports_layout()
+
+
+# Register operators page callbacks
+operators_page.register_callbacks(app)
 
 
 # ---------------------------------------------------------------------------
