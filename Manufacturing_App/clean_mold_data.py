@@ -436,20 +436,23 @@ def get_exclusion_reason(is_first_monday, layup_sat, close_sat, resin_sat):
 
 def insert_cycle(cursor, mold_name, raw_id, cycle_timestamp, layup_time,
                  close_time, resin_time, cycle_time, weekday, is_first_monday,
-                 layup_sat, close_sat, resin_sat, exclusion_reason):
+                 layup_sat, close_sat, resin_sat, exclusion_reason,
+                 bag_number, bag_cycles_raw, bag_days_raw):
     cursor.execute("""
         INSERT OR IGNORE INTO cycles (
             source_raw_id, mold_name, cycle_timestamp,
             layup_time, close_time, resin_time, cycle_time,
             weekday, is_first_monday,
             layup_saturated, close_saturated, resin_saturated,
-            exclusion_reason
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            exclusion_reason,
+            bag_number, bag_cycles_raw, bag_days_raw
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (raw_id, mold_name, cycle_timestamp,
           layup_time, close_time, resin_time, cycle_time,
           weekday, int(is_first_monday),
           int(layup_sat), int(close_sat), int(resin_sat),
-          exclusion_reason))
+          exclusion_reason,
+          bag_number, bag_cycles_raw, bag_days_raw))
     return cursor.lastrowid
 
 
@@ -470,6 +473,187 @@ def mark_raw_processed(cursor, raw_ids):
         "UPDATE raw_mold_data SET processed_at = ? WHERE id = ?",
         [(processed_at, rid) for rid in raw_ids]
     )
+
+
+# ---------------------------------------------------------------------------
+# Bag data lookup
+#
+# For each cycle timestamp, find the most recent non-null bag, bag_cycles,
+# and bag_days values in a short window before the cycle. The PLC logs these
+# on separate rows within milliseconds of the cycle time row.
+# ---------------------------------------------------------------------------
+
+BAG_LOOKUP_WINDOW_SECONDS = 10   # how far back to look for bag data
+
+def lookup_bag_data(cursor, mold_name, cycle_timestamp_str):
+    """
+    Return (bag_number, bag_cycles, bag_days) for the most recent rows
+    with non-null values within BAG_LOOKUP_WINDOW_SECONDS before the cycle.
+    Any value not found within the window is returned as None.
+    """
+    window_start = (
+        dt.datetime.fromisoformat(cycle_timestamp_str)
+        - dt.timedelta(seconds=BAG_LOOKUP_WINDOW_SECONDS)
+    ).isoformat()
+
+    cursor.execute("""
+        SELECT bag, bag_cycles, bag_days
+        FROM raw_mold_data
+        WHERE mold_name = ?
+          AND record_timestamp <= ?
+          AND record_timestamp >= ?
+          AND (bag IS NOT NULL OR bag_cycles IS NOT NULL OR bag_days IS NOT NULL)
+        ORDER BY record_timestamp DESC
+        LIMIT 1
+    """, (mold_name, cycle_timestamp_str, window_start))
+
+    row = cursor.fetchone()
+    if row:
+        bag_num    = int(row[0]) if row[0] is not None else None
+        bag_cycles = int(row[1]) if row[1] is not None else None
+        bag_days   = int(row[2]) if row[2] is not None else None
+        return bag_num, bag_cycles, bag_days
+    return None, None, None
+
+
+# ---------------------------------------------------------------------------
+# bag_usage validation
+#
+# Runs after all cycles for a mold are written. Walks every (bag_number,
+# mold_name) combination in chronological order and builds or updates
+# bag_usage periods. Detects counter resets by checking if bag_cycles_raw
+# decreases from one cycle to the next. A gap of more than
+# BAG_ROLLOVER_MONTHS between periods with the same bag_number means the
+# number has rolled over and we are looking at a new physical bag.
+# ---------------------------------------------------------------------------
+
+BAG_ROLLOVER_MONTHS = 12
+
+
+def update_bag_usage(cursor, mold_name):
+    """
+    Rebuild bag_usage periods for all bags that have appeared on this mold.
+
+    Uses INSERT OR IGNORE for periods that already exist (matched on
+    bag_number + period_start) so this is safe to re-run without creating
+    duplicates. Updates period_end on periods that have now closed.
+    """
+    # Load all cycles for this mold that have bag data, ordered by time
+    cursor.execute("""
+        SELECT id, cycle_timestamp, bag_number, bag_cycles_raw
+        FROM cycles
+        WHERE mold_name = ?
+          AND bag_number IS NOT NULL
+          AND bag_cycles_raw IS NOT NULL
+        ORDER BY cycle_timestamp ASC
+    """, (mold_name,))
+    rows = cursor.fetchall()
+
+    if not rows:
+        return 0
+
+    # Group by bag_number
+    from collections import defaultdict
+    by_bag = defaultdict(list)
+    for cycle_id, ts, bag_num, bag_raw in rows:
+        by_bag[bag_num].append((cycle_id, ts, bag_raw))
+
+    periods_written = 0
+
+    for bag_number, cycles in by_bag.items():
+        # Sort chronologically (should already be, but be safe)
+        cycles.sort(key=lambda r: r[1])
+
+        # Walk cycles and detect period boundaries
+        # A new period starts when:
+        #   - bag_cycles_raw decreases (reset after repair)
+        #   - gap from previous cycle > BAG_ROLLOVER_MONTHS (new physical bag)
+        period_start_ts  = cycles[0][1]
+        raw_start        = cycles[0][2]
+        cumulative       = 0
+        is_reset         = 0
+        prev_raw         = cycles[0][2]
+        prev_ts          = cycles[0][1]
+
+        # Fetch existing cumulative offset for this bag's latest period
+        # so we don't overwrite manually corrected values
+        cursor.execute("""
+            SELECT cumulative_offset, raw_start_value
+            FROM bag_usage
+            WHERE bag_number = ?
+              AND period_start = ?
+        """, (bag_number, period_start_ts))
+        existing = cursor.fetchone()
+        if existing:
+            cumulative = existing[0]
+            raw_start  = existing[1]
+
+        for j, (cycle_id, ts, raw_val) in enumerate(cycles):
+            if j == 0:
+                continue
+
+            # Check for rollover (new physical bag)
+            prev_dt = dt.datetime.fromisoformat(prev_ts)
+            curr_dt = dt.datetime.fromisoformat(ts)
+            months_gap = (
+                (curr_dt.year - prev_dt.year) * 12
+                + (curr_dt.month - prev_dt.month)
+            )
+
+            reset_detected = (raw_val < prev_raw) or (raw_val == 0 and prev_raw > 0)
+            rollover       = months_gap >= BAG_ROLLOVER_MONTHS
+
+            if reset_detected or rollover:
+                # Close the current period
+                cursor.execute("""
+                    INSERT OR IGNORE INTO bag_usage
+                        (bag_number, mold_name, period_start, period_end,
+                         cumulative_offset, raw_start_value, is_reset)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (bag_number, mold_name, period_start_ts, prev_ts,
+                      cumulative, raw_start, is_reset))
+                if cursor.rowcount == 0:
+                    # Period already exists -- update period_end
+                    cursor.execute("""
+                        UPDATE bag_usage SET period_end = ?
+                        WHERE bag_number = ? AND period_start = ?
+                    """, (prev_ts, bag_number, period_start_ts))
+
+                # Compute cumulative offset for new period
+                if rollover:
+                    # New physical bag -- reset lifetime total
+                    cumulative = 0
+                else:
+                    # Repair return -- carry forward lifetime total
+                    cumulative = cumulative + (prev_raw - raw_start)
+
+                period_start_ts = ts
+                raw_start       = raw_val
+                is_reset        = 0 if rollover else 1
+                periods_written += 1
+
+            prev_raw = raw_val
+            prev_ts  = ts
+
+        # Write or update the final (current) open period
+        cursor.execute("""
+            INSERT OR IGNORE INTO bag_usage
+                (bag_number, mold_name, period_start, period_end,
+                 cumulative_offset, raw_start_value, is_reset)
+            VALUES (?, ?, ?, NULL, ?, ?, ?)
+        """, (bag_number, mold_name, period_start_ts,
+              cumulative, raw_start, is_reset))
+        if cursor.rowcount == 0:
+            cursor.execute("""
+                UPDATE bag_usage
+                SET period_end = NULL,
+                    cumulative_offset = ?,
+                    raw_start_value = ?
+                WHERE bag_number = ? AND period_start = ?
+            """, (cumulative, raw_start, bag_number, period_start_ts))
+        periods_written += 1
+
+    return periods_written
 
 
 # ---------------------------------------------------------------------------
@@ -581,21 +765,28 @@ def process_mold(mold_name, conn):
                 resin_saturated[i]
             )
 
+            bag_num, bag_cyc, bag_days = lookup_bag_data(
+                cursor, mold_name, cycle_ts
+            )
+
             cycle_db_id = insert_cycle(
                 cursor,
-                mold_name       = mold_name,
-                raw_id          = safe_int(raw_row_ids[i]),
-                cycle_timestamp = cycle_ts,
-                layup_time      = layup_times[i],
-                close_time      = close_times[i],
-                resin_time      = resin_times[i],
-                cycle_time      = cycle_times[i],
-                weekday         = weekdays[i],
-                is_first_monday = first_monday_flags[i],
-                layup_sat       = layup_saturated[i],
-                close_sat       = close_saturated[i],
-                resin_sat       = resin_saturated[i],
-                exclusion_reason= exclusion
+                mold_name        = mold_name,
+                raw_id           = safe_int(raw_row_ids[i]),
+                cycle_timestamp  = cycle_ts,
+                layup_time       = layup_times[i],
+                close_time       = close_times[i],
+                resin_time       = resin_times[i],
+                cycle_time       = cycle_times[i],
+                weekday          = weekdays[i],
+                is_first_monday  = first_monday_flags[i],
+                layup_sat        = layup_saturated[i],
+                close_sat        = close_saturated[i],
+                resin_sat        = resin_saturated[i],
+                exclusion_reason = exclusion,
+                bag_number       = bag_num,
+                bag_cycles_raw   = bag_cyc,
+                bag_days_raw     = bag_days,
             )
 
             if cursor.rowcount == 0:
@@ -610,14 +801,6 @@ def process_mold(mold_name, conn):
             # (cycle_id, operator_id) pair is inserted with the union of
             # whichever stages they were present for.
             merged = {}
-            
-            # # FIXME
-            # # TEMPORARY DIAGNOSTIC -- remove after debugging
-            # if any(emp != 0 and emp != 1 for emp in merged.keys()):
-            #     print(f"  [{mold_name}] Cycle {i} ({datetimes[i].date()}) "
-            #           f"merged presence: {merged}")
-            # # FIXME
-            
             for op in presence_by_cycle[i]:
                 emp_num = op["employee_number"]
                 if emp_num in (0, 1):
@@ -665,6 +848,9 @@ def process_mold(mold_name, conn):
             print(f"  [{mold_name}]   Error was: {type(e).__name__}: {e}")
             print(f"  [{mold_name}]   Skipping this cycle and continuing...")
 
+    print(f"  [{mold_name}] Updating bag usage periods...")
+    bag_periods = update_bag_usage(cursor, mold_name)
+
     print(f"  [{mold_name}] Writing changes to database...")
     mark_raw_processed(cursor, all_raw_ids)
     conn.commit()
@@ -674,6 +860,7 @@ def process_mold(mold_name, conn):
     print(f"    Cycles skipped (already existed): {cycles_skipped}")
     print(f"    Cycles errored (skipped): {cycles_errored}")
     print(f"    Presence rows written: {presence_written}")
+    print(f"    Bag usage periods: {bag_periods}")
     if unresolved_ops > 0:
         print(f"    Unresolved operator lookups: {unresolved_ops} "
               f"(unique numbers: {sorted(unresolved_set)})")

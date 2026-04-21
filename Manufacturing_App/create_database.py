@@ -258,7 +258,16 @@ def create_database(db_path: str = DB_PATH):
             layup_saturated     INTEGER DEFAULT 0,
             close_saturated     INTEGER DEFAULT 0,
             resin_saturated     INTEGER DEFAULT 0,
-            exclusion_reason    TEXT    DEFAULT NULL
+            exclusion_reason    TEXT    DEFAULT NULL,
+
+            -- Bag tracking columns.
+            -- bag_number is the PLC bag identifier (1-99, resets every ~2-3 years).
+            -- bag_cycles_raw and bag_days_raw are the unvalidated counter values
+            -- as logged by the PLC at cycle time. Use bag_usage for validated
+            -- lifetime counts that are correct across resets and repairs.
+            bag_number          INTEGER,
+            bag_cycles_raw      INTEGER,
+            bag_days_raw        INTEGER
         )
     """)
     cursor.execute("""
@@ -273,7 +282,56 @@ def create_database(db_path: str = DB_PATH):
         CREATE INDEX IF NOT EXISTS idx_cycles_exclusion
         ON cycles (exclusion_reason)
     """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_cycles_bag
+        ON cycles (bag_number, cycle_timestamp)
+    """)
     print("  Created table: cycles")
+
+    # -------------------------------------------------------------------------
+    # bag_usage
+    #
+    # Tracks validated lifetime usage per bag, across all molds and across
+    # counter resets caused by repairs.
+    #
+    # A bag goes through up to 4 production periods (put into service, repaired
+    # up to 3 times, then disposed of). Each time it returns from repair the
+    # PLC counter may reset to 0 or an unreliable value. This table accumulates
+    # the true lifetime cycle count by detecting those resets and carrying
+    # forward the prior total as cumulative_offset.
+    #
+    # Lifetime cycles for any cycle row =
+    #   cumulative_offset + (cycles.bag_cycles_raw - raw_start_value)
+    #
+    # bag_number rolls over from 99 back to 1 every ~2-3 years. A gap of more
+    # than BAG_ROLLOVER_MONTHS (12) between periods with the same bag_number
+    # is treated as a different physical bag -- a new generation begins.
+    #
+    # period_end is NULL while the bag is actively in service on this mold.
+    # It is set when a new period begins (i.e. the bag moves to a different
+    # mold or a reset is detected) or when the bag is taken out of service.
+    # -------------------------------------------------------------------------
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bag_usage (
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            bag_number              INTEGER NOT NULL,
+            mold_name               TEXT    NOT NULL,
+            period_start            TEXT    NOT NULL,
+            period_end              TEXT,
+            cumulative_offset       INTEGER NOT NULL DEFAULT 0,
+            raw_start_value         INTEGER NOT NULL DEFAULT 0,
+            is_reset                INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_bag_usage_bag
+        ON bag_usage (bag_number, period_start)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_bag_usage_mold
+        ON bag_usage (mold_name, bag_number)
+    """)
+    print("  Created table: bag_usage")
 
     # -------------------------------------------------------------------------
     # cycle_stage_operators
