@@ -11,10 +11,12 @@ Import in app.py and call register_callbacks(app).
 """
 
 import datetime as dt
+import io
+import tempfile
+import os
 
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 
 import dash
 from dash import dcc, html, dash_table, Input, Output, State
@@ -154,13 +156,15 @@ def build_scatter(df: pd.DataFrame, x_col: str, y_col: str,
             hovertemplate=(
                 f"{x_label}: %{{x}}<br>"
                 f"{y_label}: %{{y:.2f}} min<br>"
-                "Mold: %{customdata[0]}<br>"
-                "Operator: %{customdata[1]}<br>"
-                "Shift: %{customdata[2]}<br>"
-                "%{customdata[3]}"
+                "Mold: %{customdata[1]}<br>"
+                "Operator: %{customdata[2]}<br>"
+                "Shift: %{customdata[3]}<br>"
+                "Time: %{customdata[4]}"
                 "<extra></extra>"
             ),
-            customdata=subset[["mold_name", "operator_name",
+            # customdata[0] = cycle_id, used to match selected points back
+            # to the stored DataFrame without re-querying the database.
+            customdata=subset[["cycle_id", "mold_name", "operator_name",
                                 "shift", "cycle_timestamp"]].values,
         )
 
@@ -407,7 +411,44 @@ def layout():
                         ]),
 
                         html.Div(className="panel", children=[
-                            html.Label("Summary Statistics", style=LABEL),
+                            html.Div(style={
+                                "display": "flex",
+                                "justifyContent": "space-between",
+                                "alignItems": "center",
+                                "marginBottom": "12px",
+                            }, children=[
+                                html.Div(children=[
+                                    html.Label("Summary Statistics", style={
+                                        **LABEL, "marginBottom": "0",
+                                        "display": "inline-block",
+                                    }),
+                                    html.Span(
+                                        id="explorer-selection-badge",
+                                        style={
+                                            "marginLeft": "10px",
+                                            "fontSize": "11px",
+                                            "color": "#2563eb",
+                                            "fontWeight": "500",
+                                        },
+                                    ),
+                                ]),
+                                html.Button(
+                                    "Export Report PDF",
+                                    id="explorer-export-btn",
+                                    style={
+                                        "padding": "5px 14px",
+                                        "backgroundColor": "#ffffff",
+                                        "color": "#2563eb",
+                                        "border": "1px solid #2563eb",
+                                        "borderRadius": "5px",
+                                        "fontFamily": "Inter, sans-serif",
+                                        "fontSize": "12px",
+                                        "fontWeight": "600",
+                                        "cursor": "pointer",
+                                    },
+                                ),
+                                dcc.Download(id="explorer-pdf-download"),
+                            ]),
                             dash_table.DataTable(
                                 id="explorer-stats-table",
                                 columns=[{"name": c, "id": c} for c in
@@ -441,73 +482,24 @@ def layout():
                     ]),
                 ]),
             ]),
+
+            # Stores: full DataFrame, current axis selections, y-axis label
+            dcc.Store(id="explorer-data-store"),
+            dcc.Store(id="explorer-axis-store"),
         ]
     )
 
 
 # ---------------------------------------------------------------------------
-# Callbacks
+# Stats table builder (module-level so PDF export can also call it)
 # ---------------------------------------------------------------------------
-
-def register_callbacks(app):
-
-    @app.callback(
-        Output("explorer-scatter",     "figure"),
-        Output("explorer-stats-table", "data"),
-        Output("explorer-status",      "children"),
-        Input("explorer-run-btn",      "n_clicks"),
-        State("explorer-y",            "value"),
-        State("explorer-x",            "value"),
-        State("explorer-color",        "value"),
-        State("explorer-mold",         "value"),
-        State("explorer-operators",    "value"),
-        State("explorer-date-start",   "value"),
-        State("explorer-date-end",     "value"),
-        State("explorer-options",      "value"),
-        prevent_initial_call=True,
-    )
-    def run_explorer(n_clicks, y_col, x_col, color_col, mold,
-                     emp_numbers, date_start, date_end, options):
-
-        exclude_flagged = "include_flagged" not in (options or [])
-
-        try:
-            conn = get_connection(DB_PATH)
-            df   = get_cycles_for_explorer(
-                conn,
-                mold_name        = mold or None,
-                date_start       = date_start,
-                date_end         = date_end,
-                employee_numbers = emp_numbers or None,
-                exclude_flagged  = exclude_flagged,
-            )
-            conn.close()
-        except Exception as e:
-            empty_fig = build_scatter(None, x_col, y_col, color_col)
-            return empty_fig, [], f"Database error: {e}"
-
-        if df.empty:
-            empty_fig = build_scatter(None, x_col, y_col, color_col)
-            return empty_fig, [], "No data found for the selected filters."
-
-        fig    = build_scatter(df, x_col, y_col, color_col)
-        status = f"{len(df):,} cycles loaded."
-
-        # Build summary stats table grouped by the color column
-        stats_rows = _build_stats_table(df, y_col, color_col)
-
-        return fig, stats_rows, status
-
 
 def _build_stats_table(df: pd.DataFrame, y_col: str,
                        color_col: str) -> list[dict]:
     """
-    Build summary stats for the explorer, grouped by the color column
-    (or a single 'All' row if color is none).
+    Build summary stats grouped by the color column.
+    Returns a single 'All cycles' row when color_col is 'none'.
     """
-    y_label = next((o["label"] for o in Y_AXIS_OPTIONS if o["value"] == y_col),
-                   y_col)
-
     def stats_for(subset, label):
         vals = subset[y_col].dropna()
         if len(vals) == 0:
@@ -528,15 +520,230 @@ def _build_stats_table(df: pd.DataFrame, y_col: str,
         if row:
             rows.append(row)
     else:
-        if color_col == "day_name":
-            categories = [d for d in DAY_ORDER
-                          if d in df[color_col].unique()]
-        else:
-            categories = sorted(df[color_col].dropna().unique())
-
+        categories = ([d for d in DAY_ORDER if d in df[color_col].unique()]
+                      if color_col == "day_name"
+                      else sorted(df[color_col].dropna().unique()))
         for cat in categories:
             row = stats_for(df[df[color_col] == cat], str(cat))
             if row:
                 rows.append(row)
-
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Callbacks
+# ---------------------------------------------------------------------------
+
+def register_callbacks(app):
+
+    # ── Run: load data, build plot, populate stats, store DataFrame ──
+    @app.callback(
+        Output("explorer-scatter",     "figure"),
+        Output("explorer-stats-table", "data"),
+        Output("explorer-status",      "children"),
+        Output("explorer-data-store",  "data"),
+        Output("explorer-axis-store",  "data"),
+        Input("explorer-run-btn",      "n_clicks"),
+        State("explorer-y",            "value"),
+        State("explorer-x",            "value"),
+        State("explorer-color",        "value"),
+        State("explorer-mold",         "value"),
+        State("explorer-operators",    "value"),
+        State("explorer-date-start",   "value"),
+        State("explorer-date-end",     "value"),
+        State("explorer-options",      "value"),
+        prevent_initial_call=True,
+    )
+    def run_explorer(n_clicks, y_col, x_col, color_col, mold,
+                     emp_numbers, date_start, date_end, options):
+        exclude_flagged = "include_flagged" not in (options or [])
+        try:
+            conn = get_connection(DB_PATH)
+            df   = get_cycles_for_explorer(
+                conn,
+                mold_name        = mold or None,
+                date_start       = date_start,
+                date_end         = date_end,
+                employee_numbers = emp_numbers or None,
+                exclude_flagged  = exclude_flagged,
+            )
+            conn.close()
+        except Exception as e:
+            return (build_scatter(None, x_col, y_col, color_col),
+                    [], f"Database error: {e}", None, None)
+
+        if df.empty:
+            return (build_scatter(None, x_col, y_col, color_col),
+                    [], "No data found for the selected filters.", None, None)
+
+        fig        = build_scatter(df, x_col, y_col, color_col)
+        stats_rows = _build_stats_table(df, y_col, color_col)
+        status     = f"{len(df):,} cycles loaded."
+
+        df_json   = df.to_json(date_format="iso", orient="split")
+        axis_data = {"x": x_col, "y": y_col, "color": color_col}
+
+        return fig, stats_rows, status, df_json, axis_data
+
+
+    # ── Selection: update stats to reflect only selected points ──
+    @app.callback(
+        Output("explorer-stats-table",    "data",  allow_duplicate=True),
+        Output("explorer-selection-badge","children"),
+        Input("explorer-scatter",         "selectedData"),
+        State("explorer-data-store",      "data"),
+        State("explorer-axis-store",      "data"),
+        prevent_initial_call=True,
+    )
+    def update_stats_from_selection(selected_data, df_json, axis_data):
+        if not df_json or not axis_data:
+            return [], ""
+
+        df      = pd.read_json(io.StringIO(df_json), orient="split")
+        y_col   = axis_data.get("y", "cycle_time")
+        color_col = axis_data.get("color", "none")
+
+        # No active selection — show full dataset stats with no badge
+        if not selected_data or not selected_data.get("points"):
+            return _build_stats_table(df, y_col, color_col), ""
+
+        # Extract cycle_ids from customdata[0] of each selected point
+        selected_ids = {int(pt["customdata"][0])
+                        for pt in selected_data["points"]
+                        if pt.get("customdata") is not None}
+
+        sel_df = df[df["cycle_id"].isin(selected_ids)]
+        if sel_df.empty:
+            return _build_stats_table(df, y_col, color_col), ""
+
+        badge = f"— {len(sel_df):,} of {len(df):,} points selected"
+        return _build_stats_table(sel_df, y_col, color_col), badge
+
+
+    # ── Export: PDF of current plot and stats (respects selection) ──
+    @app.callback(
+        Output("explorer-pdf-download", "data"),
+        Input("explorer-export-btn",    "n_clicks"),
+        State("explorer-scatter",       "figure"),
+        State("explorer-scatter",       "selectedData"),
+        State("explorer-data-store",    "data"),
+        State("explorer-axis-store",    "data"),
+        prevent_initial_call=True,
+    )
+    def export_pdf(n_clicks, current_fig, selected_data, df_json, axis_data):
+        if not df_json or not axis_data:
+            return None
+        try:
+            from fpdf import FPDF, XPos, YPos
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            df      = pd.read_json(io.StringIO(df_json), orient="split")
+            y_col   = axis_data.get("y", "cycle_time")
+            x_col   = axis_data.get("x", "hour_of_day")
+            color_col = axis_data.get("color", "none")
+
+            # Determine which rows to use
+            if selected_data and selected_data.get("points"):
+                selected_ids = {int(pt["customdata"][0])
+                                for pt in selected_data["points"]
+                                if pt.get("customdata") is not None}
+                plot_df = df[df["cycle_id"].isin(selected_ids)]
+                selection_note = f"{len(plot_df):,} selected points"
+            else:
+                plot_df = df
+                selection_note = f"All {len(plot_df):,} points"
+
+            x_label = next((o["label"] for o in X_AXIS_OPTIONS
+                            if o["value"] == x_col), x_col)
+            y_label = next((o["label"] for o in Y_AXIS_OPTIONS
+                            if o["value"] == y_col), y_col)
+
+            # Build matplotlib scatter
+            fig, ax = plt.subplots(figsize=(10, 5))
+
+            if color_col == "none" or color_col not in plot_df.columns:
+                ax.scatter(plot_df[x_col], plot_df[y_col],
+                           color="#2563eb", s=10, alpha=0.35)
+            elif color_col == "mold_name":
+                for mold in sorted(plot_df["mold_name"].dropna().unique()):
+                    sub   = plot_df[plot_df["mold_name"] == mold]
+                    color = MOLD_COLORS.get(mold, "#64748b")
+                    ax.scatter(sub[x_col], sub[y_col],
+                               color=color, s=10, alpha=0.35, label=mold)
+                ax.legend(fontsize=8)
+            else:
+                categories = ([d for d in DAY_ORDER
+                               if d in plot_df[color_col].unique()]
+                              if color_col == "day_name"
+                              else sorted(plot_df[color_col].dropna().unique()))
+                for j, cat in enumerate(categories):
+                    sub = plot_df[plot_df[color_col] == cat]
+                    ax.scatter(sub[x_col], sub[y_col],
+                               color=PALETTE[j % len(PALETTE)],
+                               s=10, alpha=0.35, label=str(cat))
+                ax.legend(fontsize=8)
+
+            ax.set_xlabel(x_label)
+            ax.set_ylabel(y_label)
+            ax.set_title(f"{y_label} vs {x_label}")
+            ax.grid(True, color="#e2e8f0", linewidth=0.5)
+            fig.tight_layout()
+
+            tmp_img = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            fig.savefig(tmp_img.name, dpi=150, bbox_inches="tight")
+            tmp_img.close()
+            plt.close(fig)
+
+            # Build PDF
+            stats_rows = _build_stats_table(plot_df, y_col, color_col)
+
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Helvetica", "B", 16)
+            pdf.set_text_color(30, 41, 59)
+            pdf.cell(0, 10, "Cycle Analysis Report",
+                     new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.set_font("Helvetica", "", 10)
+            pdf.set_text_color(100, 116, 139)
+            pdf.cell(0, 6, f"{y_label} vs {x_label}   |   {selection_note}",
+                     new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.cell(0, 6,
+                     f"Generated: {dt.datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                     new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.ln(3)
+            pdf.image(tmp_img.name, x=10, w=190)
+            os.unlink(tmp_img.name)
+            pdf.ln(4)
+
+            if stats_rows:
+                pdf.set_font("Helvetica", "B", 11)
+                pdf.set_text_color(30, 41, 59)
+                pdf.cell(0, 8, "Summary Statistics",
+                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                cols   = ["Group", "N", "Median", "Mean", "Std Dev", "Min", "Max"]
+                widths = [55, 18, 25, 25, 25, 18, 18]
+                pdf.set_font("Helvetica", "B", 9)
+                pdf.set_fill_color(226, 232, 240)
+                for col, w in zip(cols, widths):
+                    pdf.cell(w, 7, col, border=1, fill=True)
+                pdf.ln()
+                pdf.set_font("Helvetica", "", 9)
+                for i, row in enumerate(stats_rows):
+                    pdf.set_fill_color(248, 250, 252) if i % 2 == 0 \
+                        else pdf.set_fill_color(255, 255, 255)
+                    for val, w in zip(
+                        [str(row[c]) for c in cols], widths
+                    ):
+                        pdf.cell(w, 6, val, border=1, fill=True)
+                    pdf.ln()
+
+            pdf_bytes = bytes(pdf.output())
+            filename  = (f"cycle_analysis_"
+                         f"{dt.datetime.now().strftime('%Y%m%d_%H%M')}.pdf")
+            return dcc.send_bytes(pdf_bytes, filename)
+
+        except Exception as e:
+            print(f"Cycle analysis PDF export error: {e}")
+            return None
