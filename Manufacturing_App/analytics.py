@@ -53,6 +53,170 @@ def get_connection(db_path: str = DB_PATH, read_only: bool = True) -> sqlite3.Co
 # Operator queries
 # ---------------------------------------------------------------------------
 
+def get_shift_cycle_times(
+    conn: sqlite3.Connection,
+    shift: str,
+    mold_name: str = None,
+    date_start: str = None,
+    date_end: str = None,
+    full_cycle_only: bool = True,
+    exclude_flagged: bool = True,
+) -> pd.DataFrame:
+    """
+    Return all cycle times for every operator on a given shift, combined
+    into a single DataFrame. The 'name' column is set to the shift name
+    so it renders as a single labelled trace on the boxplot.
+
+    shift : 'Day', 'Swing', or 'Graveyard'
+    All other parameters match get_operator_cycle_times.
+    """
+    where_clauses = ["o.shift = ?"]
+    params = [shift]
+
+    if mold_name:
+        where_clauses.append("c.mold_name = ?")
+        params.append(mold_name)
+    if date_start:
+        where_clauses.append("c.cycle_timestamp >= ?")
+        params.append(date_start)
+    if date_end:
+        end_dt = (dt.date.fromisoformat(date_end)
+                  + dt.timedelta(days=1)).isoformat()
+        where_clauses.append("c.cycle_timestamp < ?")
+        params.append(end_dt)
+    if full_cycle_only:
+        where_clauses.append("p.on_full_cycle = 1")
+    if exclude_flagged:
+        where_clauses.append("c.exclusion_reason IS NULL")
+
+    # Also exclude operators whose active_to has passed before the cycle date,
+    # meaning the cycle happened after they left -- they were active at cycle time
+    # if active_from <= cycle and (active_to is null or active_to > cycle).
+    where_clauses.append(
+        "(o.active_to IS NULL OR o.active_to > c.cycle_timestamp)"
+    )
+    where_clauses.append("o.active_from <= c.cycle_timestamp")
+
+    where_sql = "WHERE " + " AND ".join(where_clauses)
+
+    df = pd.read_sql(f"""
+        SELECT
+            c.id            AS cycle_id,
+            c.mold_name,
+            c.cycle_timestamp,
+            c.cycle_time,
+            c.layup_time,
+            c.close_time,
+            c.resin_time,
+            p.on_layup,
+            p.on_close,
+            p.on_resin,
+            p.on_full_cycle,
+            o.id            AS operator_id,
+            o.employee_number,
+            o.name,
+            o.shift
+        FROM cycle_operator_presence p
+        JOIN cycles    c ON c.id = p.cycle_id
+        JOIN operators o ON o.id = p.operator_id
+        {where_sql}
+        ORDER BY c.cycle_timestamp ASC
+    """, conn, params=params)
+
+    if not df.empty:
+        df["cycle_timestamp"] = pd.to_datetime(df["cycle_timestamp"])
+        # Label as the shift name so it shows as one trace
+        df["name"] = f"{shift} Shift"
+
+    return df
+
+
+def get_all_cycles(
+    conn: sqlite3.Connection,
+    mold_name: str = None,
+    date_start: str = None,
+    date_end: str = None,
+    full_cycle_only: bool = True,
+    exclude_flagged: bool = True,
+) -> pd.DataFrame:
+    """
+    Return all cycles across every operator and shift combined, labelled
+    as 'All Shifts'. Used as a facility-wide baseline for comparison.
+
+    All parameters match get_operator_cycle_times except employee_number.
+    """
+    where_clauses = []
+    params = []
+
+    if mold_name:
+        where_clauses.append("c.mold_name = ?")
+        params.append(mold_name)
+    if date_start:
+        where_clauses.append("c.cycle_timestamp >= ?")
+        params.append(date_start)
+    if date_end:
+        end_dt = (dt.date.fromisoformat(date_end)
+                  + dt.timedelta(days=1)).isoformat()
+        where_clauses.append("c.cycle_timestamp < ?")
+        params.append(end_dt)
+    if full_cycle_only:
+        where_clauses.append("p.on_full_cycle = 1")
+    if exclude_flagged:
+        where_clauses.append("c.exclusion_reason IS NULL")
+
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+    df = pd.read_sql(f"""
+        SELECT
+            c.id            AS cycle_id,
+            c.mold_name,
+            c.cycle_timestamp,
+            c.cycle_time,
+            c.layup_time,
+            c.close_time,
+            c.resin_time,
+            p.on_layup,
+            p.on_close,
+            p.on_resin,
+            p.on_full_cycle,
+            o.id            AS operator_id,
+            o.employee_number,
+            o.name,
+            o.shift
+        FROM cycle_operator_presence p
+        JOIN cycles    c ON c.id = p.cycle_id
+        JOIN operators o ON o.id = p.operator_id
+        {where_sql}
+        ORDER BY c.cycle_timestamp ASC
+    """, conn, params=params)
+
+    if not df.empty:
+        df["cycle_timestamp"] = pd.to_datetime(df["cycle_timestamp"])
+        df["name"] = "All Shifts"
+
+    return df
+
+
+def get_operators_by_shift(conn: sqlite3.Connection) -> dict:
+    """
+    Return a dict mapping shift name -> list of employee_numbers
+    for all currently active operators.
+    """
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT shift, employee_number, name
+        FROM operators
+        WHERE active_to IS NULL
+        ORDER BY shift, name
+    """)
+    result = {}
+    for shift, emp_num, name in cursor.fetchall():
+        if shift not in result:
+            result[shift] = []
+        result[shift].append({"employee_number": emp_num, "name": name})
+    return result
+
+
 def get_operator_cycle_times(
     conn: sqlite3.Connection,
     employee_number: int,

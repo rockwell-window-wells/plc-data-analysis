@@ -29,7 +29,10 @@ import dash
 from dash import dcc, html, dash_table, Input, Output, State
 import dash_bootstrap_components as dbc
 
-from analytics import get_connection, get_operator_cycle_times
+from analytics import (
+    get_connection, get_operator_cycle_times,
+    get_shift_cycle_times, get_all_cycles, get_operators_by_shift,
+)
 import operators_page
 
 # ---------------------------------------------------------------------------
@@ -65,7 +68,13 @@ def load_active_operators():
         return []
 
 
-def build_plotly_boxplot(frames):
+def build_plotly_boxplot(frames, baseline_count=0):
+    """Build an interactive Plotly boxplot. One trace per operator/group.
+
+    frames[0:baseline_count] are baseline traces (shift or all-shifts),
+    rendered in grey with dashed lines. The rest are individual operators
+    in colour.
+    """
     fig = go.Figure()
 
     if not frames:
@@ -80,23 +89,51 @@ def build_plotly_boxplot(frames):
         )
         return fig
 
-    frames_sorted = sorted(
-        [df for df in frames if not df.empty],
+    # Sort only the non-baseline frames by median; baselines stay first
+    baselines   = [df for df in frames[:baseline_count] if not df.empty]
+    individuals = sorted(
+        [df for df in frames[baseline_count:] if not df.empty],
         key=lambda df: df["cycle_time"].median(),
     )
+    ordered = baselines + individuals
 
     palette = ["#2563eb", "#dc2626", "#16a34a", "#d97706",
                "#7c3aed", "#0891b2", "#be185d", "#65a30d"]
 
-    for i, df in enumerate(frames_sorted):
-        color = palette[i % len(palette)]
+    for i, df in enumerate(ordered):
+        is_baseline = i < len(baselines)
+        if is_baseline:
+            color   = "#94a3b8"
+            opacity = 0.7
+        else:
+            color   = palette[(i - len(baselines)) % len(palette)]
+            opacity = 0.85
+
         fig.add_trace(go.Box(
             y=df["cycle_time"],
             name=df["name"].iloc[0],
             boxpoints="outliers",
-            marker=dict(color=color, size=5, opacity=0.7),
-            line=dict(color=color, width=1.5),
+        
+            # Points
+            marker=dict(color=color, size=5, opacity=opacity),
+        
+            # Darker line for contrast (median + quartiles use this)
+            line=dict(color="#1e293b", width=2),
+        
+            # Transparent fill so lines show through
+            fillcolor=color,
+            # opacity=0.35 if not is_baseline else 0.25,
+            opacity=opacity
         ))
+        # fig.add_trace(go.Box(
+        #     y=df["cycle_time"],
+        #     name=df["name"].iloc[0],
+        #     boxpoints="outliers",
+        #     marker=dict(color=color, size=5, opacity=opacity),
+        #     line=dict(color=color, width=1.5),
+        #     fillcolor=color,
+        #     opacity=opacity,
+        # ))
 
     fig.update_layout(
         title=dict(
@@ -459,12 +496,56 @@ def reports_layout():
                 dbc.Col(width=3, children=[
 
                     html.Div(className="panel", children=[
-                        html.Label("Operators", className="section-label"),
+                        html.Label("Select by Shift", className="section-label"),
+                        dcc.Dropdown(
+                            id="shift-dropdown",
+                            options=[
+                                {"label": "Day",       "value": "Day"},
+                                {"label": "Swing",     "value": "Swing"},
+                                {"label": "Graveyard", "value": "Graveyard"},
+                            ],
+                            placeholder="Quick-select a shift...",
+                            clearable=True,
+                        ),
+                        html.Label("Operators", className="section-label",
+                                   style={"marginTop": "10px"}),
                         dcc.Dropdown(
                             id="operator-dropdown",
                             options=load_active_operators(),
                             multi=True,
                             placeholder="Select operators...",
+                        ),
+                    ]),
+
+                    html.Div(className="panel", children=[
+                        html.Label("Compare Against", className="section-label"),
+                        dcc.Dropdown(
+                            id="comparison-dropdown",
+                            options=[
+                                {"label": "None",            "value": "none"},
+                                {"label": "Shift baseline",  "value": "shift"},
+                                {"label": "All shifts",      "value": "all"},
+                            ],
+                            value="none",
+                            clearable=False,
+                        ),
+                        html.Div(
+                            id="comparison-shift-wrapper",
+                            style={"display": "none", "marginTop": "8px"},
+                            children=[
+                                html.Label("Shift to compare against",
+                                           className="section-label"),
+                                dcc.Dropdown(
+                                    id="comparison-shift-dropdown",
+                                    options=[
+                                        {"label": "Day",       "value": "Day"},
+                                        {"label": "Swing",     "value": "Swing"},
+                                        {"label": "Graveyard", "value": "Graveyard"},
+                                    ],
+                                    placeholder="Select shift...",
+                                    clearable=False,
+                                ),
+                            ],
                         ),
                     ]),
 
@@ -641,20 +722,50 @@ operators_page.register_callbacks(app)
 # ---------------------------------------------------------------------------
 
 @app.callback(
+    Output("operator-dropdown", "value"),
+    Input("shift-dropdown",     "value"),
+    prevent_initial_call=True,
+)
+def select_shift_operators(shift):
+    """Populate the operator dropdown with all operators on the chosen shift."""
+    if not shift:
+        return []
+    conn = get_connection(DB_PATH)
+    by_shift = get_operators_by_shift(conn)
+    conn.close()
+    ops = by_shift.get(shift, [])
+    return [op["employee_number"] for op in ops]
+
+
+@app.callback(
+    Output("comparison-shift-wrapper", "style"),
+    Input("comparison-dropdown", "value"),
+    prevent_initial_call=True,
+)
+def toggle_comparison_shift(comparison):
+    if comparison == "shift":
+        return {"display": "block", "marginTop": "8px"}
+    return {"display": "none"}
+
+
+@app.callback(
     Output("boxplot",      "figure"),
     Output("stats-table",  "data"),
     Output("status-msg",   "children"),
     Output("report-store", "data"),
     Output("last-updated", "children"),
     Input("run-btn", "n_clicks"),
-    State("operator-dropdown",  "value"),
-    State("mold-dropdown",      "value"),
-    State("date-start",         "value"),
-    State("date-end",           "value"),
-    State("options-checklist",  "value"),
+    State("operator-dropdown",        "value"),
+    State("mold-dropdown",            "value"),
+    State("date-start",               "value"),
+    State("date-end",                 "value"),
+    State("options-checklist",        "value"),
+    State("comparison-dropdown",      "value"),
+    State("comparison-shift-dropdown","value"),
     prevent_initial_call=True,
 )
-def run_report(n_clicks, emp_numbers, mold, date_start, date_end, options):
+def run_report(n_clicks, emp_numbers, mold, date_start, date_end, options,
+               comparison, comparison_shift):
     if not emp_numbers:
         return (build_plotly_boxplot([]), [],
                 "Select at least one operator.", None, "")
@@ -662,43 +773,69 @@ def run_report(n_clicks, emp_numbers, mold, date_start, date_end, options):
     full_cycle_only = "full_cycle_only" in (options or [])
     exclude_flagged = "exclude_flagged" in (options or [])
 
+    shared_kwargs = dict(
+        mold_name       = mold or None,
+        date_start      = date_start,
+        date_end        = date_end,
+        full_cycle_only = full_cycle_only,
+        exclude_flagged = exclude_flagged,
+    )
+
     try:
-        conn   = get_connection(DB_PATH)
+        conn = get_connection(DB_PATH)
+
+        # Individual operator traces
         frames = []
         for emp_num in emp_numbers:
             df = get_operator_cycle_times(
-                conn,
-                employee_number = emp_num,
-                mold_name       = mold or None,
-                date_start      = date_start,
-                date_end        = date_end,
-                full_cycle_only = full_cycle_only,
-                exclude_flagged = exclude_flagged,
+                conn, employee_number=emp_num, **shared_kwargs
             )
             if not df.empty:
                 frames.append(df)
+
+        # Comparison baseline trace(s)
+        baseline_frames = []
+        if comparison == "all":
+            df_all = get_all_cycles(conn, **shared_kwargs)
+            if not df_all.empty:
+                baseline_frames.append(df_all)
+        elif comparison == "shift":
+            if comparison_shift:
+                df_shift = get_shift_cycle_times(
+                    conn, shift=comparison_shift, **shared_kwargs
+                )
+                if not df_shift.empty:
+                    baseline_frames.append(df_shift)
+
         conn.close()
     except Exception as e:
         return (build_plotly_boxplot([]), [],
                 f"Database error: {e}", None, "")
 
-    if not frames:
+    if not frames and not baseline_frames:
         return (build_plotly_boxplot([]), [],
                 "No data found for the selected filters.", None, "")
 
-    fig        = build_plotly_boxplot(frames)
+    # Baselines go first so they render behind individual operators
+    fig        = build_plotly_boxplot(baseline_frames + frames,
+                                      baseline_count=len(baseline_frames))
     table_rows = build_stats_rows(frames)
     total      = sum(len(df) for df in frames)
-    status     = f"{total} cycles loaded across {len(frames)} operator(s)."
+    n_ops      = len(frames)
+    status     = f"{total} cycles across {n_ops} operator(s)."
+    if baseline_frames:
+        status += f" Showing {comparison} baseline."
     timestamp  = f"Last run: {dt.datetime.now().strftime('%H:%M:%S')}"
 
     store = {
-        "emp_numbers":     emp_numbers,
-        "mold":            mold,
-        "date_start":      date_start,
-        "date_end":        date_end,
-        "full_cycle_only": full_cycle_only,
-        "exclude_flagged": exclude_flagged,
+        "emp_numbers":      emp_numbers,
+        "mold":             mold,
+        "date_start":       date_start,
+        "date_end":         date_end,
+        "full_cycle_only":  full_cycle_only,
+        "exclude_flagged":  exclude_flagged,
+        "comparison":       comparison,
+        "comparison_shift": comparison_shift,
     }
 
     return fig, table_rows, status, store, timestamp
@@ -714,20 +851,36 @@ def export_pdf(n_clicks, store):
     if not store:
         return None
     try:
-        conn   = get_connection(DB_PATH)
+        conn = get_connection(DB_PATH)
+
+        shared_kwargs = dict(
+            mold_name       = store["mold"] or None,
+            date_start      = store["date_start"],
+            date_end        = store["date_end"],
+            full_cycle_only = store["full_cycle_only"],
+            exclude_flagged = store["exclude_flagged"],
+        )
+
         frames = []
         for emp_num in store["emp_numbers"]:
             df = get_operator_cycle_times(
-                conn,
-                employee_number = emp_num,
-                mold_name       = store["mold"] or None,
-                date_start      = store["date_start"],
-                date_end        = store["date_end"],
-                full_cycle_only = store["full_cycle_only"],
-                exclude_flagged = store["exclude_flagged"],
+                conn, employee_number=emp_num, **shared_kwargs
             )
             if not df.empty:
                 frames.append(df)
+
+        comparison = store.get("comparison", "none")
+        if comparison == "all":
+            df_all = get_all_cycles(conn, **shared_kwargs)
+            if not df_all.empty:
+                frames.insert(0, df_all)
+        elif comparison == "shift" and store.get("comparison_shift"):
+            df_shift = get_shift_cycle_times(
+                conn, shift=store["comparison_shift"], **shared_kwargs
+            )
+            if not df_shift.empty:
+                frames.insert(0, df_shift)
+
         conn.close()
 
         pdf_bytes = generate_pdf_bytes(
