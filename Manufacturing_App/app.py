@@ -104,19 +104,25 @@ def build_plotly_boxplot(frames, baseline_count=0):
     for i, df in enumerate(ordered):
         is_baseline = i < len(baselines)
         if is_baseline:
-            color   = "#94a3b8"
-            opacity = 0.4
+            color     = "#94a3b8"
+            fillcolor = "rgba(148,163,184,0.15)"
+            opacity   = 1.0
         else:
-            color   = palette[(i - len(baselines)) % len(palette)]
-            opacity = 0.85
+            color     = palette[(i - len(baselines)) % len(palette)]
+            # Convert hex to rgba with low alpha for the fill
+            r = int(color[1:3], 16)
+            g = int(color[3:5], 16)
+            b = int(color[5:7], 16)
+            fillcolor = f"rgba({r},{g},{b},0.15)"
+            opacity   = 1.0
 
         fig.add_trace(go.Box(
             y=df["cycle_time"],
             name=df["name"].iloc[0],
             boxpoints="outliers",
-            marker=dict(color=color, size=5, opacity=opacity),
-            line=dict(color=color, width=1.5),
-            fillcolor=color,
+            marker=dict(color=color, size=5, opacity=0.6),
+            line=dict(color=color, width=2),
+            fillcolor=fillcolor,
             opacity=opacity,
         ))
 

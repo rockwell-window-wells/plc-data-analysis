@@ -48,7 +48,8 @@ API_CONFIG_DIR = "E:/github/plc-data-analysis/ID_Tracking/IDApp_v2/libs"
 # How many days back to fetch on the very first run (empty database).
 # StrideLinx keeps 3 years of rolling data (up to 1095 days).
 # Start smaller for testing; increase for backfills.
-INITIAL_LOOKBACK_DAYS = 90
+INITIAL_LOOKBACK_DAYS = 365 * 5
+# INITIAL_LOOKBACK_DAYS = 90
 
 LOCAL_TZ_NAME = "US/Mountain"
 
