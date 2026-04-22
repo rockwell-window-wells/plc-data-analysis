@@ -1,4 +1,5 @@
 fulllogo = "Z:\\Production\\ID_Tracking\\ID_and_Evaluation_App\\IDApp\\assets\\RockwellFullLogo.png"
+titlelogo = "Z:\\Production\\ID_Tracking\\ID_and_Evaluation_App\\IDApp\\assets\\RockwellTitleLogo.png"
 
 pdfexportfolder = "Z:\\Production\\ID_Tracking\\Operator_Reports"    # Folder for exporting plots and pdf reports
 pdftempfolder = "Z:\\Production\\ID_Tracking\\temp"    # Folder for exporting plots and pdf reports

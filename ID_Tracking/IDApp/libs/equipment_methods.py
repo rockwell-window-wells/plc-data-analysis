@@ -25,8 +25,8 @@ from sklearn.metrics import mean_squared_error
 
 from cycle_time_methods_v2 import between, closest_before, closest_idx
 
-from . import data_assets
-# import data_assets
+# from . import data_assets
+import data_assets
 
 
 def load_bag_data_single_mold(dtstart, dtend, moldcolor):
@@ -372,9 +372,9 @@ def get_all_bag_data(dtstart, dtend):
     return all_bag_data, bag_starts
 
 def filter_unsaturated_data(all_bag_data):
-    layup_unsaturated = all_bag_data.loc[(all_bag_data["Layup Time"] != 276.0) & (all_bag_data["Layup Time"] != 275.0)]
-    close_unsaturated = layup_unsaturated.loc[layup_unsaturated["Close Time"] != 90.0]
-    resin_unsaturated = close_unsaturated.loc[close_unsaturated["Resin Time"] != 180.0]
+    layup_unsaturated = all_bag_data.loc[(all_bag_data["Layup Time"] < 275.0)]
+    close_unsaturated = layup_unsaturated.loc[layup_unsaturated["Close Time"] < 90.0]
+    resin_unsaturated = close_unsaturated.loc[close_unsaturated["Resin Time"] < 180.0]
     return resin_unsaturated
 
 def analyze_by_bag_list(bag_list):
@@ -391,8 +391,11 @@ def analyze_by_bag_list(bag_list):
         row = bag_data.loc[bag_data["Bag"] == bag]
         check_date = row.loc[int(bag), "Built"]
         
-        if check_date < choose_date:
-            choose_date = check_date
+        if check_date.to_pydatetime() < choose_date:
+            choose_date = check_date.to_pydatetime()
+        # If there is no built date for the bag, replace choose_date with the latest date in the Built column
+        elif pd.isnull(check_date.to_pydatetime()):
+            choose_date = bag_data["Built"].max().to_pydatetime()
             
     # Access data and filter it down to the bags of interest
     all_bag_data, bag_starts = get_all_bag_data(choose_date, dtend)
@@ -428,45 +431,45 @@ def plot_rolling_avg(selected_bag_data, nobs):
     df = pd.concat(frames)
     df.sort_values("time",ignore_index=True)
     
-    # Plot rolling averages for stage times against number of cycles
-    plt.figure(dpi=300)
-    sns.lineplot(data=df, x="Bag Cycles", y="Layup Avg", hue="Bag", palette="Paired")
-    plt.title("Rolling Average - {} Samples".format(nobs))
-    plt.figure(dpi=300)
-    sns.lineplot(data=df, x="Bag Cycles", y="Close Avg", hue="Bag", palette="Paired")
-    plt.title("Rolling Average - {} Samples".format(nobs))
-    plt.figure(dpi=300)
-    sns.lineplot(data=df, x="Bag Cycles", y="Resin Avg", hue="Bag", palette="Paired")
-    plt.title("Rolling Average - {} Samples".format(nobs))
-    plt.figure(dpi=300)
-    sns.lineplot(data=df, x="Bag Cycles", y="Cycle Avg", hue="Bag", palette="Paired")
-    plt.title("Rolling Average - {} Samples".format(nobs))
+    # # Plot rolling averages for stage times against number of cycles
+    # plt.figure(dpi=300)
+    # sns.lineplot(data=df, x="Bag Cycles", y="Layup Avg", hue="Bag", palette="Paired")
+    # plt.title("Rolling Average - {} Samples".format(nobs))
+    # plt.figure(dpi=300)
+    # sns.lineplot(data=df, x="Bag Cycles", y="Close Avg", hue="Bag", palette="Paired")
+    # plt.title("Rolling Average - {} Samples".format(nobs))
+    # plt.figure(dpi=300)
+    # sns.lineplot(data=df, x="Bag Cycles", y="Resin Avg", hue="Bag", palette="Paired")
+    # plt.title("Rolling Average - {} Samples".format(nobs))
+    # plt.figure(dpi=300)
+    # sns.lineplot(data=df, x="Bag Cycles", y="Cycle Avg", hue="Bag", palette="Paired")
+    # plt.title("Rolling Average - {} Samples".format(nobs))
     
-    plt.figure(dpi=300)
-    sns.lineplot(data=df, x="Bag Days", y="Layup Avg", hue="Bag", palette="Paired")
-    plt.title("Rolling Average - {} Samples".format(nobs))
-    plt.figure(dpi=300)
-    sns.lineplot(data=df, x="Bag Days", y="Close Avg", hue="Bag", palette="Paired")
-    plt.title("Rolling Average - {} Samples".format(nobs))
-    plt.figure(dpi=300)
-    sns.lineplot(data=df, x="Bag Days", y="Resin Avg", hue="Bag", palette="Paired")
-    plt.title("Rolling Average - {} Samples".format(nobs))
-    plt.figure(dpi=300)
-    sns.lineplot(data=df, x="Bag Days", y="Cycle Avg", hue="Bag", palette="Paired")
-    plt.title("Rolling Average - {} Samples".format(nobs))
+    # plt.figure(dpi=300)
+    # sns.lineplot(data=df, x="Bag Days", y="Layup Avg", hue="Bag", palette="Paired")
+    # plt.title("Rolling Average - {} Samples".format(nobs))
+    # plt.figure(dpi=300)
+    # sns.lineplot(data=df, x="Bag Days", y="Close Avg", hue="Bag", palette="Paired")
+    # plt.title("Rolling Average - {} Samples".format(nobs))
+    # plt.figure(dpi=300)
+    # sns.lineplot(data=df, x="Bag Days", y="Resin Avg", hue="Bag", palette="Paired")
+    # plt.title("Rolling Average - {} Samples".format(nobs))
+    # plt.figure(dpi=300)
+    # sns.lineplot(data=df, x="Bag Days", y="Cycle Avg", hue="Bag", palette="Paired")
+    # plt.title("Rolling Average - {} Samples".format(nobs))
     
-    plt.figure(dpi=300)
-    sns.lineplot(data=df, x="time", y="Layup Avg", hue="Bag", palette="Paired")
-    plt.title("Rolling Average - {} Samples".format(nobs))
-    plt.figure(dpi=300)
-    sns.lineplot(data=df, x="time", y="Close Avg", hue="Bag", palette="Paired")
-    plt.title("Rolling Average - {} Samples".format(nobs))
-    plt.figure(dpi=300)
-    sns.lineplot(data=df, x="time", y="Resin Avg", hue="Bag", palette="Paired")
-    plt.title("Rolling Average - {} Samples".format(nobs))
-    plt.figure(dpi=300)
-    sns.lineplot(data=df, x="time", y="Cycle Avg", hue="Bag", palette="Paired")
-    plt.title("Rolling Average - {} Samples".format(nobs))
+    # plt.figure(dpi=300)
+    # sns.lineplot(data=df, x="time", y="Layup Avg", hue="Bag", palette="Paired")
+    # plt.title("Rolling Average - {} Samples".format(nobs))
+    # plt.figure(dpi=300)
+    # sns.lineplot(data=df, x="time", y="Close Avg", hue="Bag", palette="Paired")
+    # plt.title("Rolling Average - {} Samples".format(nobs))
+    # plt.figure(dpi=300)
+    # sns.lineplot(data=df, x="time", y="Resin Avg", hue="Bag", palette="Paired")
+    # plt.title("Rolling Average - {} Samples".format(nobs))
+    # plt.figure(dpi=300)
+    # sns.lineplot(data=df, x="time", y="Cycle Avg", hue="Bag", palette="Paired")
+    # plt.title("Rolling Average - {} Samples".format(nobs))
     
     return df
 
@@ -641,8 +644,8 @@ if __name__ == "__main__":
     # all_bag_data, bag_starts = get_all_bag_data(dtstart, dtend)
     
     # all_bag_data_unsaturated = filter_unsaturated_data(all_bag_data)
-    start_bag = 18
-    end_bag = 18
+    start_bag = 30
+    end_bag = 49
     bag_list = list(range(start_bag, end_bag+1))
     selected_bag_data, selected_bag_data_unsaturated = analyze_by_bag_list(bag_list)
     
@@ -662,23 +665,23 @@ if __name__ == "__main__":
     selected_bag_data_unsaturated = plot_rolling_avg(selected_bag_data_unsaturated, nobs)
     # frames = break_out_by_bag(selected_bag_data)
     
-    plt.figure(dpi=300)
-    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Cycles", y="Layup Time", hue="Bag", palette="Paired")
-    plt.figure(dpi=300)
-    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Cycles", y="Close Time", hue="Bag", palette="Paired")
-    plt.figure(dpi=300)
-    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Cycles", y="Resin Time", hue="Bag", palette="Paired")
-    plt.figure(dpi=300)
-    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Cycles", y="Cycle Time", hue="Bag", palette="Paired")
+    # plt.figure(dpi=300)
+    # sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Cycles", y="Layup Time", hue="Bag", palette="Paired")
+    # plt.figure(dpi=300)
+    # sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Cycles", y="Close Time", hue="Bag", palette="Paired")
+    # plt.figure(dpi=300)
+    # sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Cycles", y="Resin Time", hue="Bag", palette="Paired")
+    # plt.figure(dpi=300)
+    # sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Cycles", y="Cycle Time", hue="Bag", palette="Paired")
     
-    plt.figure(dpi=300)
-    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Layup Time", hue="Bag", palette="Paired")
-    plt.figure(dpi=300)
-    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Close Time", hue="Bag", palette="Paired")
-    plt.figure(dpi=300)
-    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Resin Time", hue="Bag", palette="Paired")
-    plt.figure(dpi=300)
-    sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Cycle Time", hue="Bag", palette="Paired")
+    # plt.figure(dpi=300)
+    # sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Layup Time", hue="Bag", palette="Paired")
+    # plt.figure(dpi=300)
+    # sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Close Time", hue="Bag", palette="Paired")
+    # plt.figure(dpi=300)
+    # sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Resin Time", hue="Bag", palette="Paired")
+    # plt.figure(dpi=300)
+    # sns.scatterplot(data=selected_bag_data_unsaturated, x="Bag Days", y="Cycle Time", hue="Bag", palette="Paired")
     
     
     

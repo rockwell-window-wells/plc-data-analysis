@@ -43,7 +43,8 @@ class OperatorStatsPDF(FPDF):
     def header(self):
         # Custom logo and positioning
         self.image(data_assets.fulllogo, 10, 8, 33)
-        self.set_font('Arial', 'B', 11)
+        self.set_font('Helvetica', 'B', 11)
+        # self.set_font('Helvetica', 'B', 11)
         self.cell(self.WIDTH - 80)
         self.cell(60, 1, 'Mold Operator Stats', 0, 0, 'R')
         self.ln(20)
@@ -115,9 +116,10 @@ class OperatorStatsPDF(FPDF):
 
         self.image(plot, 15, 25, self.WIDTH - 30)
         self.cell(0,self.HEIGHT-175, "", 0, 1, 'L')
-        self.set_font('Arial', 'B', 12)
+        self.set_font('Helvetica', 'B', 12)
+        # self.set_font('Arial', 'B', 12)
         self.cell(40, 6, "Stats:", 0, 1, 'L')
-        self.set_font('Arial', '', 11)
+        self.set_font('Helvetica', '', 11)
         self.cell(cellwidth, 6, nametext, 0, 0, 'L')
         self.cell(self.get_string_width(opname), 6, opname, 0, 1, 'L')
         self.cell(cellwidth, 6, numtext, 0, 0, 'L')
@@ -1377,8 +1379,12 @@ def load_operator_data(dtstart, dtend):
                     shifts[i].append("Graveyard")
                 elif cycleIDs[i][j] == 0:
                     pass
-                else:
-                    raise ValueError(f"ID {cycleIDs[i][j]} not recognized as part of a shift")
+                elif cycleIDs[i][j] == 1:
+                    pass
+                # elif cycleIDs[i][j] == 288: # Added this specific patch to deal with a bad number on 2/21/24.
+                #     pass
+                # else:
+                #     raise ValueError(f"ID {cycleIDs[i][j]} not recognized as part of a shift")
         
         
         
@@ -1849,8 +1855,12 @@ def load_single_mold_data(dtstart, dtend, moldcolor):
                 shifts[i].append("Graveyard")
             elif cycleIDs[i][j] == 0:
                 pass
-            else:
-                raise ValueError("ID not recognized as part of a shift")
+            elif cycleIDs[i][j] == 1:
+                pass
+            # elif cycleIDs[i][j] == 288: # Added this specific patch to deal with a bad number on 2/21/24.
+            #     pass
+            # else:
+            #     raise ValueError("ID not recognized as part of a shift")
     
     
     
@@ -2813,9 +2823,9 @@ def cycles_multiple_regression(dtstart, dtend):
 
 
 if __name__ == "__main__":
-    dtstart = dt.datetime(2020,1,1,0,0,0)
-    enddate = dt.date.today()
-    # enddate = dt.date(2022,3,17)
+    dtstart = dt.datetime(2024,6,1,0,0,0)
+    # enddate = dt.date.today()
+    enddate = dt.date(2024,6,30)
     endtime = dt.time(23,59,59)
     dtend = dt.datetime.combine(enddate, endtime)
     
@@ -2827,11 +2837,18 @@ if __name__ == "__main__":
     # # # cycles, medians, dates = cycle_time_over_time(dtstart, dtend)
     # # cycle_time_over_time_by_mold(dtstart, dtend)
     
-    # Convert dtstart and dtend from datetimes to formatted strings
-    dtstart = dtstart.strftime("%Y-%m-%dT%H:%M:%SZ")
-    dtend = dtend.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # # Convert dtstart and dtend from datetimes to formatted strings
+    # dtstart = dtstart.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # dtend = dtend.strftime("%Y-%m-%dT%H:%M:%SZ")
     
-    raw_dfs = {}
-    for moldcolor in api.molds:
-        df_raw = load_raw_data_single_mold_all_data(dtstart, dtend, moldcolor)
-        raw_dfs.update({moldcolor: df_raw})
+    df_eval = load_operator_data(dtstart, dtend)[0]
+
+    # Remove faulty duplicates
+    df_eval = clean_duplicate_times(df_eval)
+    operator_list = [123]
+    get_operator_stats_by_list(df_eval, operator_list, None)
+    
+    # raw_dfs = {}
+    # for moldcolor in api.molds:
+    #     df_raw = load_raw_data_single_mold_all_data(dtstart, dtend, moldcolor)
+    #     raw_dfs.update({moldcolor: df_raw})

@@ -7,13 +7,15 @@ Created on Fri Jan  5 12:31:24 2024
 
 from sqlalchemy import create_engine, Column, Integer, Float, String, ForeignKey, DateTime, Sequence, Boolean, UniqueConstraint, func
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from datetime import datetime, timedelta
+# from datetime import datetime, timedelta
+import datetime as dt
 import pandas as pd
 import numpy as np
 import api_config_vars as api
 from sklearn.cluster import KMeans
 import time
 import random
+from cycle_time_methods_v2 import load_raw_data_single_mold_all_data
 
 ##### File and class references #####
 Base = declarative_base()
@@ -27,7 +29,7 @@ class Bag(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     bag_id = Column(Integer)
     # moldbay_id = Column(Integer, ForeignKey('moldbays.moldbay_id'))
-    date_created = Column(DateTime, default=datetime.utcnow)
+    date_created = Column(DateTime, default=dt.datetime.utcnow)
     date_repair1 = Column(DateTime, default=None)
     date_repair2 = Column(DateTime, default=None)
     date_repair3 = Column(DateTime, default=None)
@@ -58,7 +60,7 @@ class Purple(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     purple_id = Column(Integer)
     # moldbay_id = Column(Integer, ForeignKey('moldbays.moldbay_id'))
-    date_created = Column(DateTime, default=datetime.now())
+    date_created = Column(DateTime, default=dt.datetime.now())
     date_trashed = Column(DateTime, default=None)
     repairs = Column(Integer, default=0)
     cycles = Column(Integer, default=0)
@@ -303,7 +305,7 @@ def close_session(session, engine):
     
 
 # Purple methods
-def add_purple(db_str, purple_id, moldbay_id=None, date_created=datetime.now()):
+def add_purple(db_str, purple_id, moldbay_id=None, date_created=dt.datetime.now()):
     session, engine = open_session(db_str)
     try:
         new_purple = Purple(purple_id=purple_id,
@@ -413,7 +415,7 @@ def increment_purple_cycles(db_str, purple_id, quantity):
         
         
 # Bag methods
-def add_bag(db_str, bag_id, moldbay_id=None, date_created=datetime.now):
+def add_bag(db_str, bag_id, moldbay_id=None, date_created=dt.datetime.now):
     session, engine = open_session(db_str)
     try:
         new_bag = Bag(bag_id=bag_id,
@@ -945,141 +947,177 @@ def process_stage_columns(df):
     return result_df
 
 def collapse_data(df):
+    n_high_diffs = 0
+    
+    n_layups = df['stage_name'].value_counts()['layup']
+    n_closes = df['stage_name'].value_counts()['close']
+    n_resins = df['stage_name'].value_counts()['resin']
     n_cycles = df['stage_name'].value_counts()['cycle']
-    kmeans = KMeans(n_clusters=n_cycles, random_state=42)  # You can adjust the number of clusters
-    df['cluster'] = kmeans.fit_predict(df[['time']])
+    n_min = min([n_layups, n_closes, n_resins, n_cycles])
+    n_max = max([n_layups, n_closes, n_resins, n_cycles])
+    n_vals = list(range(n_min,n_max+1))
+    n_vals.insert(0,n_cycles)   # Add n_cycles at the beginning of the list so iterations can be skipped if possible
+    n_best = n_vals[0]
+    best_high_diffs = n_max + 1
+    best_n_index = 0
+    n_index = 0
     
-    # Get the value counts for each value in Column A
-    value_counts = df['cluster'].value_counts()
+    for n_val in n_vals:
+        kmeans = KMeans(n_clusters=n_val, random_state=42)  # You can adjust the number of clusters
+        df['cluster'] = kmeans.fit_predict(df[['time']])
+        
+        # Get the value counts for each value in Column A
+        value_counts = df['cluster'].value_counts()
+        
+        # Filter the values that occur only once
+        unique_values = value_counts[value_counts == 1].index.tolist()
+        
+        # Create a mask for rows with values that occur only once in Column A
+        unique_values_mask = df['cluster'].isin(unique_values)
+        
+        # Get the row indices where the mask is True
+        indices_of_unique_values = df.index[unique_values_mask].tolist()
+        
+        time_diff_threshold = 5.0   # Number of seconds allowed for maximum abs value of time_diff
+        
+        for j in indices_of_unique_values:
+            preceding_count, following_count = consecutive_identical_values_count(df, 'cluster', j)
+            # cluster_val = df.loc[j, 'cluster']
+            preceding_time_diff = 0
+            following_time_diff = 0
+            cluster_found = False
+            for i in range(preceding_count):
+                preceding_time_diff += np.abs((df.loc[j-i-1, 'time'] - df.loc[j-i, 'time']).total_seconds())
+                
+            following_time_diff = 0
+            for i in range(following_count):
+                following_time_diff += np.abs((df.loc[j+i+1, 'time'] - df.loc[j+i, 'time']).total_seconds())
     
-    # Filter the values that occur only once
-    unique_values = value_counts[value_counts == 1].index.tolist()
-    
-    # Create a mask for rows with values that occur only once in Column A
-    unique_values_mask = df['cluster'].isin(unique_values)
-    
-    # Get the row indices where the mask is True
-    indices_of_unique_values = df.index[unique_values_mask].tolist()
-    
-    time_diff_threshold = 5.0   # Number of seconds allowed for maximum abs value of time_diff
-    
-    for j in indices_of_unique_values:
-        preceding_count, following_count = consecutive_identical_values_count(df, 'cluster', j)
-        cluster_val = df.loc[j, 'cluster']
-        preceding_time_diff = 0
-        following_time_diff = 0
-        cluster_found = False
-        for i in range(preceding_count):
-            preceding_time_diff += np.abs((df.loc[j-i-1, 'time'] - df.loc[j-i, 'time']).total_seconds())
-            
-        following_time_diff = 0
-        for i in range(following_count):
-            following_time_diff += np.abs((df.loc[j+i+1, 'time'] - df.loc[j+i, 'time']).total_seconds())
-
-        if preceding_count == following_count:
-            if preceding_time_diff < following_time_diff:
+            if preceding_count == following_count:
+                if preceding_time_diff < following_time_diff:
+                    df.loc[j, 'cluster'] = df.loc[j-1, 'cluster']
+                else:
+                    df.loc[j, 'cluster'] = df.loc[j+1, 'cluster']
+                    
+            elif (preceding_count < following_count) and (preceding_time_diff < time_diff_threshold):
                 df.loc[j, 'cluster'] = df.loc[j-1, 'cluster']
-            else:
+                
+            elif (preceding_count > following_count) and (following_time_diff < time_diff_threshold):
                 df.loc[j, 'cluster'] = df.loc[j+1, 'cluster']
+            
+            elif (preceding_count < 4) and (preceding_time_diff < time_diff_threshold) and (cluster_found == False):
+                df.loc[j, 'cluster'] = df.loc[j-1, 'cluster']
                 
-        elif (preceding_count < following_count) and (preceding_time_diff < time_diff_threshold):
-            df.loc[j, 'cluster'] = df.loc[j-1, 'cluster']
+            elif (following_count < 4) and (following_time_diff < time_diff_threshold) and (cluster_found == False):
+                df.loc[j, 'cluster'] = df.loc[j+1, 'cluster']
             
-        elif (preceding_count > following_count) and (following_time_diff < time_diff_threshold):
-            df.loc[j, 'cluster'] = df.loc[j+1, 'cluster']
-        
-        elif (preceding_count < 4) and (preceding_time_diff < time_diff_threshold) and (cluster_found == False):
-            df.loc[j, 'cluster'] = df.loc[j-1, 'cluster']
-            
-        elif (following_count < 4) and (following_time_diff < time_diff_threshold) and (cluster_found == False):
-            df.loc[j, 'cluster'] = df.loc[j+1, 'cluster']
-        
-        else:
-            # print(f"Orphan row {j} did not find a matching group.")
-            pass
-            
-            
-    # Get rid of repeated values in clusters
-    filtered_df = df.groupby(['cluster', 'stage_name']).head(1)
-    
-    # Initialize an empty DataFrame for the collapsed data
-    print("Collapsing data")
-    df_collapsed = pd.DataFrame()
-
-    # Iterate over unique cluster values
-    for cluster_value in df['cluster'].unique():
-        # Filter rows based on the current cluster value
-        cluster_data = df[df['cluster'] == cluster_value]
-
-        # Find the row with the highest time value
-        max_time_row = cluster_data.loc[cluster_data['time'].idxmax()]
-
-        # Create a new row for df_collapsed with the time value from the max_time_row
-        new_row = {'time': max_time_row['time']}
-
-        # Iterate over stage_names and extract corresponding stage_time values
-        for stage_name in ['layup', 'close', 'resin', 'cycle']:
-            stage_time = cluster_data[cluster_data['stage_name'] == stage_name]['stage_time'].values
-
-            # If there are stage_time values, use the first one; otherwise, set it to NaN
-            new_row[f'{stage_name}_time'] = stage_time[0] if len(stage_time) > 0 else float('nan')
-
-        # Append the new_row to df_collapsed
-        df_collapsed = df_collapsed.append(new_row, ignore_index=True)
-        
-        
-    # Impute missing values where possible
-    # Iterate over rows and impute missing values
-    for index, row in df_collapsed.iterrows():
-        # Check if there is only a single NaN value in the specified columns
-        if row[['layup_time', 'close_time', 'resin_time', 'cycle_time']].isna().sum() == 1:
-            # Impute missing values based on the condition
-            if np.isnan(df_collapsed.loc[index, 'layup_time']):
-                df_collapsed.loc[index, 'layup_time'] = df_collapsed.loc[index, 'cycle_time'] - df_collapsed.loc[index, 'close_time'] - df_collapsed.loc[index, 'resin_time']
-            elif np.isnan(df_collapsed.loc[index, 'close_time']):
-                df_collapsed.loc[index, 'close_time'] = df_collapsed.loc[index, 'cycle_time'] - df_collapsed.loc[index, 'layup_time'] - df_collapsed.loc[index, 'resin_time']
-            elif np.isnan(df_collapsed.loc[index, 'resin_time']):
-                df_collapsed.loc[index, 'resin_time'] = df_collapsed.loc[index, 'cycle_time'] - df_collapsed.loc[index, 'layup_time'] - df_collapsed.loc[index, 'close_time']
-            elif np.isnan(df_collapsed.loc[index, 'cycle_time']):
-                df_collapsed.loc[index, 'cycle_time'] = df_collapsed.loc[index, 'layup_time'] + df_collapsed.loc[index, 'close_time'] + df_collapsed.loc[index, 'resin_time']
             else:
-                raise ValueError("No nan value detected in row")
+                # print(f"Orphan row {j} did not find a matching group.")
+                pass
                 
-        else:
-            df_collapsed.drop([index])
+                
+        # # Get rid of repeated values in clusters
+        # filtered_df = df.groupby(['cluster', 'stage_name']).head(1)
+        
+        # Initialize an empty DataFrame for the collapsed data
+        print("Collapsing data")
+        df_collapsed_temp = pd.DataFrame()
+    
+        # Iterate over unique cluster values
+        for cluster_value in df['cluster'].unique():
+            # Filter rows based on the current cluster value
+            cluster_data = df[df['cluster'] == cluster_value]
+    
+            # Find the row with the highest time value
+            max_time_row = cluster_data.loc[cluster_data['time'].idxmax()]
+    
+            # Create a new row for df_collapsed_temp with the time value from the max_time_row
+            new_row = {'time': max_time_row['time']}
+    
+            # Iterate over stage_names and extract corresponding stage_time values
+            for stage_name in ['layup', 'close', 'resin', 'cycle']:
+                stage_time = cluster_data[cluster_data['stage_name'] == stage_name]['stage_time'].values
+    
+                # If there are stage_time values, use the first one; otherwise, set it to NaN
+                new_row[f'{stage_name}_time'] = stage_time[0] if len(stage_time) > 0 else float('nan')
+    
+            # Append the new_row to df_collapsed_temp
+            df_collapsed_temp = df_collapsed_temp.append(new_row, ignore_index=True)
             
-    # Specify the columns to consider for duplicates
-    subset_columns = ['layup_time', 'close_time', 'resin_time', 'cycle_time']
-
-    # Identify consecutive duplicates and keep only the first instance
-    df_collapsed = df_collapsed.drop_duplicates(subset=subset_columns, keep='first')
+            
+        # Impute missing values where possible
+        # Iterate over rows and impute missing values
+        for index, row in df_collapsed_temp.iterrows():
+            # Check if there is only a single NaN value in the specified columns
+            if row[['layup_time', 'close_time', 'resin_time', 'cycle_time']].isna().sum() == 1:
+                # Impute missing values based on the condition
+                if np.isnan(df_collapsed_temp.loc[index, 'layup_time']):
+                    df_collapsed_temp.loc[index, 'layup_time'] = df_collapsed_temp.loc[index, 'cycle_time'] - df_collapsed_temp.loc[index, 'close_time'] - df_collapsed_temp.loc[index, 'resin_time']
+                elif np.isnan(df_collapsed_temp.loc[index, 'close_time']):
+                    df_collapsed_temp.loc[index, 'close_time'] = df_collapsed_temp.loc[index, 'cycle_time'] - df_collapsed_temp.loc[index, 'layup_time'] - df_collapsed_temp.loc[index, 'resin_time']
+                elif np.isnan(df_collapsed_temp.loc[index, 'resin_time']):
+                    df_collapsed_temp.loc[index, 'resin_time'] = df_collapsed_temp.loc[index, 'cycle_time'] - df_collapsed_temp.loc[index, 'layup_time'] - df_collapsed_temp.loc[index, 'close_time']
+                elif np.isnan(df_collapsed_temp.loc[index, 'cycle_time']):
+                    df_collapsed_temp.loc[index, 'cycle_time'] = df_collapsed_temp.loc[index, 'layup_time'] + df_collapsed_temp.loc[index, 'close_time'] + df_collapsed_temp.loc[index, 'resin_time']
+                else:
+                    raise ValueError("No nan value detected in row")
+                    
+            else:
+                df_collapsed_temp.drop([index])
+                
+        # Specify the columns to consider for duplicates
+        subset_columns = ['layup_time', 'close_time', 'resin_time', 'cycle_time']
     
-    # Catch any rows that contain nan and remove them
-    df_collapsed.dropna(axis=0, inplace=True)
-    
-    # Reindex after possibly removing rows
-    df_collapsed.reset_index(inplace=True, drop=True)
-    
-    df_collapsed['sum'] = df_collapsed[['layup_time', 'close_time', 'resin_time']].sum(axis=1)
-    df_collapsed['diff'] = np.abs(df_collapsed['cycle_time'] - df_collapsed['sum'])
-    
-    # If diff column has a value greater than 0.05, decide what to do based on
-    # the value (usually indicates missing cells or a repeated value where 
-    # there shouldn't be)
-    high_diff_indices = df_collapsed.index[df_collapsed['diff'] > 0.05].tolist()
-    for ind in high_diff_indices:
-        if df_collapsed.loc[ind,'cycle_time'] == df_collapsed.loc[ind-1,'cycle_time']:
-            df_collapsed.loc[ind,'cycle_time'] = df_collapsed.loc[ind,['layup_time', 'close_time', 'resin_time']].sum()
-            # dataFrame['Sum_Result'] = dataFrame.loc[0 : 1,["Opening_Stock" , "Closing_Stock"]].sum(axis = 1)
-        else:
-            df_collapsed.loc[ind,'cycle_time'] = df_collapsed.loc[ind,['layup_time', 'close_time', 'resin_time']].sum()            
-    df_collapsed['diff'] = np.abs(df_collapsed['cycle_time'] - df_collapsed['sum'])
-    high_diff_indices = df_collapsed.index[df_collapsed['diff'] > 0.05].tolist()
-    print(f"{len(high_diff_indices)} rows found with mismatched cycle times:")
-    print(high_diff_indices)
-    
-    # Drop unneeded sum and diff columns
-    df_collapsed.drop(columns=['sum', 'diff'], inplace=True)
+        # Identify consecutive duplicates and keep only the first instance
+        df_collapsed_temp = df_collapsed_temp.drop_duplicates(subset=subset_columns, keep='first')
+        
+        # Catch any rows that contain nan and remove them
+        df_collapsed_temp.dropna(axis=0, inplace=True)
+        
+        # Reindex after possibly removing rows
+        df_collapsed_temp.reset_index(inplace=True, drop=True)
+        
+        df_collapsed_temp['sum'] = df_collapsed_temp[['layup_time', 'close_time', 'resin_time']].sum(axis=1)
+        df_collapsed_temp['diff'] = np.abs(df_collapsed_temp['cycle_time'] - df_collapsed_temp['sum'])
+        
+        # If diff column has a value greater than 0.05, decide what to do based on
+        # the value (usually indicates missing cells or a repeated value where 
+        # there shouldn't be)
+        high_diff_indices = df_collapsed_temp.index[df_collapsed_temp['diff'] > 0.05].tolist()
+        for ind in high_diff_indices:
+            if ind == 0:
+                continue
+            elif (df_collapsed_temp.loc[ind,'cycle_time'] == df_collapsed_temp.loc[ind-1,'cycle_time']):
+                df_collapsed_temp.loc[ind,'cycle_time'] = df_collapsed_temp.loc[ind,['layup_time', 'close_time', 'resin_time']].sum()
+                # dataFrame['Sum_Result'] = dataFrame.loc[0 : 1,["Opening_Stock" , "Closing_Stock"]].sum(axis = 1)
+            # else:
+            #     pass
+            #     # df_collapsed_temp.loc[ind,'cycle_time'] = df_collapsed_temp.loc[ind,['layup_time', 'close_time', 'resin_time']].sum()            
+        df_collapsed_temp['diff'] = np.abs(df_collapsed_temp['cycle_time'] - df_collapsed_temp['sum'])
+        high_diff_indices = df_collapsed_temp.index[df_collapsed_temp['diff'] > 0.05].tolist()
+        n_high_diffs = len(high_diff_indices)
+        print(f"{len(high_diff_indices)} rows found with mismatched cycle times:")
+        print(high_diff_indices)
+        
+        
+        # Determine if df_collapsed should be tried again
+        # If processing gets rid of all the high difference rows, then skip the
+        # rest of the iterations 
+        if n_high_diffs == 0:
+            best_high_diffs = n_high_diffs
+            # best_n_index = n_index
+            df_collapsed = df_collapsed_temp.copy(deep=True)
+            # Drop unneeded sum and diff columns
+            df_collapsed.drop(columns=['sum', 'diff'], inplace=True)
+            print("n_cycles was a sufficient cluster count")
+            break
+            
+        elif n_high_diffs < best_high_diffs:
+            best_high_diffs = n_high_diffs
+            # best_n_index = n_index
+            df_collapsed = df_collapsed_temp.copy(deep=True)
+            # Drop unneeded sum and diff columns
+            df_collapsed.drop(columns=['sum', 'diff'], inplace=True)
     
     return df_collapsed
 
@@ -1203,19 +1241,129 @@ def request_cycle_times_single_mold(db_str, moldcolor, datestart, dateend):
     session, engine = open_session(db_str)
     dtstart_cycle = session.query(func.min(moldcycleclasses[moldcolor].time)).scalar()
     dtend_cycle = session.query(func.max(moldcycleclasses[moldcolor].time)).scalar()
-    threshold = timedelta(days=7)
+    dtstart_raw = session.query(func.min(moldrawclasses[moldcolor].time)).scalar()
+    dtend_raw = session.query(func.max(moldrawclasses[moldcolor].time)).scalar()
+    if dtstart_cycle is None:
+        dtstart_cycle = dt.datetime(2022,5,4)
+    if dtend_cycle is None:
+        dtend_cycle = dt.datetime(2022,5,4,0,0,1)
+    threshold = dt.timedelta(days=7)
     df = pd.DataFrame()
-    if (datestart < dtstart_cycle) or (dateend > dtend_cycle):
-        print("Issue with a selected date outside the range of the available cycle data")
-        if dateend-dtend_cycle < threshold:
-            pass
-            # would need to see if cycles data can be updated here
-    else:
-        # Request the data
-        query = session.query(moldcycleclasses[moldcolor]).filter(moldcycleclasses[moldcolor].time.between(datestart, dateend))
-        df = pd.read_sql(query.statement, engine)
-        df['mold'] = moldcolor
-        close_session(session, engine)
+    
+    if datestart < dt.datetime(2022,5,4):
+        raise ValueError(f"Start date {datestart} is earlier than the minimum allowable date of May 5, 2022. Choose a new starting date.")
+    
+    # If the end date is later than the latest date in the raw data, attempt
+    # to update the raw data table
+    if dateend > dtend_raw:
+        print("End date is outside the available raw data. Retrieving more data via API call.")
+        # Get data from API call to StrideLinx and update the database
+        df_raw = load_raw_data_single_mold_all_data(dtend_raw.strftime("%Y-%m-%dT%H:%M:%SZ"), dt.datetime.today().strftime("%Y-%m-%dT%H:%M:%SZ"), moldcolor.capitalize())
+        df_raw = df_raw.rename(columns={'Layup Time': 'layup_time',
+                                'Close Time': 'close_time',
+                                'Resin Time': 'resin_time',
+                                'Cycle Time': 'cycle_time',
+                                'Leak Time': 'leak_time',
+                                'Leak Count': 'leak_count',
+                                'Parts Count': 'parts_count',
+                                'Weekly Count': 'weekly_count',
+                                'Monthly Count': 'monthly_count',
+                                'Trash Count': 'trash_count',
+                                'Lead': 'lead',
+                                'Assistant 1': 'assistant_1',
+                                'Assistant 2': 'assistant_2',
+                                'Assistant 3': 'assistant_3',
+                                'Bag': 'bag',
+                                'Bag Days': 'bag_days',
+                                'Bag Cycles': 'bag_cycles'
+                                })
+        
+        try:
+            for index, row in df_raw.iterrows():
+                session.add(moldrawclasses[moldcolor](time=row['time'],
+                                                    layup_time=row['layup_time'],
+                                                    close_time=row['close_time'],
+                                                    resin_time=row['resin_time'],
+                                                    cycle_time=row['cycle_time'],
+                                                    leak_time=row['leak_time'],
+                                                    leak_count=row['leak_count'],
+                                                    parts_count=row['parts_count'],
+                                                    weekly_count=row['weekly_count'],
+                                                    monthly_count=row['monthly_count'],
+                                                    trash_count=row['trash_count'],
+                                                    lead=row['lead'],
+                                                    assistant_1=row['assistant_1'],
+                                                    assistant_2=row['assistant_2'],
+                                                    assistant_3=row['assistant_3'],
+                                                    bag=row['bag'],
+                                                    bag_days=row['bag_days'],
+                                                    bag_cycles=row['bag_cycles']))
+            session.commit()
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            session.rollback()
+            
+        
+    
+    # If the end date is later than the latest date in the aligned cycle data,
+    # but still within the raw data table in the Rockwell database:
+    if (dateend > dtend_cycle) & (dateend <= dtend_raw):
+        print("End date is outside the available aligned cycle data. Aligning data and updating database.")
+        # Request data from the raw data table in the Rockwell database
+        df_cycles = get_df_date_range(db_str, moldrawclasses[moldcolor], dtend_cycle, dtend_raw)
+        result_df = process_stage_columns(df_cycles)
+        df_collapsed = collapse_data(result_df)
+
+        # Filter saturated times
+        df_collapsed.drop(df_collapsed.index[df_collapsed['layup_time'] >= 274.99], inplace=True)
+        df_collapsed.drop(df_collapsed.index[df_collapsed['close_time'] >= 89.99], inplace=True)
+        df_collapsed.drop(df_collapsed.index[df_collapsed['resin_time'] >= 179.99], inplace=True)
+        df_collapsed.reset_index(drop=True, inplace=True)
+        
+        # Remove any rows with negative values
+        df_collapsed.drop(df_collapsed.index[df_collapsed['layup_time'] < 0], inplace=True)
+        df_collapsed.drop(df_collapsed.index[df_collapsed['close_time'] < 0], inplace=True)
+        df_collapsed.drop(df_collapsed.index[df_collapsed['resin_time'] < 0], inplace=True)
+        df_collapsed.drop(df_collapsed.index[df_collapsed['cycle_time'] < 0], inplace=True)
+        
+        # If raw data extends past the cycle time data, update the cycle time data
+        if dtend_raw > dtend_cycle:
+            df_later = df_collapsed[df_collapsed['time'] > dtend_raw]
+        
+        if len(df_later) > 0:
+            print(f"Cycles data is missing some raw data for {moldcycleclasses[moldcolor].__tablename__}")
+                    
+            try:
+                for index, row in df_later.iterrows():
+                    session.add(moldcycleclasses[moldcolor](time=row['time'],
+                                             layup_time=row['layup_time'],
+                                             close_time=row['close_time'],
+                                             resin_time=row['resin_time'],
+                                             cycle_time=row['cycle_time']))
+                    
+                session.commit()
+            
+            except Exception as e:
+                print(f"An error occurred: {e}")
+                session.rollback()
+                
+            # finally:
+            #     session.close()
+            #     engine.dispose()
+                
+        else:
+            print(f"Cycles data is fully up to date for {moldcycleclasses[moldcolor].__tablename__}")
+        
+        
+        # # mold_cycles = list(get_condensed_cycle_times(db_str, moldrawclasses[moldcolor], dtend_cycle, dtend_raw))
+        # update_collapsed_cycle_tables(db_str, mold_cycles)
+    
+    # Otherwise, just request the data directly from the aligned cycles table
+    print("Retrieving aligned cycles data from database.")    
+    query = session.query(moldcycleclasses[moldcolor]).filter(moldcycleclasses[moldcolor].time.between(datestart, dateend))
+    df = pd.read_sql(query.statement, engine)
+    df['mold'] = moldcolor
+    close_session(session, engine)
         
     return df
 
@@ -1310,29 +1458,46 @@ if __name__ == "__main__":
     # test_purple_methods()
     # test_moldbay_methods()
     
-    datestart = datetime(2022,5,4) # datestart should be no earlier than 5/4/2022, when the new logging method was started
-    dateend = datetime(2023,12,20,23,59,59)
-    start = time.time()
-    dfcycles = request_cycle_times_all_molds(db_str, datestart, dateend)
+    datestart = dt.datetime(2023,12,17) # datestart should be no earlier than 5/4/2022, when the new logging method was started
+    dateend = dt.datetime(2024,3,10,23,59,59)
+    # start = time.time()
+    # dfcycles = request_cycle_times_all_molds(db_str, datestart, dateend)
+    # end = time.time()
+    # print(f"Elapsed time for getting dfcycles and updating if necessary: {end-start}")
     
-    dfcycles = add_cycle_start_times(dfcycles)
+    # dfcycles = add_cycle_start_times(dfcycles)
     
-    time_ranges = [
-        (datetime(2022, 5, 4, 3, 0, 0), datetime(2022, 5, 4, 4, 0, 0)),
-        (datetime(2022, 5, 10, 0, 0, 0), datetime(2022, 5, 10, 2, 0, 0)),
-        (datetime(2022, 8, 4, 0, 0, 0), datetime(2022, 8, 4, 10, 0, 0)),
-        (datetime(2023, 5, 10, 0, 0, 0), datetime(2023, 5, 10, 2, 0, 0)),
-        (datetime(2023, 5, 14, 0, 0, 0), datetime(2023, 5, 20, 2, 0, 0)),
-        # Add more time ranges as needed
-    ]
-    df_operator = get_operator_stage_times(time_ranges, dfcycles)
-    end = time.time()
-    print(f"Elapsed time: {end-start}")
+    # time_ranges = [
+    #     (dt.datetime(2022, 5, 4, 3, 0, 0), dt.datetime(2022, 5, 4, 4, 0, 0)),
+    #     (dt.datetime(2022, 5, 10, 0, 0, 0), dt.datetime(2022, 5, 10, 2, 0, 0)),
+    #     (dt.datetime(2022, 8, 4, 0, 0, 0), dt.datetime(2022, 8, 4, 10, 0, 0)),
+    #     (dt.datetime(2023, 5, 10, 0, 0, 0), dt.datetime(2023, 5, 10, 2, 0, 0)),
+    #     (dt.datetime(2023, 5, 14, 0, 0, 0), dt.datetime(2023, 5, 20, 2, 0, 0)),
+    #     # Add more time ranges as needed
+    # ]
+    # df_operator = get_operator_stage_times(time_ranges, dfcycles)
+    # end = time.time()
+    # print(f"Total time including getting dfoperator: {end-start}")
     
-    # moldrawclasses = [BrownMoldRaw, GreenMoldRaw, OrangeMoldRaw, PinkMoldRaw, PurpleMoldRaw, RedMoldRaw]
-    # mold_cycles = [get_condensed_cycle_times(db_str, moldrawclass, datestart, dateend) for moldrawclass in moldrawclasses]
     
-    # update_collapsed_cycle_tables(db_str, mold_cycles)
+    moldrawclasses = [BrownMoldRaw, GreenMoldRaw, OrangeMoldRaw, PinkMoldRaw, PurpleMoldRaw, RedMoldRaw]
+    mold_cycles = [get_condensed_cycle_times(db_str, moldrawclass, datestart, dateend) for moldrawclass in moldrawclasses]
+    
+    # Update collapsed tables if necessary
+    update_collapsed_cycle_tables(db_str, mold_cycles)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     # # Save Excel files of unsaturated cycle times
     # mold_cycles[0].to_excel("brown_unsaturated.xlsx")

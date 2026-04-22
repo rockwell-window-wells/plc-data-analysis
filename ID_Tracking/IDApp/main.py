@@ -51,6 +51,8 @@ class RootScreen(MDScreen):
 
 
 class HomeScreen(MDScreen):
+    logo_img = StringProperty('assets/RockwellTitleLogo.png')
+    
     def translate_en(self):
         app.english = True
         app.home_title = app.home_title_en

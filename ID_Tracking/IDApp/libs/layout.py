@@ -14,7 +14,7 @@ KV = '''
                 id: titlelogo
                 size_hint: None, None
                 size: 500, 500
-                source: "assets/RockwellTitleLogo.png"
+                source: root.logo_img
 
         AnchorLayout:
             anchor_x: "center"

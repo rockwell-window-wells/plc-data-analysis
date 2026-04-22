@@ -25,7 +25,8 @@ class IDPDF(FPDF):
         # pass
         # Page numbers in the footer
         self.set_y(-15)
-        self.set_font('Arial', 'I', 8)
+        self.set_font('Helvetica', 'I', 8)
+        # self.set_font('Arial', 'I', 8)
         self.set_text_color(128)
         self.cell(0, 5, 'Page ' + str(self.page_no()), 0, 0, 'C')
 
