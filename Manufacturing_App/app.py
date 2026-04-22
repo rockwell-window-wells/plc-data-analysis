@@ -275,6 +275,7 @@ app = dash.Dash(
     title="Cycle Time Reports",
     suppress_callback_exceptions=True,
 )
+server = app.server
 
 # Default dates
 DATE_START = (dt.date.today() - dt.timedelta(days=90)).isoformat()
@@ -901,4 +902,5 @@ def export_pdf(n_clicks, store):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=8050)
+    app.run(debug=False, host="0.0.0.0", port=8050)
+    # app.run(debug=True, host="0.0.0.0", port=8050)
