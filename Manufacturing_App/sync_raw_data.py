@@ -36,27 +36,32 @@ import datetime as dt
 import pytz
 import os
 import sys
+import yaml
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
+CONFIG_FILE = 'config_vars.yaml'
 
-DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
+with open(CONFIG_FILE, 'r') as file:
+    config_data = yaml.safe_load(file)
+    DB_PATH = config_data['db_path']
+# DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
 
-API_CONFIG_DIR = "E:/github/plc-data-analysis/ID_Tracking/IDApp_v2/libs"
+# API_CONFIG_DIR = "E:/github/plc-data-analysis/ID_Tracking/IDApp_v2/libs"
 
 # How many days back to fetch on the very first run (empty database).
 # StrideLinx keeps 3 years of rolling data (up to 1095 days).
 # Start smaller for testing; increase for backfills.
-INITIAL_LOOKBACK_DAYS = 365 * 5
-# INITIAL_LOOKBACK_DAYS = 90
+# INITIAL_LOOKBACK_DAYS = 365 * 5
+INITIAL_LOOKBACK_DAYS = 90
 
 LOCAL_TZ_NAME = "US/Mountain"
 
 # ---------------------------------------------------------------------------
 # Import API config
 # ---------------------------------------------------------------------------
-sys.path.insert(0, API_CONFIG_DIR)
+# sys.path.insert(0, API_CONFIG_DIR)
 import api_config_vars as api
 
 # ---------------------------------------------------------------------------

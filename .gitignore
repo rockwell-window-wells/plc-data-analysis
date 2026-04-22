@@ -6,7 +6,9 @@
 *.pdf
 *.ico
 *.docx
-api_config_vars.py
+ID_Tracking/api_config_vars.py
+ID_Tracking/IDApp/libs/api_config_vars.py
+ID_Tracking/IDApp_v2/libs/api_config_vars.py
 api_config_vars_resin.py
 *.toc
 *.zip
