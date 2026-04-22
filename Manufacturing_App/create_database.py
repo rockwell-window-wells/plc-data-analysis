@@ -25,9 +25,15 @@ Download free at: https://sqlitebrowser.org/
 
 import sqlite3
 import os
+import yaml
 
-DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
+# DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
 
+CONFIG_FILE = 'config_vars.yaml'
+
+with open(CONFIG_FILE, 'r') as file:
+    config_data = yaml.safe_load(file)
+    DB_PATH = config_data['db_path']
 
 def create_database(db_path: str = DB_PATH):
     print(f"Creating database at: {os.path.abspath(db_path)}")

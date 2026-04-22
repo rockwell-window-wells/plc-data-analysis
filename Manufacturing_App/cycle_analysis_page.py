@@ -24,7 +24,14 @@ import dash_bootstrap_components as dbc
 
 from analytics import get_connection, get_cycles_for_explorer, get_operators_by_shift
 
-DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
+import yaml
+
+# DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
+CONFIG_FILE = 'config_vars.yaml'
+
+with open(CONFIG_FILE, 'r') as file:
+    config_data = yaml.safe_load(file)
+    DB_PATH = config_data['db_path']
 MOLDS   = ["Brown", "Purple", "Red", "Pink", "Orange", "Green"]
 
 # ---------------------------------------------------------------------------

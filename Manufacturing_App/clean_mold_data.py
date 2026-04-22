@@ -23,6 +23,7 @@ import datetime as dt
 import os
 from bisect import bisect_left
 from itertools import groupby
+import yaml
 
 # ---------------------------------------------------------------------------
 # Safe type conversion
@@ -47,8 +48,12 @@ def safe_int(value, fallback=0):
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
+CONFIG_FILE = 'config_vars.yaml'
 
-DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
+with open(CONFIG_FILE, 'r') as file:
+    config_data = yaml.safe_load(file)
+    DB_PATH = config_data['db_path']
+# DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
 # DB_PATH = "manufacturing.db"
 
 # Saturation thresholds -- same values as your existing code

@@ -15,10 +15,18 @@ import dash
 from dash import dcc, html, dash_table, Input, Output, State, ctx
 import dash_bootstrap_components as dbc
 
+import yaml
+
 from analytics import get_connection
 import id_cards
 
-DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
+CONFIG_FILE = 'config_vars.yaml'
+
+with open(CONFIG_FILE, 'r') as file:
+    config_data = yaml.safe_load(file)
+    DB_PATH = config_data['db_path']
+
+# DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
 
 # Paths needed for card generation.
 # Update these to match your actual file locations on the server.

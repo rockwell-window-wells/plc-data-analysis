@@ -29,6 +29,8 @@ import dash
 from dash import dcc, html, dash_table, Input, Output, State
 import dash_bootstrap_components as dbc
 
+import yaml
+
 from analytics import (
     get_connection, get_operator_cycle_times,
     get_shift_cycle_times, get_all_cycles, get_operators_by_shift,
@@ -39,8 +41,12 @@ import cycle_analysis_page
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
+CONFIG_FILE = 'config_vars.yaml'
 
-DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
+with open(CONFIG_FILE, 'r') as file:
+    config_data = yaml.safe_load(file)
+    DB_PATH = config_data['db_path']
+# DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
 MOLDS   = ["Brown", "Purple", "Red", "Pink", "Orange", "Green"]
 
 # ---------------------------------------------------------------------------
