@@ -257,20 +257,36 @@ def layout():
                                                 "fontWeight": "500",
                                             }
                                         ),
-                                        dcc.Checklist(
-                                            id="retire-confirm-check",
-                                            options=[{
-                                                "label": " I confirm I want to retire this operator "
-                                                         "and free their number for reuse.",
-                                                "value": "confirmed",
-                                            }],
-                                            value=[],
-                                            inputStyle={"marginRight": "6px"},
-                                            labelStyle={
-                                                "fontSize": "12px",
-                                                "color": "#7f1d1d",
-                                                "cursor": "pointer",
+                                        html.Label("Enter authorization password:",
+                                                   style={"fontSize": "12px",
+                                                          "color": "#7f1d1d",
+                                                          "fontWeight": "600",
+                                                          "display": "block",
+                                                          "marginBottom": "4px"}),
+                                        dcc.Input(
+                                            id="retire-password-input",
+                                            type="password",
+                                            placeholder="Password",
+                                            debounce=True,
+                                            style={
+                                                "width": "100%",
+                                                "padding": "7px 10px",
+                                                "fontFamily": "Inter, sans-serif",
+                                                "fontSize": "13px",
+                                                "color": "#1e293b",
+                                                "backgroundColor": "#ffffff",
+                                                "border": "1px solid #fca5a5",
+                                                "borderRadius": "6px",
+                                                "outline": "none",
+                                                "marginBottom": "8px",
                                             },
+                                        ),
+                                        html.Div(
+                                            id="retire-password-msg",
+                                            style={"fontSize": "11px",
+                                                   "color": "#dc2626",
+                                                   "minHeight": "16px",
+                                                   "marginBottom": "6px"},
                                         ),
                                     ]),
 
@@ -434,18 +450,26 @@ def register_callbacks(app):
         return {"display": "block"}, msg
 
 
-    # Enable/disable retire button based on confirmation checkbox
+    # Enable retire button only when correct password is entered
     @app.callback(
-        Output("retire-op-btn", "disabled"),
-        Output("retire-op-btn", "style"),
-        Input("retire-confirm-check", "value"),
+        Output("retire-op-btn",       "disabled"),
+        Output("retire-op-btn",       "style"),
+        Output("retire-password-msg", "children"),
+        Input("retire-password-input","value"),
         prevent_initial_call=True,
     )
-    def toggle_retire_btn(check_value):
-        confirmed = "confirmed" in (check_value or [])
-        if confirmed:
-            return False, BTN_DANGER
-        return True, {**BTN_DANGER, "opacity": "0.4", "cursor": "not-allowed"}
+    def toggle_retire_btn(password):
+        with open(CONFIG_FILE, 'r') as f:
+            cfg = yaml.safe_load(f)
+        correct = str(cfg.get("retire_password", ""))
+
+        if not password:
+            return True, {**BTN_DANGER, "opacity": "0.4",
+                          "cursor": "not-allowed"}, ""
+        if password == correct:
+            return False, BTN_DANGER, ""
+        return True, {**BTN_DANGER, "opacity": "0.4",
+                      "cursor": "not-allowed"}, "Incorrect password."
 
 
     # Add operator
@@ -493,16 +517,20 @@ def register_callbacks(app):
         Output("retire-op-msg",       "style"),
         Output("ops-page-refresh",    "data", allow_duplicate=True),
         Input("retire-op-btn", "n_clicks"),
-        State("retire-op-select",    "value"),
-        State("retire-op-date",      "value"),
-        State("retire-confirm-check","value"),
-        State("ops-page-refresh",    "data"),
+        State("retire-op-select",      "value"),
+        State("retire-op-date",        "value"),
+        State("retire-password-input", "value"),
+        State("ops-page-refresh",      "data"),
         prevent_initial_call=True,
     )
-    def retire_operator(n_clicks, operator_id, active_to,
-                        check_value, refresh):
-        if "confirmed" not in (check_value or []):
-            return ("Please check the confirmation box first.",
+    def retire_operator(n_clicks, operator_id, active_to, password, refresh):
+        # Re-check password server-side (button enable/disable is UI-only)
+        with open(CONFIG_FILE, 'r') as f:
+            cfg = yaml.safe_load(f)
+        correct = str(cfg.get("retire_password", ""))
+
+        if password != correct:
+            return ("Incorrect password.",
                     {"marginTop": "8px", "fontSize": "12px",
                      "color": "#dc2626", "minHeight": "18px"},
                     refresh)

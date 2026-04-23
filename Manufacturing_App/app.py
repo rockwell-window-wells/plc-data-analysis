@@ -176,27 +176,52 @@ def build_stats_rows(frames):
     return sorted(rows, key=lambda r: r["Median"])
 
 
-def generate_pdf_bytes(frames, date_start, date_end, mold_filter):
+def generate_pdf_bytes(frames, date_start, date_end, mold_filter,
+                       baseline_count=0):
     from fpdf import FPDF, XPos, YPos
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import seaborn as sns
 
-    if frames:
-        combined = pd.concat(frames, ignore_index=True).dropna(subset=["cycle_time"])
-        order = (combined.groupby("name")["cycle_time"]
-                 .median().sort_values().index.tolist())
-    else:
+    if not frames:
         combined = pd.DataFrame()
-        order = []
+        order    = []
+    else:
+        # Baselines first (grey), then individuals sorted by median
+        baselines   = frames[:baseline_count]
+        individuals = frames[baseline_count:]
+
+        baseline_names   = [df["name"].iloc[0] for df in baselines   if not df.empty]
+        individual_names = sorted(
+            [df["name"].iloc[0] for df in individuals if not df.empty],
+            key=lambda n: next(
+                (df["cycle_time"].median()
+                 for df in individuals if not df.empty and df["name"].iloc[0] == n),
+                0,
+            ),
+        )
+        order    = baseline_names + individual_names
+        combined = pd.concat(frames, ignore_index=True).dropna(subset=["cycle_time"])
+
+    # Build per-box color list matching the order
+    OPERATOR_BLUE = "#60a5fa"   # lighter blue, easy to read
+    BASELINE_GREY = "#94a3b8"
+
+    palette = []
+    for name in order:
+        if name in [df["name"].iloc[0] for df in frames[:baseline_count]
+                    if not df.empty]:
+            palette.append(BASELINE_GREY)
+        else:
+            palette.append(OPERATOR_BLUE)
 
     fig, ax = plt.subplots(figsize=(10, 4.5))
     if not combined.empty:
         sns.set_theme(style="whitegrid")
         sns.boxplot(
             data=combined, x="name", y="cycle_time", order=order,
-            color="#2563eb", ax=ax,
+            palette=palette, ax=ax,
             flierprops=dict(marker="o", markerfacecolor="none",
                             markersize=4, linestyle="none"),
         )
@@ -205,7 +230,7 @@ def generate_pdf_bytes(frames, date_start, date_end, mold_filter):
             ax.text(i, ax.get_ylim()[0],
                     f"n={len(vals)}\nmed={vals.median():.1f}",
                     ha="center", va="bottom", fontsize=8, color="#64748b")
-    ax.set_xlabel("Operator")
+    ax.set_xlabel("Operator / Group")
     ax.set_ylabel("Cycle Time (min)")
     ax.set_title("Cycle Time by Operator")
     plt.xticks(rotation=25, ha="right")
@@ -564,43 +589,33 @@ def reports_layout():
 
                     html.Div(className="panel", children=[
                         html.Label("Date Range", className="section-label"),
+                        dcc.Dropdown(
+                            id="date-quick-select",
+                            options=[
+                                {"label": "Last 90 days",  "value": "90d"},
+                                {"label": "This month",    "value": "this_month"},
+                                {"label": "Last month",    "value": "last_month"},
+                                {"label": "This week",     "value": "this_week"},
+                                {"label": "Last week",     "value": "last_week"},
+                                {"label": "This year",     "value": "this_year"},
+                            ],
+                            placeholder="Quick select...",
+                            clearable=True,
+                            style={"marginBottom": "8px"},
+                        ),
                         html.Div("From", className="input-sublabel"),
-                        dcc.Input(
+                        dcc.DatePickerSingle(
                             id="date-start",
-                            type="text",
-                            value=DATE_START,
-                            placeholder="YYYY-MM-DD",
-                            debounce=True,
-                            style={
-                                "width": "100%",
-                                "padding": "7px 10px",
-                                "fontFamily": "Inter, sans-serif",
-                                "fontSize": "13px",
-                                "color": "#1e293b",
-                                "backgroundColor": "#ffffff",
-                                "border": "1px solid #cbd5e1",
-                                "borderRadius": "6px",
-                                "outline": "none",
-                            },
+                            date=DATE_START,
+                            display_format="YYYY-MM-DD",
+                            style={"width": "100%"},
                         ),
                         html.Div("To", className="input-sublabel"),
-                        dcc.Input(
+                        dcc.DatePickerSingle(
                             id="date-end",
-                            type="text",
-                            value=DATE_END,
-                            placeholder="YYYY-MM-DD",
-                            debounce=True,
-                            style={
-                                "width": "100%",
-                                "padding": "7px 10px",
-                                "fontFamily": "Inter, sans-serif",
-                                "fontSize": "13px",
-                                "color": "#1e293b",
-                                "backgroundColor": "#ffffff",
-                                "border": "1px solid #cbd5e1",
-                                "borderRadius": "6px",
-                                "outline": "none",
-                            },
+                            date=DATE_END,
+                            display_format="YYYY-MM-DD",
+                            style={"width": "100%"},
                         ),
                     ]),
 
@@ -727,6 +742,35 @@ cycle_analysis_page.register_callbacks(app)
 # ---------------------------------------------------------------------------
 
 @app.callback(
+    Output("date-start", "date"),
+    Output("date-end",   "date"),
+    Input("date-quick-select", "value"),
+    prevent_initial_call=True,
+)
+def apply_quick_select(value):
+    today = dt.date.today()
+    if value == "90d":
+        return (today - dt.timedelta(days=90)).isoformat(), today.isoformat()
+    elif value == "this_month":
+        return today.replace(day=1).isoformat(), today.isoformat()
+    elif value == "last_month":
+        first_this = today.replace(day=1)
+        last_prev  = first_this - dt.timedelta(days=1)
+        return last_prev.replace(day=1).isoformat(), last_prev.isoformat()
+    elif value == "this_week":
+        monday = today - dt.timedelta(days=today.weekday())
+        return monday.isoformat(), today.isoformat()
+    elif value == "last_week":
+        monday      = today - dt.timedelta(days=today.weekday())
+        last_monday = monday - dt.timedelta(weeks=1)
+        last_sunday = monday - dt.timedelta(days=1)
+        return last_monday.isoformat(), last_sunday.isoformat()
+    elif value == "this_year":
+        return today.replace(month=1, day=1).isoformat(), today.isoformat()
+    return DATE_START, DATE_END
+
+
+@app.callback(
     Output("operator-dropdown", "value"),
     Input("shift-dropdown",     "value"),
     prevent_initial_call=True,
@@ -762,8 +806,8 @@ def toggle_comparison_shift(comparison):
     Input("run-btn", "n_clicks"),
     State("operator-dropdown",        "value"),
     State("mold-dropdown",            "value"),
-    State("date-start",               "value"),
-    State("date-end",                 "value"),
+    State("date-start",               "date"),
+    State("date-end",                 "date"),
     State("options-checklist",        "value"),
     State("comparison-dropdown",      "value"),
     State("comparison-shift-dropdown","value"),
@@ -874,25 +918,29 @@ def export_pdf(n_clicks, store):
             if not df.empty:
                 frames.append(df)
 
+        baseline_count = 0
         comparison = store.get("comparison", "none")
         if comparison == "all":
             df_all = get_all_cycles(conn, **shared_kwargs)
             if not df_all.empty:
                 frames.insert(0, df_all)
+                baseline_count = 1
         elif comparison == "shift" and store.get("comparison_shift"):
             df_shift = get_shift_cycle_times(
                 conn, shift=store["comparison_shift"], **shared_kwargs
             )
             if not df_shift.empty:
                 frames.insert(0, df_shift)
+                baseline_count = 1
 
         conn.close()
 
         pdf_bytes = generate_pdf_bytes(
             frames,
-            date_start  = store["date_start"],
-            date_end    = store["date_end"],
-            mold_filter = store["mold"],
+            date_start    = store["date_start"],
+            date_end      = store["date_end"],
+            mold_filter   = store["mold"],
+            baseline_count = baseline_count,
         )
         filename = f"cycle_report_{dt.datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
         return dcc.send_bytes(pdf_bytes, filename)

@@ -348,28 +348,38 @@ def layout():
 
                             html.Label("Date Range", style={**LABEL,
                                        "marginTop": "12px"}),
+                            dcc.Dropdown(
+                                id="explorer-date-quick",
+                                options=[
+                                    {"label": "Last 90 days",  "value": "90d"},
+                                    {"label": "This month",    "value": "this_month"},
+                                    {"label": "Last month",    "value": "last_month"},
+                                    {"label": "This week",     "value": "this_week"},
+                                    {"label": "Last week",     "value": "last_week"},
+                                    {"label": "This year",     "value": "this_year"},
+                                ],
+                                placeholder="Quick select...",
+                                clearable=True,
+                                style={"marginBottom": "6px"},
+                            ),
                             html.Div("From", style={"fontSize": "12px",
                                      "color": "#64748b",
                                      "marginBottom": "4px"}),
-                            dcc.Input(
+                            dcc.DatePickerSingle(
                                 id="explorer-date-start",
-                                type="text",
-                                value=date_start,
-                                placeholder="YYYY-MM-DD",
-                                debounce=True,
-                                style=INPUT_STYLE,
+                                date=date_start,
+                                display_format="YYYY-MM-DD",
+                                style={"width": "100%"},
                             ),
                             html.Div("To", style={"fontSize": "12px",
                                      "color": "#64748b",
                                      "marginBottom": "4px",
                                      "marginTop": "6px"}),
-                            dcc.Input(
+                            dcc.DatePickerSingle(
                                 id="explorer-date-end",
-                                type="text",
-                                value=date_end,
-                                placeholder="YYYY-MM-DD",
-                                debounce=True,
-                                style=INPUT_STYLE,
+                                date=date_end,
+                                display_format="YYYY-MM-DD",
+                                style={"width": "100%"},
                             ),
 
                             html.Label("Options", style={**LABEL,
@@ -543,6 +553,36 @@ def _build_stats_table(df: pd.DataFrame, y_col: str,
 
 def register_callbacks(app):
 
+    # ── Quick-select date range ──
+    @app.callback(
+        Output("explorer-date-start", "date"),
+        Output("explorer-date-end",   "date"),
+        Input("explorer-date-quick",  "value"),
+        prevent_initial_call=True,
+    )
+    def explorer_quick_select(value):
+        today = dt.date.today()
+        if value == "90d":
+            return (today - dt.timedelta(days=90)).isoformat(), today.isoformat()
+        elif value == "this_month":
+            return today.replace(day=1).isoformat(), today.isoformat()
+        elif value == "last_month":
+            first_this = today.replace(day=1)
+            last_prev  = first_this - dt.timedelta(days=1)
+            return last_prev.replace(day=1).isoformat(), last_prev.isoformat()
+        elif value == "this_week":
+            monday = today - dt.timedelta(days=today.weekday())
+            return monday.isoformat(), today.isoformat()
+        elif value == "last_week":
+            monday      = today - dt.timedelta(days=today.weekday())
+            last_monday = monday - dt.timedelta(weeks=1)
+            last_sunday = monday - dt.timedelta(days=1)
+            return last_monday.isoformat(), last_sunday.isoformat()
+        elif value == "this_year":
+            return today.replace(month=1, day=1).isoformat(), today.isoformat()
+        return dash.no_update, dash.no_update
+
+
     # ── Run: load data, build plot, populate stats, store DataFrame ──
     @app.callback(
         Output("explorer-scatter",     "figure"),
@@ -556,8 +596,8 @@ def register_callbacks(app):
         State("explorer-color",        "value"),
         State("explorer-mold",         "value"),
         State("explorer-operators",    "value"),
-        State("explorer-date-start",   "value"),
-        State("explorer-date-end",     "value"),
+        State("explorer-date-start",   "date"),
+        State("explorer-date-end",     "date"),
         State("explorer-options",      "value"),
         prevent_initial_call=True,
     )
