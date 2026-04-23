@@ -26,8 +26,14 @@ import sqlite3
 import argparse
 import datetime as dt
 import os
+import yaml
 
-DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
+# DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
+CONFIG_FILE = 'config_vars.yaml'
+
+with open(CONFIG_FILE, 'r') as file:
+    config_data = yaml.safe_load(file)
+    DB_PATH = config_data['db_path']
 
 
 def derive_presence(db_path=DB_PATH, mold_name=None, missing_only=False):
