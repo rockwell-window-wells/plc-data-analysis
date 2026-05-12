@@ -5,9 +5,12 @@ import yaml
 
 molds = ["Brown", "Purple", "Red", "Pink", "Orange", "Green"]
 
+resins = ["Gray", "Tan"]
+
 publicIds = {"Brown": "1NlIuZgMJPMY", "Purple": "cLnbY5lNm6it",
             "Red": "1vWjAHS4F6Cv", "Pink": "JLSdrrXNedLi",
-            "Orange": "Sfdr3IrXgZlM", "Green": "wUeYJftWrLEz"}
+            "Orange": "Sfdr3IrXgZlM", "Green": "wUeYJftWrLEz",
+            "Gray Resin": "DRT1el64bVzn", "Tan Resin": "6iuYfdURzh2X",}
 
 url = "https://www.stridelinx.com/api/data-export"
 
@@ -2453,3 +2456,292 @@ bag_tags = {"Brown": brown_bag_tags, "Purple": purple_bag_tags,
 all_tags = {"Brown": brown_all_tags, "Purple": purple_all_tags,
                  "Red": red_all_tags, "Pink": pink_all_tags,
                  "Orange": orange_all_tags, "Green": green_all_tags}
+
+
+gray_resin_tags = [
+    {
+        "queries": [
+            {
+                "ref": "1st Part Number",
+                "decimals": 0,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 7
+    },
+    {
+        "queries": [
+            {
+                "ref": "2nd Part Number",
+                "decimals": 0,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 8
+    },
+    {
+        "queries": [
+            {
+                "ref": "Nominal Resin Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 10
+    },
+    {
+        "queries": [
+            {
+                "ref": "Total Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 3
+    },
+    {
+        "queries": [
+            {
+                "ref": "Resin Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 4
+    },
+    {
+        "queries": [
+            {
+                "ref": "Pigment Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 6
+    },
+    {
+        "queries": [
+            {
+                "ref": "Catalyst Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 5
+    },
+    {
+        "queries": [
+            {
+                "ref": "Resin Overshoot (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 18
+    },
+    {
+        "queries": [
+            {
+                "ref": "Extra Resin Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 9
+    },
+    {
+        "queries": [
+            {
+                "ref": "Extra Resin Start Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 14
+    },
+    {
+        "queries": [
+            {
+                "ref": "Short Flag",
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 16
+    },
+    
+]
+
+tan_resin_tags = [
+    {
+        "queries": [
+            {
+                "ref": "1st Part Number",
+                "decimals": 0,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 7
+    },
+    {
+        "queries": [
+            {
+                "ref": "2nd Part Number",
+                "decimals": 0,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 8
+    },
+    {
+        "queries": [
+            {
+                "ref": "Nominal Resin Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 13
+    },
+    {
+        "queries": [
+            {
+                "ref": "Total Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 6
+    },
+    {
+        "queries": [
+            {
+                "ref": "Resin Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 12
+    },
+    {
+        "queries": [
+            {
+                "ref": "Pigment Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 11
+    },
+    {
+        "queries": [
+            {
+                "ref": "Catalyst Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 9
+    },
+    {
+        "queries": [
+            {
+                "ref": "Extra Resin Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 10
+    },
+    {
+        "queries": [
+            {
+                "ref": "Resin Overshoot (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 17
+    },
+    {
+        "queries": [
+            {
+                "ref": "Extra Resin Start Weight (lbs)",
+                "decimals": 2,
+                "factor": 1,
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 15
+    },
+    {
+        "queries": [
+            {
+                "ref": "Short Flag",
+                "offset": 0,
+                "order": "desc"
+            }
+        ],
+        "preAggr": "raw",
+        "id": 16
+    },
+    
+]
+
+all_resin_tags = {"Gray Resin": gray_resin_tags, "Tan Resin": tan_resin_tags}

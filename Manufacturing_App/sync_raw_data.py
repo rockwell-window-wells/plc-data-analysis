@@ -177,6 +177,22 @@ def fetch_mold_data(mold_name, dtstart_str, dtend_str):
     response.raise_for_status()
     return response.text
 
+def fetch_resin_data(resin_name, dtstart_str, dtend_str):
+    """
+    POST to the StrideLinx data-export API for one resin station using all_tags.
+    Returns the raw CSV response text.
+    """
+    payload = {
+        "source":   {"publicId": api.publicIds[resin_name]},
+        "tags":     api.all_resin_tags[resin_name],
+        "start":    dtstart_str,
+        "end":      dtend_str,
+        "timeZone": "America/Denver",
+    }
+    headers = api.request_operator_headers()
+    response = requests.request("POST", api.url, json=payload, headers=headers)
+    response.raise_for_status()
+    return response.text
 
 # ---------------------------------------------------------------------------
 # CSV parsing
