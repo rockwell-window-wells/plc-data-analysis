@@ -5,12 +5,15 @@ import yaml
 
 molds = ["Brown", "Purple", "Red", "Pink", "Orange", "Green"]
 
-resins = ["Gray", "Tan"]
+resins = ["Gray Resin", "Tan Resin"]
+
+temperatures = ["Ambient Temperature"]
 
 publicIds = {"Brown": "1NlIuZgMJPMY", "Purple": "cLnbY5lNm6it",
             "Red": "1vWjAHS4F6Cv", "Pink": "JLSdrrXNedLi",
             "Orange": "Sfdr3IrXgZlM", "Green": "wUeYJftWrLEz",
-            "Gray Resin": "DRT1el64bVzn", "Tan Resin": "6iuYfdURzh2X",}
+            "Gray Resin": "DRT1el64bVzn", "Tan Resin": "6iuYfdURzh2X",
+            "Ambient Temperature": "1vWjAHS4F6Cv"}
 
 url = "https://www.stridelinx.com/api/data-export"
 
@@ -2745,3 +2748,58 @@ tan_resin_tags = [
 ]
 
 all_resin_tags = {"Gray Resin": gray_resin_tags, "Tan Resin": tan_resin_tags}
+
+temperature_tags = [
+    {
+        "queries": [
+            {
+                "ref": "NE Area (°F)",
+                "decimals": 1,
+                "limit": 829,
+                "order": "desc",
+                "postAggr": "last",
+            }
+        ],
+        "preAggr": "raw",
+        "id": 30
+    },
+    {
+        "queries": [
+            {
+                "ref": "NW Area (°F)",
+                "decimals": 1,
+                "limit": 829,
+                "order": "desc",
+                "postAggr": "last",
+            }
+        ],
+        "preAggr": "raw",
+        "id": 31
+    },
+    {
+        "queries": [
+            {
+                "ref": "SE Area (°F)",
+                "decimals": 1,
+                "limit": 829,
+                "order": "desc",
+                "postAggr": "last",
+            }
+        ],
+        "preAggr": "raw",
+        "id": 32
+    },
+    {
+        "queries": [
+            {
+                "ref": "SW Area (°F)",
+                "decimals": 1,
+                "limit": 829,
+                "order": "desc",
+                "postAggr": "last",
+            }
+        ],
+        "preAggr": "raw",
+        "id": 33
+    },
+]

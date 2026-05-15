@@ -93,6 +93,31 @@ REF_TO_COLUMN = {
 
 KNOWN_COLUMNS = {"time"} | set(REF_TO_COLUMN.keys())
 
+RESIN_REF_TO_COLUMN = {
+    "1st Part Number":                  "first_part_number",
+    "2nd Part Number":                  "second_part_number",
+    "Nominal Resin Weight (lbs)":       "nominal_resin_weight_lbs",
+    "Total Weight (lbs)":               "total_weight_lbs",
+    "Resin Weight (lbs)":               "resin_weight_lbs",
+    "Pigment Weight (lbs)":             "pigment_weight_lbs",
+    "Catalyst Weight (lbs)":            "catalyst_weight_lbs",
+    "Resin Overshoot (lbs)":            "resin_overshoot_lbs",
+    "Extra Resin Weight (lbs)":         "extra_resin_weight_lbs",
+    "Extra Resin Start Weight (lbs)":   "extra_resin_start_weight_lbs",
+    "Short Flag":                       "short_flag",
+}
+
+KNOWN_RESIN_COLUMNS = {"time"} | set(RESIN_REF_TO_COLUMN.keys())
+
+TEMP_REF_TO_COLUMN = {
+    "NE Area (°F)": "ne_temp_f",
+    "NW Area (°F)": "nw_temp_f",
+    "SE Area (°F)": "se_temp_f",
+    "SW Area (°F)": "sw_temp_f",
+}
+
+KNOWN_TEMP_COLUMNS = {"time"} | set(TEMP_REF_TO_COLUMN.keys())
+
 
 # ---------------------------------------------------------------------------
 # Timezone helpers
@@ -194,20 +219,44 @@ def fetch_resin_data(resin_name, dtstart_str, dtend_str):
     response.raise_for_status()
     return response.text
 
+def fetch_temperature_data(dtstart_str, dtend_str):
+    """
+    POST to the StrideLinx data-export API for the four corner temperature
+    sensors. All sensors are logged on the Red mold PLC.
+    Returns the raw CSV response text.
+    """
+    payload = {
+        "source":   {"publicId": api.publicIds["Ambient Temperature"]},
+        "tags":     api.temperature_tags,
+        "start":    dtstart_str,
+        "end":      dtend_str,
+        "timeZone": "America/Denver",
+    }
+    headers = api.request_operator_headers()
+    response = requests.request("POST", api.url, json=payload, headers=headers)
+    response.raise_for_status()
+    return response.text
+
 # ---------------------------------------------------------------------------
 # CSV parsing
 # ---------------------------------------------------------------------------
 
-def parse_csv_response(raw_text):
+def parse_csv_response(raw_text, known_columns=None):
     """
     Parse the StrideLinx CSV response using csv.DictReader, which handles
     quoted fields correctly. The previous naive line.split(',') approach
     broke on quoted fields and failed to handle the metadata artifact line
     the API appends at the end of each response.
 
-    Returns a list of row dicts containing only KNOWN_COLUMNS keys.
+    known_columns: optional set of column names to keep. If None, defaults
+    to KNOWN_COLUMNS (mold columns). Pass KNOWN_RESIN_COLUMNS for resin data.
+
+    Returns a list of row dicts containing only known_columns keys.
     Rows without a usable 'time' value are dropped.
     """
+    if known_columns is None:
+        known_columns = KNOWN_COLUMNS
+
     raw_text = raw_text.replace('\r\n', '\n').replace('\r', '\n')
 
     clean_lines = []
@@ -238,7 +287,7 @@ def parse_csv_response(raw_text):
             if key is None:
                 continue
             key = key.strip()
-            if key not in KNOWN_COLUMNS:
+            if key not in known_columns:
                 continue
             val = val.strip() if val else ''
             row[key] = val if val != '' else None
@@ -408,6 +457,277 @@ def sync_mold(mold_name, conn):
         raise
 
 
+
+# ---------------------------------------------------------------------------
+# Per-resin sync
+# ---------------------------------------------------------------------------
+
+def sync_resin(resin_name, conn):
+    """
+    Fetch and insert new rows for one resin station.
+    Returns (rows_inserted, rows_skipped).
+    """
+    cursor = conn.cursor()
+    log_id = log_sync_start(cursor, f"resin:{resin_name}")
+    conn.commit()
+
+    rows_inserted = 0
+    rows_skipped  = 0
+
+    try:
+        cursor.execute(
+            "SELECT MAX(record_timestamp) FROM raw_resin_data WHERE resin_name = ?",
+            (resin_name,)
+        )
+        latest = cursor.fetchone()[0]
+
+        if latest is None:
+            dtstart = now_local() - dt.timedelta(days=INITIAL_LOOKBACK_DAYS)
+            print(f"  {resin_name}: No existing data. "
+                  f"Fetching last {INITIAL_LOOKBACK_DAYS} days.")
+        else:
+            dtstart = (dt.datetime.fromisoformat(latest)
+                       + dt.timedelta(milliseconds=1))
+            print(f"  {resin_name}: Fetching from {dtstart} onwards.")
+
+        dtend = now_local()
+
+        if dtstart >= dtend:
+            print(f"  {resin_name}: Already up to date.")
+            log_sync_finish(cursor, log_id, 0, 0, "up_to_date")
+            conn.commit()
+            return 0, 0
+
+        raw_text   = fetch_resin_data(
+            resin_name,
+            to_api_timestring(dtstart),
+            to_api_timestring(dtend),
+        )
+        fetched_at = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows       = parse_csv_response(raw_text, known_columns=KNOWN_RESIN_COLUMNS)
+
+        if not rows:
+            print(f"  {resin_name}: API returned no usable rows.")
+            log_sync_finish(cursor, log_id, 0, 0, "success")
+            conn.commit()
+            return 0, 0
+
+        bad_timestamps = 0
+        for row_dict in rows:
+            # Build record using resin column mapping
+            time_val = row_dict.get("time")
+            if not time_val:
+                rows_skipped += 1
+                continue
+
+            try:
+                normalised = time_val.strip().replace(' ', 'T')
+                if normalised.endswith('Z'):
+                    normalised = normalised[:-1] + '+00:00'
+                parsed_ts = dt.datetime.fromisoformat(normalised)
+                record_timestamp = parsed_ts.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+            except (ValueError, AttributeError):
+                bad_timestamps += 1
+                rows_skipped   += 1
+                continue
+
+            record = {
+                "resin_name":       resin_name,
+                "fetched_at":       fetched_at,
+                "record_timestamp": record_timestamp,
+                "processed_at":     None,
+                "first_part_number":                None,
+                "second_part_number":               None,
+                "nominal_resin_weight_lbs":         None,
+                "total_weight_lbs":                 None,
+                "resin_weight_lbs":                 None,
+                "pigment_weight_lbs":               None,
+                "catalyst_weight_lbs":              None,
+                "resin_overshoot_lbs":              None,
+                "extra_resin_weight_lbs":           None,
+                "extra_resin_start_weight_lbs":     None,
+                "short_flag":                       None,
+            }
+
+            for ref_name, col_name in RESIN_REF_TO_COLUMN.items():
+                val = row_dict.get(ref_name)
+                if val is not None:
+                    try:
+                        record[col_name] = float(val)
+                    except (ValueError, TypeError):
+                        record[col_name] = None
+
+            cursor.execute("""
+                INSERT OR IGNORE INTO raw_resin_data (
+                    resin_name, fetched_at, record_timestamp,
+                    first_part_number, second_part_number,
+                    nominal_resin_weight_lbs, total_weight_lbs,
+                    resin_weight_lbs, pigment_weight_lbs,
+                    catalyst_weight_lbs, resin_overshoot_lbs,
+                    extra_resin_weight_lbs, extra_resin_start_weight_lbs,
+                    short_flag, processed_at
+                ) VALUES (
+                    :resin_name, :fetched_at, :record_timestamp,
+                    :first_part_number, :second_part_number,
+                    :nominal_resin_weight_lbs, :total_weight_lbs,
+                    :resin_weight_lbs, :pigment_weight_lbs,
+                    :catalyst_weight_lbs, :resin_overshoot_lbs,
+                    :extra_resin_weight_lbs, :extra_resin_start_weight_lbs,
+                    :short_flag, :processed_at
+                )
+            """, record)
+
+            if cursor.rowcount == 1:
+                rows_inserted += 1
+            else:
+                rows_skipped  += 1
+
+        if bad_timestamps > 0:
+            print(f"  {resin_name}: {bad_timestamps} partial-timestamp rows "
+                  f"skipped (normal for this API).")
+
+        conn.commit()
+        log_sync_finish(cursor, log_id, rows_inserted, rows_skipped, "success")
+        conn.commit()
+
+        print(f"  {resin_name}: inserted {rows_inserted}, "
+              f"skipped {rows_skipped}.")
+        return rows_inserted, rows_skipped
+
+    except Exception as e:
+        conn.rollback()
+        log_sync_finish(cursor, log_id, rows_inserted, rows_skipped,
+                        "error", str(e))
+        conn.commit()
+        print(f"  {resin_name}: ERROR -- {e}")
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Temperature sync
+# ---------------------------------------------------------------------------
+
+def sync_temperature(conn):
+    """
+    Fetch and insert new rows for the four corner temperature sensors.
+    All four readings share a timestamp, so one row per timestamp is inserted.
+    Returns (rows_inserted, rows_skipped).
+    """
+    cursor = conn.cursor()
+    log_id = log_sync_start(cursor, "temperature:ambient")
+    conn.commit()
+
+    rows_inserted = 0
+    rows_skipped  = 0
+
+    try:
+        cursor.execute("SELECT MAX(record_timestamp) FROM raw_temperature_data")
+        latest = cursor.fetchone()[0]
+
+        if latest is None:
+            dtstart = now_local() - dt.timedelta(days=INITIAL_LOOKBACK_DAYS)
+            print(f"  Ambient Temperature: No existing data. "
+                  f"Fetching last {INITIAL_LOOKBACK_DAYS} days.")
+        else:
+            dtstart = (dt.datetime.fromisoformat(latest)
+                       + dt.timedelta(milliseconds=1))
+            print(f"  Ambient Temperature: Fetching from {dtstart} onwards.")
+
+        dtend = now_local()
+
+        if dtstart >= dtend:
+            print(f"  Ambient Temperature: Already up to date.")
+            log_sync_finish(cursor, log_id, 0, 0, "up_to_date")
+            conn.commit()
+            return 0, 0
+
+        raw_text   = fetch_temperature_data(
+            to_api_timestring(dtstart),
+            to_api_timestring(dtend),
+        )
+        fetched_at = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows       = parse_csv_response(raw_text, known_columns=KNOWN_TEMP_COLUMNS)
+
+        if not rows:
+            print(f"  Ambient Temperature: API returned no usable rows.")
+            log_sync_finish(cursor, log_id, 0, 0, "success")
+            conn.commit()
+            return 0, 0
+
+        bad_timestamps = 0
+        for row_dict in rows:
+            time_val = row_dict.get("time")
+            if not time_val:
+                rows_skipped += 1
+                continue
+
+            try:
+                normalised = time_val.strip().replace(' ', 'T')
+                if normalised.endswith('Z'):
+                    normalised = normalised[:-1] + '+00:00'
+                parsed_ts = dt.datetime.fromisoformat(normalised)
+                record_timestamp = parsed_ts.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+            except (ValueError, AttributeError):
+                bad_timestamps += 1
+                rows_skipped   += 1
+                continue
+
+            record = {
+                "fetched_at":       fetched_at,
+                "record_timestamp": record_timestamp,
+                "processed_at":     None,
+                "ne_temp_f":        None,
+                "nw_temp_f":        None,
+                "se_temp_f":        None,
+                "sw_temp_f":        None,
+            }
+
+            for ref_name, col_name in TEMP_REF_TO_COLUMN.items():
+                val = row_dict.get(ref_name)
+                if val is not None:
+                    try:
+                        record[col_name] = float(val)
+                    except (ValueError, TypeError):
+                        record[col_name] = None
+
+            cursor.execute("""
+                INSERT OR IGNORE INTO raw_temperature_data (
+                    fetched_at, record_timestamp,
+                    ne_temp_f, nw_temp_f, se_temp_f, sw_temp_f,
+                    processed_at
+                ) VALUES (
+                    :fetched_at, :record_timestamp,
+                    :ne_temp_f, :nw_temp_f, :se_temp_f, :sw_temp_f,
+                    :processed_at
+                )
+            """, record)
+
+            if cursor.rowcount == 1:
+                rows_inserted += 1
+            else:
+                rows_skipped  += 1
+
+        if bad_timestamps > 0:
+            print(f"  Ambient Temperature: {bad_timestamps} partial-timestamp "
+                  f"rows skipped.")
+
+        conn.commit()
+        log_sync_finish(cursor, log_id, rows_inserted, rows_skipped, "success")
+        conn.commit()
+
+        print(f"  Ambient Temperature: inserted {rows_inserted}, "
+              f"skipped {rows_skipped}.")
+        return rows_inserted, rows_skipped
+
+    except Exception as e:
+        conn.rollback()
+        log_sync_finish(cursor, log_id, rows_inserted, rows_skipped,
+                        "error", str(e))
+        conn.commit()
+        print(f"  Ambient Temperature: ERROR -- {e}")
+        raise
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -435,8 +755,6 @@ def run_sync(db_path=DB_PATH):
         except Exception as e:
             errors.append((mold_name, str(e)))
 
-    conn.close()
-
     print(f"\nSync complete. "
           f"Total inserted: {total_inserted}, skipped: {total_skipped}")
     if errors:
@@ -445,6 +763,42 @@ def run_sync(db_path=DB_PATH):
             print(f"  {mold}: {err}")
     else:
         print("All molds synced successfully.")
+
+    print(f"\n[{dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
+          f"Starting resin data sync...")
+
+    resin_inserted = 0
+    resin_skipped  = 0
+    resin_errors   = []
+
+    for resin_name in api.resins:
+        try:
+            inserted, skipped = sync_resin(resin_name, conn)
+            resin_inserted += inserted
+            resin_skipped  += skipped
+        except Exception as e:
+            resin_errors.append((resin_name, str(e)))
+
+    print(f"\nResin sync complete. "
+          f"Total inserted: {resin_inserted}, skipped: {resin_skipped}")
+    if resin_errors:
+        print(f"Errors on {len(resin_errors)} resin station(s):")
+        for name, err in resin_errors:
+            print(f"  {name}: {err}")
+    else:
+        print("All resin stations synced successfully.")
+
+    print(f"\n[{dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] "
+          f"Starting temperature data sync...")
+
+    try:
+        temp_inserted, temp_skipped = sync_temperature(conn)
+        print(f"\nTemperature sync complete. "
+              f"Total inserted: {temp_inserted}, skipped: {temp_skipped}")
+    except Exception as e:
+        print(f"\nTemperature sync failed: {e}")
+
+    conn.close()
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ IF NOT EXISTS so it is safe to re-run -- existing data is never touched.
 Table creation order (foreign key dependency):
     raw_mold_data
     raw_resin_data
-    raw_temperature_data
+    raw_temperature_data        (NE/NW/SE/SW corner sensors, one row per timestamp)
     sync_log
     operators
     cycles                  (references raw_mold_data)
@@ -125,52 +125,81 @@ def create_database(db_path: str = DB_PATH):
     # -------------------------------------------------------------------------
     # raw_resin_data
     #
-    # Two resin dispensing stations, identified by station_number (1 or 2).
-    # Columns are placeholders -- adjust once you set up that data retrieval.
+    # Two resin dispensing stations: "Gray Resin" and "Tan Resin".
+    # resin_name identifies which station a row is from.
+    #
+    # Columns match the tags defined in api_config_vars.all_resin_tags.
+    # processed_at is NULL until a downstream cleaning script consumes this row.
     # -------------------------------------------------------------------------
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS raw_resin_data (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            station_number      INTEGER NOT NULL,
-            fetched_at          TEXT    NOT NULL,
-            record_timestamp    TEXT    NOT NULL,
+            id                              INTEGER PRIMARY KEY AUTOINCREMENT,
+            resin_name                      TEXT    NOT NULL,
+            fetched_at                      TEXT    NOT NULL,
+            record_timestamp                TEXT    NOT NULL,
 
-            amount_kg           REAL,
+            first_part_number               REAL,
+            second_part_number              REAL,
+            nominal_resin_weight_lbs        REAL,
+            total_weight_lbs                REAL,
+            resin_weight_lbs                REAL,
+            pigment_weight_lbs              REAL,
+            catalyst_weight_lbs             REAL,
+            resin_overshoot_lbs             REAL,
+            extra_resin_weight_lbs          REAL,
+            extra_resin_start_weight_lbs    REAL,
+            short_flag                      REAL,
 
-            processed_at        TEXT    DEFAULT NULL,
+            processed_at                    TEXT    DEFAULT NULL,
 
-            UNIQUE(station_number, record_timestamp)
+            UNIQUE(resin_name, record_timestamp)
         )
     """)
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_raw_resin_timestamp
-        ON raw_resin_data (station_number, record_timestamp)
+        ON raw_resin_data (resin_name, record_timestamp)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_raw_resin_processed
+        ON raw_resin_data (processed_at)
     """)
     print("  Created table: raw_resin_data")
 
     # -------------------------------------------------------------------------
     # raw_temperature_data
     #
-    # Stubbed out. source_tag identifies the sensor or channel.
-    # Add columns once you know what the StrideLinx temperature page returns.
+    # Four corner sensors (NE, NW, SE, SW) logged from the Red mold PLC
+    # every ~3 minutes. All four readings share a single timestamp, so one
+    # row holds a complete snapshot of the molding area temperature.
+    #
+    # No source_name column is needed -- there is only one temperature source.
+    #
+    # These four corner readings are the raw input for spatial interpolation
+    # to estimate ambient temperature at each mold's position.
     # -------------------------------------------------------------------------
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS raw_temperature_data (
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_tag          TEXT    NOT NULL,
             fetched_at          TEXT    NOT NULL,
             record_timestamp    TEXT    NOT NULL,
 
-            temperature_value   REAL,
+            ne_temp_f           REAL,
+            nw_temp_f           REAL,
+            se_temp_f           REAL,
+            sw_temp_f           REAL,
 
             processed_at        TEXT    DEFAULT NULL,
 
-            UNIQUE(source_tag, record_timestamp)
+            UNIQUE(record_timestamp)
         )
     """)
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_raw_temp_timestamp
-        ON raw_temperature_data (source_tag, record_timestamp)
+        ON raw_temperature_data (record_timestamp)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_raw_temp_processed
+        ON raw_temperature_data (processed_at)
     """)
     print("  Created table: raw_temperature_data")
 
