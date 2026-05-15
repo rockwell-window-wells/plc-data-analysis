@@ -37,6 +37,8 @@ from analytics import (
 )
 import operators_page
 import cycle_analysis_page
+import resin_page
+from nav import navbar
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -479,44 +481,15 @@ def reports_layout():
     style={"backgroundColor": "#f1f5f9", "minHeight": "100vh"},
     children=[
 
-        # Header
-        html.Div(style={
-            "backgroundColor": "#1e293b",
-            "padding": "14px 28px",
-            "display": "flex",
-            "alignItems": "center",
-            "justifyContent": "space-between",
-        }, children=[
-            html.Div([
-                html.Span("ROCKWELL MANUFACTURING", style={
-                    "fontSize": "11px", "fontWeight": "600",
-                    "color": "#94a3b8", "letterSpacing": "0.15em",
-                    "fontFamily": "Inter, sans-serif",
-                }),
-                html.H1("Operator Performance", style={
-                    "margin": "2px 0 0 0", "fontSize": "20px",
-                    "fontWeight": "500", "color": "#f8fafc",
-                    "fontFamily": "Inter, sans-serif",
-                }),
-            ]),
-            html.Div(style={"display": "flex", "alignItems": "center", "gap": "20px"}, children=[
-                html.Div(id="last-updated", style={
-                    "fontSize": "12px", "color": "#94a3b8",
-                    "fontFamily": "Inter, sans-serif",
-                }),
-                dcc.Link("Cycle Analysis →", href="/cycle-analysis",
-                         style={"color": "#94a3b8", "fontSize": "13px",
-                                "fontFamily": "Inter, sans-serif",
-                                "textDecoration": "none"}),
-                dcc.Link("Operator Management →", href="/operators",
-                         style={"color": "#94a3b8", "fontSize": "13px",
-                                "fontFamily": "Inter, sans-serif",
-                                "textDecoration": "none"}),
-            ]),
-        ]),
+        navbar("Operator Performance"),
 
         # Body
         html.Div(style={"padding": "20px 28px"}, children=[
+            html.Div(id="last-updated", style={
+                "fontSize": "12px", "color": "#94a3b8",
+                "fontFamily": "Inter, sans-serif",
+                "marginBottom": "8px", "textAlign": "right",
+            }),
             dbc.Row([
 
                 # Sidebar
@@ -729,12 +702,15 @@ def display_page(pathname):
         return operators_page.layout()
     if pathname == "/cycle-analysis":
         return cycle_analysis_page.layout()
+    if pathname == "/resin-analysis":
+        return resin_page.layout()
     return reports_layout()
 
 
 # Register page callbacks
 operators_page.register_callbacks(app)
 cycle_analysis_page.register_callbacks(app)
+resin_page.register_callbacks(app)
 
 
 # ---------------------------------------------------------------------------

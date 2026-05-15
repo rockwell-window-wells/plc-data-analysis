@@ -23,6 +23,7 @@ from dash import dcc, html, dash_table, Input, Output, State
 import dash_bootstrap_components as dbc
 
 from analytics import get_connection, get_cycles_for_explorer, get_operators_by_shift
+from nav import navbar
 
 import yaml
 
@@ -257,35 +258,7 @@ def layout():
                "fontFamily": "Inter, sans-serif"},
         children=[
 
-            # Header
-            html.Div(style={
-                "backgroundColor": "#1e293b", "padding": "14px 28px",
-                "display": "flex", "alignItems": "center",
-                "justifyContent": "space-between",
-            }, children=[
-                html.Div([
-                    html.Span("ROCKWELL MANUFACTURING", style={
-                        "fontSize": "11px", "fontWeight": "600",
-                        "color": "#94a3b8", "letterSpacing": "0.15em",
-                        "fontFamily": "Inter, sans-serif",
-                    }),
-                    html.H1("Cycle Analysis", style={
-                        "margin": "2px 0 0 0", "fontSize": "20px",
-                        "fontWeight": "500", "color": "#f8fafc",
-                        "fontFamily": "Inter, sans-serif",
-                    }),
-                ]),
-                html.Div(style={"display": "flex", "gap": "20px"}, children=[
-                    dcc.Link("← Operator Performance", href="/",
-                             style={"color": "#94a3b8", "fontSize": "13px",
-                                    "fontFamily": "Inter, sans-serif",
-                                    "textDecoration": "none"}),
-                    dcc.Link("Operator Management →", href="/operators",
-                             style={"color": "#94a3b8", "fontSize": "13px",
-                                    "fontFamily": "Inter, sans-serif",
-                                    "textDecoration": "none"}),
-                ]),
-            ]),
+            navbar("Cycle Analysis"),
 
             html.Div(style={"padding": "20px 28px"}, children=[
                 dbc.Row([

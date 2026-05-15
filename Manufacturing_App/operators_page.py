@@ -19,6 +19,7 @@ import yaml
 
 from analytics import get_connection
 import id_cards
+from nav import navbar
 
 CONFIG_FILE = 'config_vars.yaml'
 
@@ -110,29 +111,7 @@ def layout():
                "fontFamily": "Inter, sans-serif"},
         children=[
 
-            # Header
-            html.Div(style={
-                "backgroundColor": "#1e293b", "padding": "14px 28px",
-                "display": "flex", "alignItems": "center",
-                "justifyContent": "space-between",
-            }, children=[
-                html.Div([
-                    html.Span("ROCKWELL MANUFACTURING", style={
-                        "fontSize": "11px", "fontWeight": "600",
-                        "color": "#94a3b8", "letterSpacing": "0.15em",
-                        "fontFamily": "Inter, sans-serif",
-                    }),
-                    html.H1("Operator Management", style={
-                        "margin": "2px 0 0 0", "fontSize": "20px",
-                        "fontWeight": "500", "color": "#f8fafc",
-                        "fontFamily": "Inter, sans-serif",
-                    }),
-                ]),
-                dcc.Link("← Cycle Time Reports", href="/",
-                         style={"color": "#94a3b8", "fontSize": "13px",
-                                "fontFamily": "Inter, sans-serif",
-                                "textDecoration": "none"}),
-            ]),
+            navbar("Operator Management"),
 
             html.Div(style={"padding": "20px 28px"}, children=[
                 dbc.Row([
