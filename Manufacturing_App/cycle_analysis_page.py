@@ -166,14 +166,14 @@ def build_scatter(df: pd.DataFrame, x_col: str, y_col: str,
                 f"{y_label}: %{{y:.2f}} min<br>"
                 "Mold: %{customdata[1]}<br>"
                 "Operator: %{customdata[2]}<br>"
+                "Employee #: %{customdata[5]}<br>"
                 "Shift: %{customdata[3]}<br>"
                 "Time: %{customdata[4]}"
                 "<extra></extra>"
             ),
-            # customdata[0] = cycle_id, used to match selected points back
-            # to the stored DataFrame without re-querying the database.
             customdata=subset[["cycle_id", "mold_name", "operator_name",
-                                "shift", "cycle_timestamp"]].values,
+                                "shift", "cycle_timestamp",
+                                "employee_number"]].values,
         )
 
     if color_col == "none" or color_col not in plot_df.columns:

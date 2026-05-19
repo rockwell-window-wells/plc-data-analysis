@@ -330,16 +330,18 @@ def get_cycles_for_explorer(
         # Keep only the first full-cycle operator per cycle
         op_df = op_df.drop_duplicates(subset="cycle_id", keep="first")
         df = df.merge(
-            op_df[["cycle_id", "operator_name", "shift"]],
+            op_df[["cycle_id", "operator_name", "shift", "employee_number"]],
             on="cycle_id",
             how="left",
         )
     else:
-        df["operator_name"] = "Unknown"
-        df["shift"]         = "Unknown"
+        df["operator_name"]  = "Unknown"
+        df["shift"]          = "Unknown"
+        df["employee_number"] = 0
 
-    df["operator_name"] = df["operator_name"].fillna("Unknown")
-    df["shift"]         = df["shift"].fillna("Unknown")
+    df["operator_name"]  = df["operator_name"].fillna("Unknown")
+    df["shift"]          = df["shift"].fillna("Unknown")
+    df["employee_number"] = df["employee_number"].fillna(0).astype(int)
 
     return df
 
