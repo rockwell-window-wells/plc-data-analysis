@@ -1,13 +1,30 @@
 """
 clean_mold_data.py
 
-Reads unprocessed rows from raw_mold_data, runs the cycle alignment and
-operator presence logic from your existing cycle_time_methods_v2.py, and
-writes the results to the cycles and cycle_operator_presence tables.
+Reads unprocessed rows from raw_mold_data, identifies completed cycles,
+back-calculates stage boundaries from timing values, resolves operator
+presence by querying the full Lead history (not just the current unprocessed
+batch), and writes results to the cycles and cycle_operator_presence tables.
 
-Run this after sync_raw_data.py has populated raw_mold_data.
-Safe to run repeatedly -- already-processed raw rows are skipped, and
-duplicate cycles are ignored on insert.
+Key design decisions
+--------------------
+- Stage boundaries are back-calculated from the cycle row's timing values,
+  not inferred from row index proximity. This is reliable because cycle_time
+  is calculated by the PLC only after all three stage times are logged, and
+  is almost always equal to layup + close + resin.
+
+- Operator lookup queries raw_mold_data directly by timestamp range so that
+  hourly heartbeat rows from already-processed batches are still found.
+
+- A cycle is flagged (excluded from reports) if any stage time is 0 or null
+  (e.g. mold sat overnight and didn't log layup properly), or if it is the
+  first cycle on a Monday before 08:00.
+
+- Operator presence for a stage is credited if the operator's active window
+  overlaps the stage window at all (op_clock_in < stage_finish AND
+  op_clock_out > stage_start).
+
+Run after sync_raw_data.py. Safe to run repeatedly.
 
 Usage:
     python clean_mold_data.py
@@ -21,20 +38,42 @@ import pandas as pd
 import numpy as np
 import datetime as dt
 import os
-from bisect import bisect_left
-from itertools import groupby
 import yaml
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+CONFIG_FILE = 'config_vars.yaml'
+
+with open(CONFIG_FILE, 'r') as file:
+    config_data = yaml.safe_load(file)
+    DB_PATH = config_data['db_path']
+
+# Saturation thresholds (minutes)
+LAYUP_THRESHOLD = 275
+CLOSE_THRESHOLD = 90
+RESIN_THRESHOLD = 180
+
+# How far before layup_start to look for the operator who was already
+# clocked in (covers the case where the last heartbeat was up to 65
+# minutes before the cycle started)
+OPERATOR_LOOKBACK_MINUTES = 75
+
+# How close to now a cycle must be to be considered in-flight
+IN_FLIGHT_THRESHOLD_HOURS = 2
+
+# Window in seconds before the cycle timestamp to look for bag data
+BAG_LOOKUP_WINDOW_SECONDS = 10
+
+MOLDS = ["Brown", "Purple", "Red", "Pink", "Orange", "Green"]
+
 
 # ---------------------------------------------------------------------------
 # Safe type conversion
 # ---------------------------------------------------------------------------
 
 def safe_int(value, fallback=0):
-    """
-    Convert value to int safely. Returns fallback if value is NaN, None,
-    or otherwise uncastable. Used wherever operator numbers or IDs might
-    be NaN due to missing PLC data.
-    """
     try:
         if value is None:
             return fallback
@@ -45,38 +84,27 @@ def safe_int(value, fallback=0):
         return fallback
 
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-CONFIG_FILE = 'config_vars.yaml'
+def safe_float(value):
+    try:
+        if value is None:
+            return None
+        f = float(value)
+        return None if np.isnan(f) else f
+    except (ValueError, TypeError):
+        return None
 
-with open(CONFIG_FILE, 'r') as file:
-    config_data = yaml.safe_load(file)
-    DB_PATH = config_data['db_path']
-# DB_PATH = "C:/Users/Ryan.Larson/Documents/Rockwell Manufacturing Database/manufacturing.db"
-# DB_PATH = "manufacturing.db"
-
-# Saturation thresholds -- same values as your existing code
-LAYUP_THRESHOLD = 275
-CLOSE_THRESHOLD = 90
-RESIN_THRESHOLD = 180
 
 # ---------------------------------------------------------------------------
 # Operator resolution
-#
-# Looks up the surrogate key (operators.id) for a given employee number
-# and cycle date. Returns None if the number can't be resolved, which
-# means the cycle will still be written to cycles but no presence row
-# is created for that operator -- a signal to investigate later.
 # ---------------------------------------------------------------------------
 
-def resolve_operator_id(cursor, employee_number: int, cycle_date: str) -> int | None:
+def resolve_operator_id(cursor, employee_number: int,
+                        cycle_date: str) -> int | None:
     """
-    Given a raw employee number (e.g. 42) and the date of the cycle,
-    return the operators.id surrogate key for whichever person held
-    that number on that date. Returns None if not found.
+    Return operators.id for the given employee number on the given date.
+    Returns None if not found or if number is 0 or 1 (no operator / unknown).
     """
-    if employee_number == 0 or employee_number == 1:
+    if employee_number in (0, 1):
         return None
 
     cursor.execute("""
@@ -91,311 +119,246 @@ def resolve_operator_id(cursor, employee_number: int, cycle_date: str) -> int | 
 
 
 # ---------------------------------------------------------------------------
-# Helper functions
-# Preserved exactly from your cycle_time_methods_v2.py
-# ---------------------------------------------------------------------------
-
-def closest_by_timestamp(input_idx, input_list, df):
-    input_timestamp = df["time"].iloc[input_idx]
-    timestamps = list(df["time"].iloc[input_list])
-
-    if input_timestamp in timestamps:
-        return input_list[timestamps.index(input_timestamp)]
-
-    pos = bisect_left(timestamps, input_timestamp)
-    if pos == 0:
-        return input_list[0]
-    elif pos == len(input_list):
-        return input_list[-1]
-    else:
-        before = input_list[pos - 1]
-        after  = input_list[pos]
-        if timestamps[pos] - input_timestamp < input_timestamp - timestamps[pos - 1]:
-            return after
-        else:
-            return before
-
-
-def closest_before(input_idx, input_list):
-    arr = np.asarray(input_list)
-    prev = arr[arr <= input_idx]
-    return int(prev.max()) if len(prev) > 0 else int(arr[0])
-
-
-# ---------------------------------------------------------------------------
-# Stage index finder
-# Preserved from associate_cycle_stages in cycle_time_methods_v2.py
-# ---------------------------------------------------------------------------
-
-def find_nonzero_notnull_inds(series):
-    """Return deduplicated indices where series is not null and not zero."""
-    inds = [i for i in range(len(series)) if pd.notna(series.iloc[i]) and series.iloc[i] != 0]
-    return [i[0] for i in groupby(inds)]
-
-
-def associate_cycle_stages(df):
-    """
-    Identical logic to associate_cycle_stages in cycle_time_methods_v2.py.
-    Returns (ind_sets, layup_inds, close_inds, resin_inds, cycle_inds).
-    Each ind_set is [layup_idx, close_idx, resin_idx, cycle_idx].
-    """
-    layup_inds = find_nonzero_notnull_inds(df["Layup Time"])
-    close_inds = find_nonzero_notnull_inds(df["Close Time"])
-    resin_inds = find_nonzero_notnull_inds(df["Resin Time"])
-    cycle_inds = find_nonzero_notnull_inds(df["Cycle Time"])
-
-    ind_sets       = []
-    layup_filtered = []
-    close_filtered = []
-    resin_filtered = []
-
-    for ind in cycle_inds:
-        # If any stage index list is empty we cannot associate this cycle --
-        # skip it rather than crashing. This happens when the PLC logs a
-        # Cycle Time row but no corresponding Layup/Close/Resin rows arrived
-        # in this batch (e.g. a partial cycle at the boundary of a fetch window).
-        if not layup_inds or not close_inds or not resin_inds:
-            continue
-        cl = closest_by_timestamp(ind, layup_inds, df)
-        cc = closest_by_timestamp(ind, close_inds, df)
-        cr = closest_by_timestamp(ind, resin_inds, df)
-        layup_filtered.append(cl)
-        close_filtered.append(cc)
-        resin_filtered.append(cr)
-        ind_sets.append([cl, cc, cr, ind])
-
-    # cycle_inds_out contains only cycles that were successfully associated
-    cycle_inds_out = [s[3] for s in ind_sets]
-    return ind_sets, layup_filtered, close_filtered, resin_filtered, cycle_inds_out
-
-
-# ---------------------------------------------------------------------------
-# Operator presence logic
+# Stage boundary calculation
 #
-# This is a faithful port of the two-step process in cycle_time_methods_v2.py:
+# The cycle row is the anchor. The PLC logs cycle_time only after all three
+# stage times are already stored, so cycle_timestamp is effectively
+# resin_finish. We back-calculate from there.
 #
-# Step 1 -- collect_lead_ids():
-#   Mirrors the leadIDs collection loop in load_operator_data. For each
-#   cycle, finds which operator numbers were active in the window between
-#   the previous cycle and this one, using between() and closest_before()
-#   exactly as the original code does. Same-number re-logs from the PLC
-#   are naturally deduplicated by np.unique at the end.
-#
-# Step 2 -- get_operator_presence():
-#   Mirrors count_stages_for_operator. Takes the leadIDs from step 1 and
-#   determines per-stage presence by reconstructing stage boundaries from
-#   the timing values, then checking each operator's clock-in/clock-out
-#   against those boundaries.
+# Timeline:
+#   layup_start --> layup_finish --> close_finish --> cycle_finish
+#                  (= close_start)  (= resin_start)  (= resin_finish)
 # ---------------------------------------------------------------------------
 
-def between(l1, low, high):
-    """Values from l1 that are >= low and < high. From cycle_time_methods_v2."""
-    return [i for i in l1 if i >= low and i < high]
-
-
-def list_vals(df_col, idx_list):
-    """Elements of df_col at positions in idx_list. From cycle_time_methods_v2."""
-    col_list = list(df_col)
-    return [col_list[i] for i in idx_list]
-
-
-def collect_lead_ids(df, cycle_inds):
+def calc_stage_boundaries(cycle_ts: dt.datetime,
+                          layup_min, close_min, resin_min):
     """
-    Step 1: For each cycle, collect the list of unique lead operator numbers
-    that were active during that cycle's window. Matches the leadIDs loop in
-    load_operator_data exactly, including the closest_before lookback for
-    operators who were already clocked in at the start of the window.
+    Given a cycle timestamp and stage durations in minutes, return
+    (layup_start, layup_finish, close_finish, resin_finish) as datetimes.
 
-    Returns leadIDs: a list (one per cycle) of lists of employee numbers.
-    Zero means no one was clocked in.
+    Any stage with a None or 0 duration returns None for its boundary,
+    which the caller uses to flag the cycle as incomplete.
     """
-    # Find all row indices where Lead has a non-null value
-    lead_inds = [i for i in range(len(df))
-                 if pd.notna(df["Lead"].iloc[i])]
+    resin_finish = cycle_ts
+    close_finish = (resin_finish - dt.timedelta(minutes=resin_min)
+                    if resin_min else None)
+    layup_finish = (close_finish - dt.timedelta(minutes=close_min)
+                    if close_finish and close_min else None)
+    layup_start  = (layup_finish - dt.timedelta(minutes=layup_min)
+                    if layup_finish and layup_min else None)
 
-    if not lead_inds:
-        return [[0.0] for _ in cycle_inds]
-
-    leadIDs = [[] for _ in cycle_inds]
-
-    for i, cyc_ind in enumerate(cycle_inds):
-        if i == 0:
-            low  = 0
-            high = cyc_ind
-            lead_between = between(lead_inds, low, high)
-            leadIDs[i].extend(list_vals(df["Lead"], lead_between))
-        else:
-            # Include the operator who was already clocked in before this
-            # cycle started (closest Lead row at or before previous cycle)
-            prev_cyc_ind = cycle_inds[i - 1]
-            cb = closest_before(prev_cyc_ind, lead_inds)
-            leadIDs[i].append(df["Lead"].iloc[cb])
-
-            low  = prev_cyc_ind
-            high = cyc_ind
-            lead_between = between(lead_inds, low, high)
-            leadIDs[i].extend(list_vals(df["Lead"], lead_between))
-
-        # Deduplicate, preserving zero-only lists as-is
-        IDs = list(np.unique(leadIDs[i]))
-        if len(IDs) == 1 and IDs[0] == 0:
-            pass
-        else:
-            IDs = [id_ for id_ in IDs if id_ != 0]
-        if len(IDs) == 0:
-            IDs = [0.0]
-        leadIDs[i] = IDs
-
-    return leadIDs
+    return layup_start, layup_finish, close_finish, resin_finish
 
 
-def get_operator_presence(df, ind_sets, cycle_inds):
+# ---------------------------------------------------------------------------
+# Lead row loader and interval builder
+# ---------------------------------------------------------------------------
+
+def load_lead_events(conn, mold_name: str,
+                     window_start: dt.datetime,
+                     window_end: dt.datetime) -> pd.DataFrame:
     """
-    Step 2: For each cycle, determine which operators were present for which
-    stages. Matches count_stages_for_operator in cycle_time_methods_v2.py
-    exactly, including the all_IDs_changes_only deduplication that strips
-    PLC re-logs of the same number.
+    Return all rows with a non-null Lead value for this mold between
+    window_start and window_end, ordered by timestamp.
 
-    Returns a list (one per cycle) of lists of dicts:
-        [
-          [  # cycle 0
-            {"employee_number": 42,
-             "on_layup": True, "on_close": True, "on_resin": True},
-          ],
-          ...
-        ]
+    Includes already-processed rows intentionally so that hourly heartbeat
+    rows from previous sync batches are not lost.
     """
-    # Step 1: collect which operators were active per cycle
-    leadIDs = collect_lead_ids(df, cycle_inds)
+    df = pd.read_sql("""
+        SELECT record_timestamp AS time, lead AS lead_number
+        FROM raw_mold_data
+        WHERE mold_name         = ?
+          AND lead              IS NOT NULL
+          AND record_timestamp  >= ?
+          AND record_timestamp  <= ?
+        ORDER BY record_timestamp ASC
+    """, conn, params=(
+        mold_name,
+        window_start.isoformat(),
+        window_end.isoformat(),
+    ))
+
+    if df.empty:
+        return df
+
+    df["time"]        = pd.to_datetime(df["time"])
+    df["lead_number"] = df["lead_number"].apply(safe_int)
+    return df
+
+
+def build_operator_intervals(lead_df: pd.DataFrame,
+                             window_end: dt.datetime) -> list[dict]:
+    """
+    Convert a sequence of Lead rows into non-overlapping operator presence
+    intervals:
+
+        [{"employee_number": 254,
+          "clock_in":  <datetime>,
+          "clock_out": <datetime>}, ...]
+
+    Rules:
+    - Each Lead row marks a clock-in event for that number (or 0 = nobody).
+    - The previous operator's clock_out equals the next operator's clock_in.
+    - The last interval runs until window_end.
+    - Consecutive duplicate numbers are collapsed (heartbeat re-logs).
+    """
+    if lead_df.empty:
+        return []
+
+    # Collapse consecutive duplicates (heartbeats)
+    changes = []
+    prev_num = None
+    for _, row in lead_df.iterrows():
+        num = row["lead_number"]
+        if num != prev_num:
+            changes.append({"employee_number": num, "time": row["time"]})
+            prev_num = num
+
+    intervals = []
+    for k, change in enumerate(changes):
+        clock_in  = change["time"]
+        clock_out = (changes[k + 1]["time"]
+                     if k < len(changes) - 1
+                     else pd.Timestamp(window_end))
+        intervals.append({
+            "employee_number": change["employee_number"],
+            "clock_in":        clock_in,
+            "clock_out":       clock_out,
+        })
+
+    return intervals
+
+
+def get_operator_presence_for_cycle(
+        conn,
+        mold_name:    str,
+        cycle_ts:     dt.datetime,
+        layup_start:  dt.datetime | None,
+        layup_finish: dt.datetime | None,
+        close_finish: dt.datetime | None,
+        resin_finish: dt.datetime,
+) -> list[dict]:
+    """
+    Return a list of operator presence dicts for one cycle:
+
+        [{"employee_number": 254,
+          "on_layup": True, "on_close": True, "on_resin": True}, ...]
+
+    Only operators with employee_number > 1 are returned.
+    An operator is credited for a stage if their active window overlaps
+    the stage window at all.
+    """
+    search_start = (
+        (layup_start - dt.timedelta(minutes=OPERATOR_LOOKBACK_MINUTES))
+        if layup_start
+        else (cycle_ts - dt.timedelta(minutes=OPERATOR_LOOKBACK_MINUTES))
+    )
+
+    lead_df   = load_lead_events(conn, mold_name, search_start, resin_finish)
+    intervals = build_operator_intervals(lead_df, resin_finish)
 
     results = []
+    for interval in intervals:
+        emp = interval["employee_number"]
+        if emp in (0, 1):
+            continue
 
-    for i, ind_set in enumerate(ind_sets):
-        layup_ind = ind_set[0]
-        close_ind = ind_set[1]
-        resin_ind = ind_set[2]
-        cycle_ind = ind_set[3]
+        ci = interval["clock_in"]
+        co = interval["clock_out"]
 
-        cycle_finish  = df["time"].iloc[cycle_ind]
-        layup_dur_sec = 60.0 * df["Layup Time"].iloc[layup_ind]
-        close_dur_sec = 60.0 * df["Close Time"].iloc[close_ind]
-        resin_dur_sec = 60.0 * df["Resin Time"].iloc[resin_ind]
+        on_layup = (
+            layup_start  is not None
+            and layup_finish is not None
+            and ci < layup_finish
+            and co > layup_start
+        )
+        on_close = (
+            layup_finish is not None
+            and close_finish is not None
+            and ci < close_finish
+            and co > layup_finish
+        )
+        on_resin = (
+            close_finish is not None
+            and ci < resin_finish
+            and co > close_finish
+        )
 
-        layup_finish = (cycle_finish
-                        - dt.timedelta(seconds=resin_dur_sec)
-                        - dt.timedelta(seconds=close_dur_sec))
-        close_finish = cycle_finish - dt.timedelta(seconds=resin_dur_sec)
-        layup_start  = layup_finish - dt.timedelta(seconds=layup_dur_sec)
-
-        # Find the row closest to layup_start, then walk back to the nearest
-        # non-null Lead value -- same logic as count_stages_for_operator
-        closest_layup_idx = int((np.abs(df["time"] - layup_start)).idxmin())
-        ref_idx = closest_layup_idx
-        closest_before_op = closest_layup_idx
-        while ref_idx > -1:
-            if pd.notna(df["Lead"].iloc[ref_idx]):
-                closest_before_op = ref_idx
-                break
-            ref_idx -= 1
-
-        # Collect all [row_index, employee_number] pairs from layup_start
-        # through the end of the cycle
-        all_IDs = [[closest_before_op,
-                    df["Lead"].iloc[closest_before_op]]]
-        for j in range(closest_layup_idx, cycle_ind + 1):
-            if pd.notna(df["Lead"].iloc[j]):
-                all_IDs.append([j, df["Lead"].iloc[j]])
-
-        # Strip consecutive duplicate IDs -- these are PLC re-logs of the
-        # same number and don't represent a clock-in or clock-out event
-        all_IDs_changes_only = [all_IDs[0]]
-        for j in range(1, len(all_IDs)):
-            if all_IDs[j][1] != all_IDs[j - 1][1]:
-                all_IDs_changes_only.append(all_IDs[j])
-
-        cycle_presence = []
-
-        if len(all_IDs_changes_only) == 1:
-            # One operator for the whole cycle
-            cycle_presence.append({
-                "employee_number": safe_int(all_IDs_changes_only[0][1]),
-                "on_layup": True,
-                "on_close": True,
-                "on_resin": True,
-            })
-        else:
-            for k, entry in enumerate(all_IDs_changes_only):
-                op_clock_in  = df.loc[entry[0], "time"]
-                op_clock_out = (
-                    df.loc[all_IDs_changes_only[k + 1][0], "time"]
-                    if k < len(all_IDs_changes_only) - 1
-                    else df.loc[cycle_ind, "time"]
-                )
-
-                on_layup = op_clock_in < layup_finish
-                on_close = (op_clock_in  < close_finish
-                            and op_clock_out > layup_finish)
-                on_resin = (op_clock_in  < cycle_finish
-                            and op_clock_out > close_finish)
-
-                cycle_presence.append({
-                    "employee_number": safe_int(entry[1]),
-                    "on_layup": on_layup,
-                    "on_close": on_close,
-                    "on_resin": on_resin,
-                })
-
-        results.append(cycle_presence)
+        results.append({
+            "employee_number": emp,
+            "on_layup":        on_layup,
+            "on_close":        on_close,
+            "on_resin":        on_resin,
+        })
 
     return results
 
 
 # ---------------------------------------------------------------------------
-# Raw data loader
-# Reads from raw_mold_data instead of the API
+# Exclusion flags
 # ---------------------------------------------------------------------------
 
-def load_raw_from_db(conn, mold_name):
+def get_exclusion_reason(is_first_monday: bool,
+                         layup_missing: bool,
+                         close_missing: bool,
+                         resin_missing: bool,
+                         layup_sat: bool,
+                         close_sat: bool,
+                         resin_sat: bool) -> str | None:
+    reasons = []
+    if is_first_monday:
+        reasons.append("first_monday")
+    if layup_missing:
+        reasons.append("layup_missing")
+    if close_missing:
+        reasons.append("close_missing")
+    if resin_missing:
+        reasons.append("resin_missing")
+    if layup_sat:
+        reasons.append("layup_saturated")
+    if close_sat:
+        reasons.append("close_saturated")
+    if resin_sat:
+        reasons.append("resin_saturated")
+    return ", ".join(reasons) if reasons else None
+
+
+def is_first_monday_cycle(cycle_ts: dt.datetime,
+                          prev_cycle_ts: dt.datetime | None) -> bool:
     """
-    Load unprocessed raw rows for one mold, pre-filtered to only rows that
-    are relevant to the cleaning pipeline.
+    True if this is the first cycle of a new work week (Monday) —
+    i.e. the previous cycle was not on a Monday, or this is the first
+    cycle ever and it falls on a Monday before 08:00.
+    """
+    if cycle_ts.weekday() != 0:
+        return False
+    if prev_cycle_ts is None:
+        return cycle_ts.time() < dt.time(8, 0, 0)
+    return prev_cycle_ts.weekday() != 0
 
-    Because the database is populated from all_tags (every tag the PLC
-    logs), most rows contain only bag counts, leak counts, or other data
-    the cleaning pipeline doesn't use. Loading all rows would make the
-    operator association logic work through a much noisier dataset for no
-    benefit. The WHERE clause here replicates what using operator_tags
-    would have achieved, but from the unified all_tags archive.
 
-    Rows are included if any of the eight cleaning-relevant columns is
-    non-null. All-null rows (e.g. pure bag count rows) are excluded
-    entirely, making drop_all_nan_rows unnecessary.
+# ---------------------------------------------------------------------------
+# Raw data loaders
+# ---------------------------------------------------------------------------
+
+def load_unprocessed_cycles(conn, mold_name: str) -> pd.DataFrame:
+    """
+    Load unprocessed rows that have a non-null, non-zero Cycle Time.
+    These are the anchor rows — one per completed cycle.
     """
     df = pd.read_sql("""
         SELECT
             id               AS raw_id,
             record_timestamp AS time,
+            cycle_time       AS "Cycle Time",
             layup_time       AS "Layup Time",
             close_time       AS "Close Time",
-            resin_time       AS "Resin Time",
-            cycle_time       AS "Cycle Time",
-            lead             AS "Lead",
-            assistant_1      AS "Assistant 1",
-            assistant_2      AS "Assistant 2",
-            assistant_3      AS "Assistant 3"
+            resin_time       AS "Resin Time"
         FROM raw_mold_data
-        WHERE mold_name = ?
+        WHERE mold_name    = ?
           AND processed_at IS NULL
-          AND (
-              layup_time  IS NOT NULL OR
-              close_time  IS NOT NULL OR
-              resin_time  IS NOT NULL OR
-              cycle_time  IS NOT NULL OR
-              lead        IS NOT NULL OR
-              assistant_1 IS NOT NULL OR
-              assistant_2 IS NOT NULL OR
-              assistant_3 IS NOT NULL
-          )
+          AND cycle_time   IS NOT NULL
+          AND cycle_time   != 0
         ORDER BY record_timestamp ASC
     """, conn, params=(mold_name,))
 
@@ -406,50 +369,117 @@ def load_raw_from_db(conn, mold_name):
     return df
 
 
-# ---------------------------------------------------------------------------
-# First-Monday flag
-# Preserved from load_operator_data
-# ---------------------------------------------------------------------------
-
-def compute_first_monday_flags(datetimes):
-    weekdays = [d.weekday() for d in datetimes]
-    flags = []
-    for i, day in enumerate(weekdays):
-        if i == 0 and day == 0:
-            flags.append(1 if datetimes[i].time() < dt.time(8, 0, 0) else 0)
-        elif day == 0 and weekdays[i - 1] != 0:
-            flags.append(1)
-        else:
-            flags.append(0)
-    return flags, weekdays
+def load_all_unprocessed_ids(conn, mold_name: str) -> list[int]:
+    """Return all unprocessed raw_mold_data IDs for this mold."""
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id FROM raw_mold_data
+        WHERE mold_name = ? AND processed_at IS NULL
+    """, (mold_name,))
+    return [row[0] for row in cursor.fetchall()]
 
 
-# ---------------------------------------------------------------------------
-# Exclusion reason
-# A cycle gets a reason string if it should be excluded from reports.
-# NULL means it is includeable.
-# ---------------------------------------------------------------------------
+def lookup_stage_times(conn, mold_name: str,
+                       cycle_ts: dt.datetime,
+                       prev_cycle_ts: dt.datetime | None) -> tuple:
+    """
+    Look up stage times for a cycle when they are not present on the cycle
+    row itself.
 
-def get_exclusion_reason(is_first_monday, layup_sat, close_sat, resin_sat):
-    reasons = []
-    if is_first_monday:
-        reasons.append("first_monday")
-    if layup_sat:
-        reasons.append("layup_saturated")
-    if close_sat:
-        reasons.append("close_saturated")
-    if resin_sat:
-        reasons.append("resin_saturated")
-    return ", ".join(reasons) if reasons else None
+    Handles two historical schemas:
+    - New schema (majority): all stage times logged within milliseconds of
+      the cycle time row. A short window before cycle_ts suffices.
+    - Old schema (early data): each stage time logged when that stage
+      finished, so layup_time may arrive ~90 minutes before the cycle row.
+
+    Strategy: for each missing stage, find the most recent non-null value
+    in raw_mold_data between the previous cycle timestamp (exclusive) and
+    the current cycle timestamp (inclusive). This is schema-agnostic --
+    it works whether the value arrived 0.3 seconds or 80 minutes ago,
+    as long as it belongs to this cycle and not the previous one.
+
+    Returns (layup_min, close_min, resin_min) as floats or None.
+    """
+    # Lower bound: just after the previous cycle (or beginning of time)
+    lower_bound = (
+        (prev_cycle_ts + dt.timedelta(milliseconds=1)).isoformat()
+        if prev_cycle_ts
+        else "1970-01-01T00:00:00"
+    )
+    upper_bound = cycle_ts.isoformat()
+
+    df = pd.read_sql("""
+        SELECT layup_time AS layup,
+               close_time AS close,
+               resin_time AS resin,
+               record_timestamp AS time
+        FROM raw_mold_data
+        WHERE mold_name        = ?
+          AND record_timestamp >= ?
+          AND record_timestamp <= ?
+          AND (layup_time IS NOT NULL
+               OR close_time IS NOT NULL
+               OR resin_time IS NOT NULL)
+        ORDER BY record_timestamp ASC
+    """, conn, params=(mold_name, lower_bound, upper_bound))
+
+    layup = close = resin = None
+    for _, row in df.iterrows():
+        # Take the last non-null value seen for each stage — in the old
+        # schema the correct value is the most recent one before the cycle
+        if row["layup"] is not None:
+            v = safe_float(row["layup"])
+            if v is not None:
+                layup = v
+        if row["close"] is not None:
+            v = safe_float(row["close"])
+            if v is not None:
+                close = v
+        if row["resin"] is not None:
+            v = safe_float(row["resin"])
+            if v is not None:
+                resin = v
+
+    return layup, close, resin
+
+
+def lookup_bag_data(cursor, mold_name: str,
+                    cycle_timestamp_str: str) -> tuple:
+    window_start = (
+        dt.datetime.fromisoformat(cycle_timestamp_str)
+        - dt.timedelta(seconds=BAG_LOOKUP_WINDOW_SECONDS)
+    ).isoformat()
+
+    cursor.execute("""
+        SELECT bag, bag_cycles, bag_days
+        FROM raw_mold_data
+        WHERE mold_name       = ?
+          AND record_timestamp >= ?
+          AND record_timestamp <= ?
+          AND (bag IS NOT NULL
+               OR bag_cycles IS NOT NULL
+               OR bag_days   IS NOT NULL)
+        ORDER BY record_timestamp DESC
+        LIMIT 1
+    """, (mold_name, window_start, cycle_timestamp_str))
+
+    row = cursor.fetchone()
+    if row:
+        return (safe_int(row[0], None),
+                safe_int(row[1], None),
+                safe_int(row[2], None))
+    return None, None, None
 
 
 # ---------------------------------------------------------------------------
 # Database writers
 # ---------------------------------------------------------------------------
 
-def insert_cycle(cursor, mold_name, raw_id, cycle_timestamp, layup_time,
-                 close_time, resin_time, cycle_time, weekday, is_first_monday,
-                 layup_sat, close_sat, resin_sat, exclusion_reason,
+def insert_cycle(cursor, mold_name, raw_id, cycle_timestamp,
+                 layup_time, close_time, resin_time, cycle_time,
+                 weekday, is_first_monday,
+                 layup_sat, close_sat, resin_sat,
+                 exclusion_reason,
                  bag_number, bag_cycles_raw, bag_days_raw):
     cursor.execute("""
         INSERT OR IGNORE INTO cycles (
@@ -469,8 +499,8 @@ def insert_cycle(cursor, mold_name, raw_id, cycle_timestamp, layup_time,
     return cursor.lastrowid
 
 
-def insert_presence(cursor, cycle_id, operator_id, on_layup, on_close,
-                    on_resin, on_full_cycle):
+def insert_presence(cursor, cycle_id, operator_id,
+                    on_layup, on_close, on_resin, on_full_cycle):
     cursor.execute("""
         INSERT INTO cycle_operator_presence (
             cycle_id, operator_id,
@@ -480,368 +510,170 @@ def insert_presence(cursor, cycle_id, operator_id, on_layup, on_close,
           int(on_layup), int(on_close), int(on_resin), int(on_full_cycle)))
 
 
-def mark_raw_processed(cursor, raw_ids):
+def mark_raw_processed(cursor, raw_ids: list[int]):
     processed_at = dt.datetime.now(dt.timezone.utc).isoformat()
     cursor.executemany(
         "UPDATE raw_mold_data SET processed_at = ? WHERE id = ?",
-        [(processed_at, rid) for rid in raw_ids]
+        [(processed_at, rid) for rid in raw_ids],
     )
 
 
 # ---------------------------------------------------------------------------
-# Bag data lookup
-#
-# For each cycle timestamp, find the most recent non-null bag, bag_cycles,
-# and bag_days values in a short window before the cycle. The PLC logs these
-# on separate rows within milliseconds of the cycle time row.
+# Bag usage
 # ---------------------------------------------------------------------------
 
-BAG_LOOKUP_WINDOW_SECONDS = 10   # how far back to look for bag data
-
-def lookup_bag_data(cursor, mold_name, cycle_timestamp_str):
-    """
-    Return (bag_number, bag_cycles, bag_days) for the most recent rows
-    with non-null values within BAG_LOOKUP_WINDOW_SECONDS before the cycle.
-    Any value not found within the window is returned as None.
-    """
-    window_start = (
-        dt.datetime.fromisoformat(cycle_timestamp_str)
-        - dt.timedelta(seconds=BAG_LOOKUP_WINDOW_SECONDS)
-    ).isoformat()
-
+def update_bag_usage(cursor, mold_name: str) -> int:
+    cursor.execute("DELETE FROM bag_usage WHERE mold_name = ?", (mold_name,))
     cursor.execute("""
-        SELECT bag, bag_cycles, bag_days
-        FROM raw_mold_data
-        WHERE mold_name = ?
-          AND record_timestamp <= ?
-          AND record_timestamp >= ?
-          AND (bag IS NOT NULL OR bag_cycles IS NOT NULL OR bag_days IS NOT NULL)
-        ORDER BY record_timestamp DESC
-        LIMIT 1
-    """, (mold_name, cycle_timestamp_str, window_start))
-
-    row = cursor.fetchone()
-    if row:
-        bag_num    = int(row[0]) if row[0] is not None else None
-        bag_cycles = int(row[1]) if row[1] is not None else None
-        bag_days   = int(row[2]) if row[2] is not None else None
-        return bag_num, bag_cycles, bag_days
-    return None, None, None
-
-
-# ---------------------------------------------------------------------------
-# bag_usage validation
-#
-# Runs after all cycles for a mold are written. Walks every (bag_number,
-# mold_name) combination in chronological order and builds or updates
-# bag_usage periods. Detects counter resets by checking if bag_cycles_raw
-# decreases from one cycle to the next. A gap of more than
-# BAG_ROLLOVER_MONTHS between periods with the same bag_number means the
-# number has rolled over and we are looking at a new physical bag.
-# ---------------------------------------------------------------------------
-
-BAG_ROLLOVER_MONTHS = 12
-
-
-def update_bag_usage(cursor, mold_name):
-    """
-    Rebuild bag_usage periods for all bags that have appeared on this mold.
-
-    Uses INSERT OR IGNORE for periods that already exist (matched on
-    bag_number + period_start) so this is safe to re-run without creating
-    duplicates. Updates period_end on periods that have now closed.
-    """
-    # Load all cycles for this mold that have bag data, ordered by time
-    cursor.execute("""
-        SELECT id, cycle_timestamp, bag_number, bag_cycles_raw
+        SELECT bag_number, MIN(cycle_timestamp), MAX(cycle_timestamp),
+               COUNT(*), MAX(bag_days_raw), MAX(bag_cycles_raw)
         FROM cycles
-        WHERE mold_name = ?
-          AND bag_number IS NOT NULL
-          AND bag_cycles_raw IS NOT NULL
-        ORDER BY cycle_timestamp ASC
+        WHERE mold_name = ? AND bag_number IS NOT NULL
+        GROUP BY bag_number
+        ORDER BY MIN(cycle_timestamp)
     """, (mold_name,))
-    rows = cursor.fetchall()
 
-    if not rows:
-        return 0
-
-    # Group by bag_number
-    from collections import defaultdict
-    by_bag = defaultdict(list)
-    for cycle_id, ts, bag_num, bag_raw in rows:
-        by_bag[bag_num].append((cycle_id, ts, bag_raw))
-
-    periods_written = 0
-
-    for bag_number, cycles in by_bag.items():
-        # Sort chronologically (should already be, but be safe)
-        cycles.sort(key=lambda r: r[1])
-
-        # Walk cycles and detect period boundaries
-        # A new period starts when:
-        #   - bag_cycles_raw decreases (reset after repair)
-        #   - gap from previous cycle > BAG_ROLLOVER_MONTHS (new physical bag)
-        period_start_ts  = cycles[0][1]
-        raw_start        = cycles[0][2]
-        cumulative       = 0
-        is_reset         = 0
-        prev_raw         = cycles[0][2]
-        prev_ts          = cycles[0][1]
-
-        # Fetch existing cumulative offset for this bag's latest period
-        # so we don't overwrite manually corrected values
+    rows    = cursor.fetchall()
+    written = 0
+    for bag_num, first_ts, last_ts, n_cycles, max_days, max_cyc in rows:
         cursor.execute("""
-            SELECT cumulative_offset, raw_start_value
-            FROM bag_usage
-            WHERE bag_number = ?
-              AND period_start = ?
-        """, (bag_number, period_start_ts))
-        existing = cursor.fetchone()
-        if existing:
-            cumulative = existing[0]
-            raw_start  = existing[1]
+            INSERT INTO bag_usage (
+                mold_name, bag_number,
+                first_cycle_timestamp, last_cycle_timestamp,
+                cycle_count, max_bag_days, max_bag_cycles
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (mold_name, bag_num, first_ts, last_ts,
+              n_cycles, max_days, max_cyc))
+        written += 1
 
-        for j, (cycle_id, ts, raw_val) in enumerate(cycles):
-            if j == 0:
-                continue
-
-            # Check for rollover (new physical bag)
-            prev_dt = dt.datetime.fromisoformat(prev_ts)
-            curr_dt = dt.datetime.fromisoformat(ts)
-            months_gap = (
-                (curr_dt.year - prev_dt.year) * 12
-                + (curr_dt.month - prev_dt.month)
-            )
-
-            reset_detected = (raw_val < prev_raw) or (raw_val == 0 and prev_raw > 0)
-            rollover       = months_gap >= BAG_ROLLOVER_MONTHS
-
-            if reset_detected or rollover:
-                # Close the current period
-                cursor.execute("""
-                    INSERT OR IGNORE INTO bag_usage
-                        (bag_number, mold_name, period_start, period_end,
-                         cumulative_offset, raw_start_value, is_reset)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (bag_number, mold_name, period_start_ts, prev_ts,
-                      cumulative, raw_start, is_reset))
-                if cursor.rowcount == 0:
-                    # Period already exists -- update period_end
-                    cursor.execute("""
-                        UPDATE bag_usage SET period_end = ?
-                        WHERE bag_number = ? AND period_start = ?
-                    """, (prev_ts, bag_number, period_start_ts))
-
-                # Compute cumulative offset for new period
-                if rollover:
-                    # New physical bag -- reset lifetime total
-                    cumulative = 0
-                else:
-                    # Repair return -- carry forward lifetime total
-                    cumulative = cumulative + (prev_raw - raw_start)
-
-                period_start_ts = ts
-                raw_start       = raw_val
-                is_reset        = 0 if rollover else 1
-                periods_written += 1
-
-            prev_raw = raw_val
-            prev_ts  = ts
-
-        # Write or update the final (current) open period
-        cursor.execute("""
-            INSERT OR IGNORE INTO bag_usage
-                (bag_number, mold_name, period_start, period_end,
-                 cumulative_offset, raw_start_value, is_reset)
-            VALUES (?, ?, ?, NULL, ?, ?, ?)
-        """, (bag_number, mold_name, period_start_ts,
-              cumulative, raw_start, is_reset))
-        if cursor.rowcount == 0:
-            cursor.execute("""
-                UPDATE bag_usage
-                SET period_end = NULL,
-                    cumulative_offset = ?,
-                    raw_start_value = ?
-                WHERE bag_number = ? AND period_start = ?
-            """, (cumulative, raw_start, bag_number, period_start_ts))
-        periods_written += 1
-
-    return periods_written
+    return written
 
 
-# How close to the latest raw row a cycle must be to be considered
-# "in flight" and held back for the next run.
-IN_FLIGHT_THRESHOLD_HOURS = 2
+# ---------------------------------------------------------------------------
+# Main processing function
+# ---------------------------------------------------------------------------
 
-
-def trim_inflight_cycles(df):
-    """
-    If the last Cycle Time row in df is within IN_FLIGHT_THRESHOLD_HOURS of
-    the most recent raw row, drop it from df so it gets reprocessed next run
-    with a more complete picture.
-
-    Returns the trimmed df and a boolean indicating whether a cycle was held back.
-    """
-    cycle_mask   = df["Cycle Time"].notna() & (df["Cycle Time"] != 0)
-    cycle_rows   = df[cycle_mask]
-
-    if cycle_rows.empty:
-        return df, False
-
-    latest_raw_ts  = df["time"].iloc[-1]
-    last_cycle_ts  = cycle_rows["time"].iloc[-1]
-    age            = latest_raw_ts - last_cycle_ts
-
-    if age <= dt.timedelta(hours=IN_FLIGHT_THRESHOLD_HOURS):
-        # Drop all rows from the last cycle row onwards so the partial
-        # cycle data doesn't confuse stage association
-        last_cycle_idx = cycle_rows.index[-1]
-        df = df.loc[:last_cycle_idx - 1].copy() if last_cycle_idx > 0 else df
-        return df, True
-
-    return df, False
-
-def process_mold(mold_name, conn):
+def process_mold(mold_name: str, conn) -> tuple[int, int]:
     cursor = conn.cursor()
 
-    print(f"\n  [{mold_name}] Loading unprocessed rows from database...")
-
-    # Collect ALL unprocessed row IDs before any filtering.
-    # This includes bag count, leak count, and other rows that the
-    # pre-filter in load_raw_from_db will exclude from the DataFrame.
-    # mark_raw_processed uses this full list so those rows get stamped
-    # and don't re-appear on every subsequent run.
-    cursor.execute("""
-        SELECT id FROM raw_mold_data
-        WHERE mold_name = ? AND processed_at IS NULL
-    """, (mold_name,))
-    all_raw_ids = [row[0] for row in cursor.fetchall()]
+    all_raw_ids = load_all_unprocessed_ids(conn, mold_name)
 
     if not all_raw_ids:
         print(f"  [{mold_name}] No unprocessed rows -- skipping.")
         return 0, 0
 
-    # Load only the cleaning-relevant rows (stage times + operator columns)
-    df_raw = load_raw_from_db(conn, mold_name)
-    print(f"  [{mold_name}] {len(all_raw_ids)} total unprocessed rows, "
-          f"{len(df_raw)} relevant to cleaning pipeline.")
+    print(f"  [{mold_name}] {len(all_raw_ids)} total unprocessed rows.")
 
-    if df_raw.empty:
-        mark_raw_processed(cursor, all_raw_ids)
-        conn.commit()
-        print(f"  [{mold_name}] No cleaning-relevant rows -- marked as processed.")
-        return 0, 0
+    cycle_df = load_unprocessed_cycles(conn, mold_name)
 
-    raw_ids = list(df_raw["raw_id"])
-    print(f"  [{mold_name}] {len(raw_ids)} relevant rows to process.")
-
-    df = df_raw.sort_values("time").reset_index(drop=True)
-    date_min = df["time"].iloc[0].strftime("%Y-%m-%d")
-    date_max = df["time"].iloc[-1].strftime("%Y-%m-%d")
-    print(f"  [{mold_name}] Data spans {date_min} to {date_max}.")
-
-    # Hold back any cycle that is too recent to have a complete set of stage
-    # rows -- it may still be in progress or just finished.
-    df, held_back = trim_inflight_cycles(df)
-    if held_back:
-        print(f"  [{mold_name}] Most recent cycle held back (in-flight boundary).")
-        # Only mark rows that are still in the trimmed df as processed.
-        # Rows that were trimmed off stay unprocessed so next run picks them up.
-        kept_raw_ids = set(df["raw_id"].tolist()) if not df.empty else set()
-        # Non-cleaning rows (bag counts etc) not in df_raw are safe to mark processed.
-        cleaning_raw_ids = set(df_raw["raw_id"].tolist())
-        all_raw_ids = [
-            rid for rid in all_raw_ids
-            if rid not in cleaning_raw_ids or rid in kept_raw_ids
-        ]
-
-    print(f"  [{mold_name}] Associating cycle stages...")
-    try:
-        ind_sets, layup_inds, close_inds, resin_inds, cycle_inds = associate_cycle_stages(df)
-    except Exception as e:
-        print(f"  [{mold_name}] Stage association failed -- {e}")
-        print(f"  [{mold_name}] Marking rows as processed to avoid backlog.")
-        mark_raw_processed(cursor, all_raw_ids)
-        conn.commit()
-        return 0, 0
-
-    if not cycle_inds:
-        mark_raw_processed(cursor, all_raw_ids)
-        conn.commit()
+    if cycle_df.empty:
         print(f"  [{mold_name}] No complete cycles found -- marked as processed.")
+        mark_raw_processed(cursor, all_raw_ids)
+        conn.commit()
         return 0, 0
 
-    print(f"  [{mold_name}] Found {len(cycle_inds)} cycles. Computing flags and saturation...")
+    print(f"  [{mold_name}] {len(cycle_df)} cycle rows to process.")
 
-    layup_times = [df["Layup Time"].iloc[i] for i in layup_inds]
-    close_times = [df["Close Time"].iloc[i] for i in close_inds]
-    resin_times = [df["Resin Time"].iloc[i] for i in resin_inds]
-    cycle_times = [df["Cycle Time"].iloc[i] for i in cycle_inds]
-    datetimes   = [df["time"].iloc[i] for i in cycle_inds]
-    raw_row_ids = [df["raw_id"].iloc[i] for i in cycle_inds]
+    # Hold back the most recent cycle if it may still be in progress
+    now     = pd.Timestamp.utcnow().tz_localize(None)
+    last_ts = cycle_df["time"].iloc[-1]
+    held_back = False
 
-    first_monday_flags, weekdays = compute_first_monday_flags(datetimes)
+    if (now - last_ts) <= dt.timedelta(hours=IN_FLIGHT_THRESHOLD_HOURS):
+        # Don't process the last cycle — leave its raw rows unprocessed
+        held_back_raw_id = int(cycle_df["raw_id"].iloc[-1])
+        cycle_df = cycle_df.iloc[:-1].copy()
+        # Remove the held-back cycle row ID from the to-mark list
+        all_raw_ids = [rid for rid in all_raw_ids
+                       if rid != held_back_raw_id]
+        held_back = True
+        print(f"  [{mold_name}] Most recent cycle held back (in-flight).")
 
-    layup_saturated = [t >= LAYUP_THRESHOLD for t in layup_times]
-    close_saturated = [t >= CLOSE_THRESHOLD for t in close_times]
-    resin_saturated = [t >= RESIN_THRESHOLD for t in resin_times]
-
-    n_excluded = sum(
-        1 for i in range(len(cycle_inds))
-        if first_monday_flags[i] or layup_saturated[i]
-        or close_saturated[i] or resin_saturated[i]
-    )
-    print(f"  [{mold_name}] {n_excluded} cycles flagged for exclusion "
-          f"({len(cycle_inds) - n_excluded} reportable).")
-
-    print(f"  [{mold_name}] Resolving operator presence for each cycle...")
-    presence_by_cycle = get_operator_presence(df, ind_sets, cycle_inds)
+    if cycle_df.empty:
+        print(f"  [{mold_name}] All cycles held back -- nothing to process.")
+        return 0, 0
 
     cycles_written   = 0
     cycles_skipped   = 0
+    cycles_errored   = 0
     presence_written = 0
-    unresolved_ops   = 0
-    unresolved_set   = set()   # track unique unresolved numbers for summary
+    unresolved_set   = set()
+    unresolved_count = 0
 
-    # Progress reporting every 10%
-    total    = len(cycle_inds)
-    interval = max(1, total // 10)
+    prev_cycle_ts = None
 
-    cycles_errored = 0
-
-    for i in range(total):
-        if i > 0 and i % interval == 0:
-            pct = int(i / total * 100)
-            print(f"  [{mold_name}] {pct}% -- {cycles_written} cycles written so far...")
-
+    for _, row in cycle_df.iterrows():
+        cycle_ts = None
+        raw_id   = None
         try:
-            cycle_ts   = datetimes[i].isoformat()
-            cycle_date = datetimes[i].date().isoformat()
-            exclusion  = get_exclusion_reason(
-                first_monday_flags[i],
-                layup_saturated[i],
-                close_saturated[i],
-                resin_saturated[i]
+            cycle_ts   = row["time"].to_pydatetime()
+            cycle_date = cycle_ts.date().isoformat()
+            raw_id     = int(row["raw_id"])
+
+            # ── Stage times ────────────────────────────────────────────────
+            layup_min = safe_float(row["Layup Time"])
+            close_min = safe_float(row["Close Time"])
+            resin_min = safe_float(row["Resin Time"])
+
+            # Fall back to nearby rows if not on the cycle row
+            if any(v is None for v in (layup_min, close_min, resin_min)):
+                lb, cb, rb = lookup_stage_times(
+                    conn, mold_name, cycle_ts, prev_cycle_ts
+                )
+                if layup_min is None:
+                    layup_min = lb
+                if close_min is None:
+                    close_min = cb
+                if resin_min is None:
+                    resin_min = rb
+
+            # Treat 0 the same as missing
+            layup_missing = layup_min is None or layup_min == 0
+            close_missing = close_min is None or close_min == 0
+            resin_missing = resin_min is None or resin_min == 0
+
+            # ── Stage boundaries ──────────────────────────────────────────
+            layup_start, layup_finish, close_finish, resin_finish = (
+                calc_stage_boundaries(
+                    cycle_ts,
+                    layup_min if not layup_missing else None,
+                    close_min if not close_missing else None,
+                    resin_min if not resin_missing else None,
+                )
             )
 
+            # ── Exclusion flags ────────────────────────────────────────────
+            first_monday = is_first_monday_cycle(cycle_ts, prev_cycle_ts)
+            layup_sat    = not layup_missing and layup_min >= LAYUP_THRESHOLD
+            close_sat    = not close_missing and close_min >= CLOSE_THRESHOLD
+            resin_sat    = not resin_missing and resin_min >= RESIN_THRESHOLD
+
+            exclusion = get_exclusion_reason(
+                first_monday,
+                layup_missing, close_missing, resin_missing,
+                layup_sat, close_sat, resin_sat,
+            )
+
+            # ── Bag data ───────────────────────────────────────────────────
             bag_num, bag_cyc, bag_days = lookup_bag_data(
-                cursor, mold_name, cycle_ts
+                cursor, mold_name, cycle_ts.isoformat()
             )
 
+            # ── Write cycle ────────────────────────────────────────────────
             cycle_db_id = insert_cycle(
                 cursor,
                 mold_name        = mold_name,
-                raw_id           = safe_int(raw_row_ids[i]),
-                cycle_timestamp  = cycle_ts,
-                layup_time       = layup_times[i],
-                close_time       = close_times[i],
-                resin_time       = resin_times[i],
-                cycle_time       = cycle_times[i],
-                weekday          = weekdays[i],
-                is_first_monday  = first_monday_flags[i],
-                layup_sat        = layup_saturated[i],
-                close_sat        = close_saturated[i],
-                resin_sat        = resin_saturated[i],
+                raw_id           = raw_id,
+                cycle_timestamp  = cycle_ts.isoformat(),
+                layup_time       = layup_min,
+                close_time       = close_min,
+                resin_time       = resin_min,
+                cycle_time       = safe_float(row["Cycle Time"]),
+                weekday          = cycle_ts.weekday(),
+                is_first_monday  = first_monday,
+                layup_sat        = layup_sat,
+                close_sat        = close_sat,
+                resin_sat        = resin_sat,
                 exclusion_reason = exclusion,
                 bag_number       = bag_num,
                 bag_cycles_raw   = bag_cyc,
@@ -850,81 +682,66 @@ def process_mold(mold_name, conn):
 
             if cursor.rowcount == 0:
                 cycles_skipped += 1
+                prev_cycle_ts = cycle_ts
                 continue
+
             cycles_written += 1
+            prev_cycle_ts  = cycle_ts
 
-            # Merge presence entries by operator before inserting.
-            # The same operator can appear multiple times in presence_by_cycle[i]
-            # if they clocked in and out during the cycle window. We take the
-            # logical OR across all their entries so a single row per
-            # (cycle_id, operator_id) pair is inserted with the union of
-            # whichever stages they were present for.
-            merged = {}
-            for op in presence_by_cycle[i]:
+            # ── Operator presence ──────────────────────────────────────────
+            presence_list = get_operator_presence_for_cycle(
+                conn, mold_name, cycle_ts,
+                layup_start, layup_finish, close_finish, resin_finish,
+            )
+
+            for op in presence_list:
                 emp_num = op["employee_number"]
-                if emp_num in (0, 1):
-                    continue
-                if emp_num not in merged:
-                    merged[emp_num] = {
-                        "on_layup": False,
-                        "on_close": False,
-                        "on_resin": False,
-                    }
-                merged[emp_num]["on_layup"] = merged[emp_num]["on_layup"] or op["on_layup"]
-                merged[emp_num]["on_close"] = merged[emp_num]["on_close"] or op["on_close"]
-                merged[emp_num]["on_resin"] = merged[emp_num]["on_resin"] or op["on_resin"]
-
-            for emp_num, stages in merged.items():
-                operator_id = resolve_operator_id(cursor, emp_num, cycle_date)
-                if operator_id is None:
-                    unresolved_ops += 1
+                op_id   = resolve_operator_id(cursor, emp_num, cycle_date)
+                if op_id is None:
+                    unresolved_count += 1
                     unresolved_set.add(emp_num)
                     continue
 
-                on_full = stages["on_layup"] and stages["on_close"] and stages["on_resin"]
+                on_full = (op["on_layup"]
+                           and op["on_close"]
+                           and op["on_resin"])
                 insert_presence(
                     cursor,
                     cycle_id      = cycle_db_id,
-                    operator_id   = operator_id,
-                    on_layup      = stages["on_layup"],
-                    on_close      = stages["on_close"],
-                    on_resin      = stages["on_resin"],
+                    operator_id   = op_id,
+                    on_layup      = op["on_layup"],
+                    on_close      = op["on_close"],
+                    on_resin      = op["on_resin"],
                     on_full_cycle = on_full,
                 )
                 presence_written += 1
 
         except Exception as e:
             cycles_errored += 1
-            # Print enough detail to identify the problem row
-            print(f"  [{mold_name}] ERROR on cycle {i} "
-                  f"(timestamp: {datetimes[i]}, "
-                  f"raw_id: {raw_row_ids[i]}, "
-                  f"cycle_time: {cycle_times[i]}, "
-                  f"layup: {layup_times[i]}, "
-                  f"close: {close_times[i]}, "
-                  f"resin: {resin_times[i]}, "
-                  f"presence: {presence_by_cycle[i]})")
-            print(f"  [{mold_name}]   Error was: {type(e).__name__}: {e}")
-            print(f"  [{mold_name}]   Skipping this cycle and continuing...")
+            print(f"  [{mold_name}] ERROR on cycle "
+                  f"(ts={cycle_ts}, raw_id={raw_id}): "
+                  f"{type(e).__name__}: {e}")
 
+    # ── Bag usage ──────────────────────────────────────────────────────────
     print(f"  [{mold_name}] Updating bag usage periods...")
     bag_periods = update_bag_usage(cursor, mold_name)
 
+    # ── Mark processed ─────────────────────────────────────────────────────
     print(f"  [{mold_name}] Writing changes to database...")
     mark_raw_processed(cursor, all_raw_ids)
     conn.commit()
 
     print(f"  [{mold_name}] Done.")
-    print(f"    Cycles written:   {cycles_written}")
+    print(f"    Cycles written:                   {cycles_written}")
     print(f"    Cycles skipped (already existed): {cycles_skipped}")
-    print(f"    Cycles errored (skipped): {cycles_errored}")
-    print(f"    Presence rows written: {presence_written}")
-    print(f"    Bag usage periods: {bag_periods}")
-    if unresolved_ops > 0:
-        print(f"    Unresolved operator lookups: {unresolved_ops} "
+    print(f"    Cycles errored (skipped):         {cycles_errored}")
+    print(f"    Presence rows written:            {presence_written}")
+    print(f"    Bag usage periods:                {bag_periods}")
+    if unresolved_count > 0:
+        print(f"    Unresolved operator lookups: {unresolved_count} "
               f"(unique numbers: {sorted(unresolved_set)})")
-        print(f"    Add these employee numbers to the operators table "
-              f"and re-run to capture their presence data.")
+        print(f"    Add these to the operators table and re-run to "
+              f"capture their presence data.")
 
     return cycles_written, presence_written
 
@@ -932,9 +749,6 @@ def process_mold(mold_name, conn):
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-
-MOLDS = ["Brown", "Purple", "Red", "Pink", "Orange", "Green"]
-
 
 def run_cleaning(db_path=DB_PATH):
     if not os.path.exists(db_path):
@@ -959,16 +773,16 @@ def run_cleaning(db_path=DB_PATH):
             total_cycles   += c
             total_presence += p
         except Exception as e:
-            print(f"  [{mold_name}] ERROR -- {e}")
+            print(f"  [{mold_name}] FATAL ERROR -- {e}")
             errors.append((mold_name, str(e)))
             conn.rollback()
 
     conn.close()
 
-    elapsed = dt.datetime.now() - start_time
-    elapsed_str = str(elapsed).split(".")[0]   # trim microseconds
+    elapsed     = dt.datetime.now() - start_time
+    elapsed_str = str(elapsed).split(".")[0]
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"Cleaning pipeline complete.")
     print(f"  Time elapsed:        {elapsed_str}")
     print(f"  Total cycles:        {total_cycles}")
