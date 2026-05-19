@@ -150,6 +150,12 @@ def associate_cycle_stages(df):
     resin_filtered = []
 
     for ind in cycle_inds:
+        # If any stage index list is empty we cannot associate this cycle --
+        # skip it rather than crashing. This happens when the PLC logs a
+        # Cycle Time row but no corresponding Layup/Close/Resin rows arrived
+        # in this batch (e.g. a partial cycle at the boundary of a fetch window).
+        if not layup_inds or not close_inds or not resin_inds:
+            continue
         cl = closest_by_timestamp(ind, layup_inds, df)
         cc = closest_by_timestamp(ind, close_inds, df)
         cr = closest_by_timestamp(ind, resin_inds, df)
@@ -158,7 +164,9 @@ def associate_cycle_stages(df):
         resin_filtered.append(cr)
         ind_sets.append([cl, cc, cr, ind])
 
-    return ind_sets, layup_filtered, close_filtered, resin_filtered, cycle_inds
+    # cycle_inds_out contains only cycles that were successfully associated
+    cycle_inds_out = [s[3] for s in ind_sets]
+    return ind_sets, layup_filtered, close_filtered, resin_filtered, cycle_inds_out
 
 
 # ---------------------------------------------------------------------------
@@ -661,9 +669,37 @@ def update_bag_usage(cursor, mold_name):
     return periods_written
 
 
-# ---------------------------------------------------------------------------
-# Main processing function for one mold
-# ---------------------------------------------------------------------------
+# How close to the latest raw row a cycle must be to be considered
+# "in flight" and held back for the next run.
+IN_FLIGHT_THRESHOLD_HOURS = 2
+
+
+def trim_inflight_cycles(df):
+    """
+    If the last Cycle Time row in df is within IN_FLIGHT_THRESHOLD_HOURS of
+    the most recent raw row, drop it from df so it gets reprocessed next run
+    with a more complete picture.
+
+    Returns the trimmed df and a boolean indicating whether a cycle was held back.
+    """
+    cycle_mask   = df["Cycle Time"].notna() & (df["Cycle Time"] != 0)
+    cycle_rows   = df[cycle_mask]
+
+    if cycle_rows.empty:
+        return df, False
+
+    latest_raw_ts  = df["time"].iloc[-1]
+    last_cycle_ts  = cycle_rows["time"].iloc[-1]
+    age            = latest_raw_ts - last_cycle_ts
+
+    if age <= dt.timedelta(hours=IN_FLIGHT_THRESHOLD_HOURS):
+        # Drop all rows from the last cycle row onwards so the partial
+        # cycle data doesn't confuse stage association
+        last_cycle_idx = cycle_rows.index[-1]
+        df = df.loc[:last_cycle_idx - 1].copy() if last_cycle_idx > 0 else df
+        return df, True
+
+    return df, False
 
 def process_mold(mold_name, conn):
     cursor = conn.cursor()
@@ -704,11 +740,29 @@ def process_mold(mold_name, conn):
     date_max = df["time"].iloc[-1].strftime("%Y-%m-%d")
     print(f"  [{mold_name}] Data spans {date_min} to {date_max}.")
 
+    # Hold back any cycle that is too recent to have a complete set of stage
+    # rows -- it may still be in progress or just finished.
+    df, held_back = trim_inflight_cycles(df)
+    if held_back:
+        print(f"  [{mold_name}] Most recent cycle held back (in-flight boundary).")
+        # Only mark rows that are still in the trimmed df as processed.
+        # Rows that were trimmed off stay unprocessed so next run picks them up.
+        kept_raw_ids = set(df["raw_id"].tolist()) if not df.empty else set()
+        # Non-cleaning rows (bag counts etc) not in df_raw are safe to mark processed.
+        cleaning_raw_ids = set(df_raw["raw_id"].tolist())
+        all_raw_ids = [
+            rid for rid in all_raw_ids
+            if rid not in cleaning_raw_ids or rid in kept_raw_ids
+        ]
+
     print(f"  [{mold_name}] Associating cycle stages...")
     try:
         ind_sets, layup_inds, close_inds, resin_inds, cycle_inds = associate_cycle_stages(df)
     except Exception as e:
         print(f"  [{mold_name}] Stage association failed -- {e}")
+        print(f"  [{mold_name}] Marking rows as processed to avoid backlog.")
+        mark_raw_processed(cursor, all_raw_ids)
+        conn.commit()
         return 0, 0
 
     if not cycle_inds:
