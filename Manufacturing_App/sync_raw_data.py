@@ -123,20 +123,19 @@ KNOWN_TEMP_COLUMNS = {"time"} | set(TEMP_REF_TO_COLUMN.keys())
 # Timezone helpers
 # ---------------------------------------------------------------------------
 
-def to_api_timestring(naive_datetime):
+def to_api_timestring(naive_mountain_datetime):
     """
-    Convert a naive local (Mountain) datetime to the CET-based string
-    StrideLinx expects, with the 1-hour offset adjustment.
+    Convert a naive Mountain Time datetime to a UTC timestamp string for the
+    StrideLinx API. pytz handles DST transitions automatically -- no manual
+    hour adjustments needed.
     """
-    local_tz = pytz.timezone(LOCAL_TZ_NAME)
-    cet      = pytz.timezone("CET")
-    localized = local_tz.localize(naive_datetime)
-    as_cet    = localized.astimezone(cet)
-    adjusted  = as_cet - dt.timedelta(hours=1)
-    return adjusted.strftime("%Y-%m-%dT%H:%M:%SZ")
+    local_tz  = pytz.timezone(LOCAL_TZ_NAME)
+    localized = local_tz.localize(naive_mountain_datetime)
+    as_utc    = localized.astimezone(pytz.utc)
+    return as_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def now_local():
+def now_mountain():
     """Current time as a naive datetime in Mountain time."""
     return dt.datetime.now(pytz.timezone(LOCAL_TZ_NAME)).replace(tzinfo=None)
 
@@ -372,7 +371,7 @@ def sync_mold(mold_name, conn):
         latest = get_latest_timestamp(cursor, mold_name)
 
         if latest is None:
-            dtstart = now_local() - dt.timedelta(days=INITIAL_LOOKBACK_DAYS)
+            dtstart = now_mountain() - dt.timedelta(days=INITIAL_LOOKBACK_DAYS)
             print(f"  {mold_name}: No existing data. "
                   f"Fetching last {INITIAL_LOOKBACK_DAYS} days.")
         else:
@@ -381,7 +380,7 @@ def sync_mold(mold_name, conn):
                        + dt.timedelta(milliseconds=1))
             print(f"  {mold_name}: Fetching from {dtstart} onwards.")
 
-        dtend = now_local()
+        dtend = now_mountain()
 
         if dtstart >= dtend:
             print(f"  {mold_name}: Already up to date.")
@@ -482,7 +481,7 @@ def sync_resin(resin_name, conn):
         latest = cursor.fetchone()[0]
 
         if latest is None:
-            dtstart = now_local() - dt.timedelta(days=INITIAL_LOOKBACK_DAYS)
+            dtstart = now_mountain() - dt.timedelta(days=INITIAL_LOOKBACK_DAYS)
             print(f"  {resin_name}: No existing data. "
                   f"Fetching last {INITIAL_LOOKBACK_DAYS} days.")
         else:
@@ -490,7 +489,7 @@ def sync_resin(resin_name, conn):
                        + dt.timedelta(milliseconds=1))
             print(f"  {resin_name}: Fetching from {dtstart} onwards.")
 
-        dtend = now_local()
+        dtend = now_mountain()
 
         if dtstart >= dtend:
             print(f"  {resin_name}: Already up to date.")
@@ -625,7 +624,7 @@ def sync_temperature(conn):
         latest = cursor.fetchone()[0]
 
         if latest is None:
-            dtstart = now_local() - dt.timedelta(days=INITIAL_LOOKBACK_DAYS)
+            dtstart = now_mountain() - dt.timedelta(days=INITIAL_LOOKBACK_DAYS)
             print(f"  Ambient Temperature: No existing data. "
                   f"Fetching last {INITIAL_LOOKBACK_DAYS} days.")
         else:
@@ -633,7 +632,7 @@ def sync_temperature(conn):
                        + dt.timedelta(milliseconds=1))
             print(f"  Ambient Temperature: Fetching from {dtstart} onwards.")
 
-        dtend = now_local()
+        dtend = now_mountain()
 
         if dtstart >= dtend:
             print(f"  Ambient Temperature: Already up to date.")
