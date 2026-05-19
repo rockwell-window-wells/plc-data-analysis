@@ -575,7 +575,7 @@ def process_mold(mold_name: str, conn) -> tuple[int, int]:
     print(f"  [{mold_name}] {len(cycle_df)} cycle rows to process.")
 
     # Hold back the most recent cycle if it may still be in progress
-    now     = pd.Timestamp.utcnow().tz_localize(None)
+    now     = pd.Timestamp.now("UTC").tz_localize(None)
     last_ts = cycle_df["time"].iloc[-1]
     held_back = False
 
@@ -694,24 +694,39 @@ def process_mold(mold_name: str, conn) -> tuple[int, int]:
                 layup_start, layup_finish, close_finish, resin_finish,
             )
 
+            # Merge entries for the same employee number (operator may have
+            # clocked out and back in during the cycle, producing two intervals
+            # with the same number). Take logical OR across all their entries.
+            merged = {}
             for op in presence_list:
-                emp_num = op["employee_number"]
-                op_id   = resolve_operator_id(cursor, emp_num, cycle_date)
+                emp = op["employee_number"]
+                if emp not in merged:
+                    merged[emp] = {
+                        "on_layup": False,
+                        "on_close": False,
+                        "on_resin": False,
+                    }
+                merged[emp]["on_layup"] = merged[emp]["on_layup"] or op["on_layup"]
+                merged[emp]["on_close"] = merged[emp]["on_close"] or op["on_close"]
+                merged[emp]["on_resin"] = merged[emp]["on_resin"] or op["on_resin"]
+
+            for emp_num, stages in merged.items():
+                op_id = resolve_operator_id(cursor, emp_num, cycle_date)
                 if op_id is None:
                     unresolved_count += 1
                     unresolved_set.add(emp_num)
                     continue
 
-                on_full = (op["on_layup"]
-                           and op["on_close"]
-                           and op["on_resin"])
+                on_full = (stages["on_layup"]
+                           and stages["on_close"]
+                           and stages["on_resin"])
                 insert_presence(
                     cursor,
                     cycle_id      = cycle_db_id,
                     operator_id   = op_id,
-                    on_layup      = op["on_layup"],
-                    on_close      = op["on_close"],
-                    on_resin      = op["on_resin"],
+                    on_layup      = stages["on_layup"],
+                    on_close      = stages["on_close"],
+                    on_resin      = stages["on_resin"],
                     on_full_cycle = on_full,
                 )
                 presence_written += 1
