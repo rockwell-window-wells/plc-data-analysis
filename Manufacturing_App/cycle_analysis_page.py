@@ -119,7 +119,7 @@ INPUT_STYLE = {
 # ---------------------------------------------------------------------------
 
 def build_scatter(df: pd.DataFrame, x_col: str, y_col: str,
-                  color_col: str) -> go.Figure:
+                  color_col: str, opacity: float = 0.35) -> go.Figure:
     """
     Build an interactive Plotly scatter plot from the explorer DataFrame.
 
@@ -160,20 +160,20 @@ def build_scatter(df: pd.DataFrame, x_col: str, y_col: str,
             y=subset[y_col],
             mode="markers",
             name=name,
-            marker=dict(color=color, size=5, opacity=0.35),
+            marker=dict(color=color, size=5, opacity=opacity),
             hovertemplate=(
                 f"{x_label}: %{{x}}<br>"
                 f"{y_label}: %{{y:.2f}} min<br>"
                 "Mold: %{customdata[1]}<br>"
                 "Operator: %{customdata[2]}<br>"
-                "Employee #: %{customdata[5]}<br>"
                 "Shift: %{customdata[3]}<br>"
                 "Time: %{customdata[4]}"
                 "<extra></extra>"
             ),
+            # customdata[0] = cycle_id, used to match selected points back
+            # to the stored DataFrame without re-querying the database.
             customdata=subset[["cycle_id", "mold_name", "operator_name",
-                                "shift", "cycle_timestamp",
-                                "employee_number"]].values,
+                                "shift", "cycle_timestamp"]].values,
         )
 
     if color_col == "none" or color_col not in plot_df.columns:
@@ -369,6 +369,18 @@ def layout():
                                     "fontSize": "13px", "color": "#334155",
                                     "lineHeight": "2", "cursor": "pointer",
                                 },
+                            ),
+                        ]),
+
+                        html.Div(style=PANEL, children=[
+                            html.Label("Point Opacity", style=LABEL),
+                            dcc.Slider(
+                                id="explorer-opacity",
+                                min=0.1, max=1.0, step=0.1,
+                                value=0.35,
+                                marks={v/10: str(round(v/10, 1))
+                                       for v in range(1, 11)},
+                                tooltip={"always_visible": False},
                             ),
                         ]),
 
@@ -572,10 +584,11 @@ def register_callbacks(app):
         State("explorer-date-start",   "date"),
         State("explorer-date-end",     "date"),
         State("explorer-options",      "value"),
+        State("explorer-opacity",      "value"),
         prevent_initial_call=True,
     )
     def run_explorer(n_clicks, y_col, x_col, color_col, mold,
-                     emp_numbers, date_start, date_end, options):
+                     emp_numbers, date_start, date_end, options, opacity):
         exclude_flagged = "include_flagged" not in (options or [])
         try:
             conn = get_connection(DB_PATH)
@@ -596,7 +609,8 @@ def register_callbacks(app):
             return (build_scatter(None, x_col, y_col, color_col),
                     [], "No data found for the selected filters.", None, None)
 
-        fig        = build_scatter(df, x_col, y_col, color_col)
+        fig        = build_scatter(df, x_col, y_col, color_col,
+                                   opacity=opacity or 0.35)
         stats_rows = _build_stats_table(df, y_col, color_col)
         status     = f"{len(df):,} cycles loaded."
 
