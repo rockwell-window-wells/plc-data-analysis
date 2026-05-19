@@ -522,31 +522,118 @@ def mark_raw_processed(cursor, raw_ids: list[int]):
 # Bag usage
 # ---------------------------------------------------------------------------
 
+BAG_ROLLOVER_MONTHS = 12
+
+
 def update_bag_usage(cursor, mold_name: str) -> int:
-    cursor.execute("DELETE FROM bag_usage WHERE mold_name = ?", (mold_name,))
+    """
+    Rebuild bag_usage periods for all bags that have appeared on this mold.
+
+    Uses INSERT OR IGNORE for periods that already exist (matched on
+    bag_number + period_start) so this is safe to re-run without creating
+    duplicates. Updates period_end on periods that have now closed.
+    """
+    from collections import defaultdict
+
     cursor.execute("""
-        SELECT bag_number, MIN(cycle_timestamp), MAX(cycle_timestamp),
-               COUNT(*), MAX(bag_days_raw), MAX(bag_cycles_raw)
+        SELECT id, cycle_timestamp, bag_number, bag_cycles_raw
         FROM cycles
-        WHERE mold_name = ? AND bag_number IS NOT NULL
-        GROUP BY bag_number
-        ORDER BY MIN(cycle_timestamp)
+        WHERE mold_name       = ?
+          AND bag_number      IS NOT NULL
+          AND bag_cycles_raw  IS NOT NULL
+        ORDER BY cycle_timestamp ASC
     """, (mold_name,))
+    rows = cursor.fetchall()
 
-    rows    = cursor.fetchall()
-    written = 0
-    for bag_num, first_ts, last_ts, n_cycles, max_days, max_cyc in rows:
+    if not rows:
+        return 0
+
+    by_bag = defaultdict(list)
+    for cycle_id, ts, bag_num, bag_raw in rows:
+        by_bag[bag_num].append((cycle_id, ts, bag_raw))
+
+    periods_written = 0
+
+    for bag_number, cycles in by_bag.items():
+        cycles.sort(key=lambda r: r[1])
+
+        period_start_ts = cycles[0][1]
+        raw_start       = cycles[0][2]
+        cumulative      = 0
+        is_reset        = 0
+        prev_raw        = cycles[0][2]
+        prev_ts         = cycles[0][1]
+
         cursor.execute("""
-            INSERT INTO bag_usage (
-                mold_name, bag_number,
-                first_cycle_timestamp, last_cycle_timestamp,
-                cycle_count, max_bag_days, max_bag_cycles
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (mold_name, bag_num, first_ts, last_ts,
-              n_cycles, max_days, max_cyc))
-        written += 1
+            SELECT cumulative_offset, raw_start_value
+            FROM bag_usage
+            WHERE bag_number  = ?
+              AND period_start = ?
+        """, (bag_number, period_start_ts))
+        existing = cursor.fetchone()
+        if existing:
+            cumulative = existing[0]
+            raw_start  = existing[1]
 
-    return written
+        for j, (cycle_id, ts, raw_val) in enumerate(cycles):
+            if j == 0:
+                continue
+
+            prev_dt    = dt.datetime.fromisoformat(prev_ts)
+            curr_dt    = dt.datetime.fromisoformat(ts)
+            months_gap = (
+                (curr_dt.year  - prev_dt.year)  * 12
+                + (curr_dt.month - prev_dt.month)
+            )
+
+            reset_detected = (raw_val < prev_raw) or (raw_val == 0 and prev_raw > 0)
+            rollover       = months_gap >= BAG_ROLLOVER_MONTHS
+
+            if reset_detected or rollover:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO bag_usage
+                        (bag_number, mold_name, period_start, period_end,
+                         cumulative_offset, raw_start_value, is_reset)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (bag_number, mold_name, period_start_ts, prev_ts,
+                      cumulative, raw_start, is_reset))
+                if cursor.rowcount == 0:
+                    cursor.execute("""
+                        UPDATE bag_usage SET period_end = ?
+                        WHERE bag_number = ? AND period_start = ?
+                    """, (prev_ts, bag_number, period_start_ts))
+
+                cumulative = (0 if rollover
+                              else cumulative + (prev_raw - raw_start))
+
+                period_start_ts = ts
+                raw_start       = raw_val
+                is_reset        = 0 if rollover else 1
+                periods_written += 1
+
+            prev_raw = raw_val
+            prev_ts  = ts
+
+        # Write or update the final open period
+        cursor.execute("""
+            INSERT OR IGNORE INTO bag_usage
+                (bag_number, mold_name, period_start, period_end,
+                 cumulative_offset, raw_start_value, is_reset)
+            VALUES (?, ?, ?, NULL, ?, ?, ?)
+        """, (bag_number, mold_name, period_start_ts,
+              cumulative, raw_start, is_reset))
+        if cursor.rowcount == 0:
+            cursor.execute("""
+                UPDATE bag_usage
+                SET period_end        = NULL,
+                    cumulative_offset = ?,
+                    raw_start_value   = ?
+                WHERE bag_number  = ?
+                  AND period_start = ?
+            """, (cumulative, raw_start, bag_number, period_start_ts))
+        periods_written += 1
+
+    return periods_written
 
 
 # ---------------------------------------------------------------------------
