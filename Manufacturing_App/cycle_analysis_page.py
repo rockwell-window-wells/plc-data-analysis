@@ -662,9 +662,11 @@ def register_callbacks(app):
         State("explorer-scatter",       "selectedData"),
         State("explorer-data-store",    "data"),
         State("explorer-axis-store",    "data"),
+        State("explorer-opacity",       "value"),
         prevent_initial_call=True,
     )
-    def export_pdf(n_clicks, current_fig, selected_data, df_json, axis_data):
+    def export_pdf(n_clicks, current_fig, selected_data, df_json, axis_data,
+                   opacity):
         if not df_json or not axis_data:
             return None
         try:
@@ -677,6 +679,7 @@ def register_callbacks(app):
             y_col   = axis_data.get("y", "cycle_time")
             x_col   = axis_data.get("x", "hour_of_day")
             color_col = axis_data.get("color", "none")
+            alpha   = float(opacity) if opacity is not None else 0.35
 
             # Determine which rows to use
             if selected_data and selected_data.get("points"):
@@ -699,13 +702,13 @@ def register_callbacks(app):
 
             if color_col == "none" or color_col not in plot_df.columns:
                 ax.scatter(plot_df[x_col], plot_df[y_col],
-                           color="#2563eb", s=10, alpha=0.35)
+                           color="#2563eb", s=10, alpha=alpha)
             elif color_col == "mold_name":
                 for mold in sorted(plot_df["mold_name"].dropna().unique()):
                     sub   = plot_df[plot_df["mold_name"] == mold]
                     color = MOLD_COLORS.get(mold, "#64748b")
                     ax.scatter(sub[x_col], sub[y_col],
-                               color=color, s=10, alpha=0.35, label=mold)
+                               color=color, s=10, alpha=alpha, label=mold)
                 ax.legend(fontsize=8)
             else:
                 categories = ([d for d in DAY_ORDER
@@ -716,13 +719,30 @@ def register_callbacks(app):
                     sub = plot_df[plot_df[color_col] == cat]
                     ax.scatter(sub[x_col], sub[y_col],
                                color=PALETTE[j % len(PALETTE)],
-                               s=10, alpha=0.35, label=str(cat))
+                               s=10, alpha=alpha, label=str(cat))
                 ax.legend(fontsize=8)
 
             ax.set_xlabel(x_label)
             ax.set_ylabel(y_label)
             ax.set_title(f"{y_label} vs {x_label}")
             ax.grid(True, color="#e2e8f0", linewidth=0.5)
+
+            # For datetime axes use AutoDateLocator/Formatter so matplotlib
+            # picks an appropriate density automatically. For other axes,
+            # only rotate if there are more than 8 ticks.
+            if x_col == "cycle_timestamp":
+                import matplotlib.dates as mdates
+                ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+                ax.xaxis.set_major_formatter(mdates.AutoDateFormatter(
+                    mdates.AutoDateLocator()
+                ))
+                fig.autofmt_xdate(rotation=30, ha="right")
+            else:
+                fig.canvas.draw()
+                if len(ax.get_xticklabels()) > 8:
+                    plt.setp(ax.get_xticklabels(), rotation=45,
+                             ha="right", rotation_mode="anchor", fontsize=8)
+
             fig.tight_layout()
 
             tmp_img = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
