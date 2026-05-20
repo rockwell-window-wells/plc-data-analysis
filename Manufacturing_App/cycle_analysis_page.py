@@ -676,6 +676,12 @@ def register_callbacks(app):
             import matplotlib.pyplot as plt
 
             df      = pd.read_json(io.StringIO(df_json), orient="split")
+            # cycle_timestamp comes back from JSON as integer nanoseconds;
+            # convert it explicitly so matplotlib renders dates correctly.
+            if "cycle_timestamp" in df.columns:
+                df["cycle_timestamp"] = pd.to_datetime(
+                    df["cycle_timestamp"], unit="ms", errors="coerce"
+                )
             y_col   = axis_data.get("y", "cycle_time")
             x_col   = axis_data.get("x", "hour_of_day")
             color_col = axis_data.get("color", "none")
