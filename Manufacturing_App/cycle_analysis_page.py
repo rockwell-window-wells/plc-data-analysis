@@ -733,15 +733,36 @@ def register_callbacks(app):
             ax.set_title(f"{y_label} vs {x_label}")
             ax.grid(True, color="#e2e8f0", linewidth=0.5)
 
-            # For datetime axes use AutoDateLocator/Formatter so matplotlib
-            # picks an appropriate density automatically. For other axes,
-            # only rotate if there are more than 8 ticks.
+            # For datetime axes use range-aware tick density
             if x_col == "cycle_timestamp":
                 import matplotlib.dates as mdates
-                ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-                ax.xaxis.set_major_formatter(mdates.AutoDateFormatter(
-                    mdates.AutoDateLocator()
-                ))
+
+                date_range = plot_df[x_col].max() - plot_df[x_col].min()
+                days = date_range.total_seconds() / 86400
+
+                if days <= 3:
+                    # Up to 3 days: tick every 3 hours
+                    locator   = mdates.HourLocator(byhour=range(0, 24, 3))
+                    formatter = mdates.DateFormatter("%m-%d %H:%M")
+                elif days <= 14:
+                    # Up to 2 weeks: tick every 12 hours
+                    locator   = mdates.HourLocator(byhour=[0, 12])
+                    formatter = mdates.DateFormatter("%m-%d %H:%M")
+                elif days <= 60:
+                    # Up to 2 months: daily ticks
+                    locator   = mdates.DayLocator(interval=2)
+                    formatter = mdates.DateFormatter("%b %d")
+                elif days <= 365:
+                    # Up to a year: weekly ticks
+                    locator   = mdates.WeekdayLocator(byweekday=0)
+                    formatter = mdates.DateFormatter("%b %d")
+                else:
+                    # More than a year: monthly ticks
+                    locator   = mdates.MonthLocator()
+                    formatter = mdates.DateFormatter("%b %Y")
+
+                ax.xaxis.set_major_locator(locator)
+                ax.xaxis.set_major_formatter(formatter)
                 fig.autofmt_xdate(rotation=30, ha="right")
             else:
                 fig.canvas.draw()
