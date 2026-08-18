@@ -1139,6 +1139,8 @@ def register_callbacks(app):
         pd.DataFrame(rows).to_json(stats_json, orient="split")
         stats_json = stats_json.getvalue()
 
+        return fig, rows, columns, status, raw_json, stats_json
+
     # ── Export stats table as CSV ──
     @app.callback(
         Output("resin-stats-download",    "data"),
