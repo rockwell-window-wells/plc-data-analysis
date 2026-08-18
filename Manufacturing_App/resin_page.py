@@ -18,6 +18,7 @@ Add "Resin Analysis" / "/resin-analysis" to nav.py PAGES.
 """
 
 import datetime as dt
+import io
 
 import pandas as pd
 import numpy as np
@@ -906,8 +907,51 @@ def layout():
                         ]),
 
                         html.Div(style=PANEL, children=[
-                            html.Label("Summary Statistics",
-                                       style={**LABEL, "marginBottom": "10px"}),
+                            html.Div(style={
+                                "display": "flex",
+                                "justifyContent": "space-between",
+                                "alignItems": "center",
+                                "marginBottom": "10px",
+                            }, children=[
+                                html.Label("Summary Statistics",
+                                           style={**LABEL, "marginBottom": "0",
+                                                  "display": "inline-block"}),
+                                html.Div(style={"display": "flex", "gap": "8px"},
+                                         children=[
+                                    html.Button(
+                                        "Export Stats CSV",
+                                        id="resin-export-stats-btn",
+                                        style={
+                                            "padding": "5px 12px",
+                                            "backgroundColor": "#ffffff",
+                                            "color": "#2563eb",
+                                            "border": "1px solid #2563eb",
+                                            "borderRadius": "5px",
+                                            "fontFamily": "Inter, sans-serif",
+                                            "fontSize": "12px",
+                                            "fontWeight": "600",
+                                            "cursor": "pointer",
+                                        },
+                                    ),
+                                    html.Button(
+                                        "Export Raw Data CSV",
+                                        id="resin-export-raw-btn",
+                                        style={
+                                            "padding": "5px 12px",
+                                            "backgroundColor": "#ffffff",
+                                            "color": "#475569",
+                                            "border": "1px solid #cbd5e1",
+                                            "borderRadius": "5px",
+                                            "fontFamily": "Inter, sans-serif",
+                                            "fontSize": "12px",
+                                            "fontWeight": "600",
+                                            "cursor": "pointer",
+                                        },
+                                    ),
+                                    dcc.Download(id="resin-stats-download"),
+                                    dcc.Download(id="resin-raw-download"),
+                                ]),
+                            ]),
                             dash_table.DataTable(
                                 id="resin-stats-table",
                                 columns=[],
@@ -942,6 +986,7 @@ def layout():
             ]),
 
             dcc.Store(id="resin-data-store"),
+            dcc.Store(id="resin-stats-store"),
         ],
     )
 
@@ -1023,12 +1068,13 @@ def register_callbacks(app):
         except Exception:
             return []
 
-    # ── Run: load data, build chart, populate stats ──
     @app.callback(
         Output("resin-chart",       "figure"),
         Output("resin-stats-table", "data"),
         Output("resin-stats-table", "columns"),
         Output("resin-status",      "children"),
+        Output("resin-data-store",  "data"),
+        Output("resin-stats-store", "data"),
         Input("resin-run-btn",      "n_clicks"),
         State("resin-chart-type",     "value"),
         State("resin-station-select", "value"),
@@ -1045,18 +1091,18 @@ def register_callbacks(app):
         if not stations:
             return (
                 _empty_fig("Select at least one resin station."),
-                [], [], "Select at least one resin station.",
+                [], [], "Select at least one resin station.", None, None,
             )
 
         try:
             df = load_resin_data(DB_PATH, stations, date_start, date_end)
         except Exception as e:
-            return _empty_fig(f"Database error: {e}"), [], [], f"Error: {e}"
+            return _empty_fig(f"Database error: {e}"), [], [], f"Error: {e}", None, None
 
         if df.empty:
             return (
                 _empty_fig("No data found for the selected filters."),
-                [], [], "No data found.",
+                [], [], "No data found.", None, None,
             )
 
         # Build chart
@@ -1084,4 +1130,62 @@ def register_callbacks(app):
         columns   = [{"name": c, "id": c} for c in col_names]
         status    = f"{len(df):,} dispense records loaded."
 
-        return fig, rows, columns, status
+        # Serialize for export callbacks.
+        # Drop the Timestamp column for JSON serialisation safety.
+        df_export = df.copy()
+        df_export["record_timestamp"] = df_export["record_timestamp"].astype(str)
+        raw_json   = df_export.to_json(orient="split")
+        stats_json = io.StringIO()
+        pd.DataFrame(rows).to_json(stats_json, orient="split")
+        stats_json = stats_json.getvalue()
+
+    # ── Export stats table as CSV ──
+    @app.callback(
+        Output("resin-stats-download",    "data"),
+        Input("resin-export-stats-btn",   "n_clicks"),
+        State("resin-stats-store",        "data"),
+        State("resin-chart-type",         "value"),
+        prevent_initial_call=True,
+    )
+    def export_stats_csv(n_clicks, stats_json, chart_type):
+        if not stats_json:
+            return None
+        try:
+            df_stats = pd.read_json(io.StringIO(stats_json), orient="split")
+            if df_stats.empty:
+                return None
+            csv_str  = df_stats.to_csv(index=False)
+            filename = (f"resin_{chart_type}_stats_"
+                        f"{dt.datetime.now().strftime('%Y%m%d_%H%M')}.csv")
+            return dcc.send_string(csv_str, filename)
+        except Exception as e:
+            print(f"Stats export error: {e}")
+            return None
+
+    # ── Export raw dispense data as CSV ──
+    @app.callback(
+        Output("resin-raw-download",    "data"),
+        Input("resin-export-raw-btn",   "n_clicks"),
+        State("resin-data-store",       "data"),
+        prevent_initial_call=True,
+    )
+    def export_raw_csv(n_clicks, raw_json):
+        if not raw_json:
+            return None
+        try:
+            df_raw = pd.read_json(io.StringIO(raw_json), orient="split")
+            if df_raw.empty:
+                return None
+            # Drop internal derived columns that aren't meaningful outside
+            # the app (hour, month, month_name, used_extra are easily
+            # re-derived; keeping the raw source columns is most useful)
+            drop_cols = [c for c in ["hour", "month", "month_name", "used_extra"]
+                         if c in df_raw.columns]
+            df_raw = df_raw.drop(columns=drop_cols)
+            csv_str  = df_raw.to_csv(index=False)
+            filename = (f"resin_raw_data_"
+                        f"{dt.datetime.now().strftime('%Y%m%d_%H%M')}.csv")
+            return dcc.send_string(csv_str, filename)
+        except Exception as e:
+            print(f"Raw export error: {e}")
+            return None
